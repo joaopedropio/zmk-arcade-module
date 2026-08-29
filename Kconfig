@@ -14,13 +14,6 @@ config PACMAN_FRAME_INTERVAL
       33 ms is roughly 30 frames per second.  Raise it for a calmer,
       cheaper animation, lower it for a snappier one.
 
-config PACMAN_START_DELAY
-    int "Milliseconds to wait before the first frame"
-    default 600
-    help
-      Gives LVGL time to flush its (empty) screen once before the maze
-      is painted over it.
-
 config PACMAN_WPM_SPEED
     bool "Speed the game up while you type"
     default y
@@ -84,3 +77,278 @@ config PACMAN_GHOST_3_COLOR
 config PACMAN_FRIGHT_COLOR
     string "Colour of a frightened ghost (rrggbb)"
     default "2121de"
+
+# ------------------------------------------------------------------
+# Splash screen and dashboard.  The dashboard is a grid of slots; each
+# PACMAN_INFO_SLOT_* names what goes in one of them, and the colours
+# below are the custom theme (theme 0).  Holding the action button
+# steps through the built-in themes, which recolour all of it.
+# ------------------------------------------------------------------
+
+config PACMAN_BATTERY_BG_COLOR
+    string ""
+    default "000000"
+
+config PACMAN_BATTERY_BG_COLOR_1
+    string ""
+    default "000000"
+
+config PACMAN_BATTERY_BG_COLOR_2
+    string ""
+    default "000000"
+
+config PACMAN_BATTERY_NUM_COLOR
+    string ""
+    default "ffee00"
+
+config PACMAN_BATTERY_NUM_COLOR_1
+    string ""
+    default "ffee00"
+
+config PACMAN_BATTERY_NUM_COLOR_2
+    string ""
+    default "ffee00"
+
+config PACMAN_BATTERY_PERCENTAGE_COLOR
+    string ""
+    default "ffb897"
+
+config PACMAN_BATTERY_PERCENTAGE_COLOR_1
+    string ""
+    default "ffb897"
+
+config PACMAN_BATTERY_PERCENTAGE_COLOR_2
+    string ""
+    default "ffb897"
+
+config PACMAN_BATTERY_SLOTS
+    int "Battery Slots"
+    default 2
+
+config PACMAN_BATTERY_WIDGET_BG_COLOR
+    string ""
+    default "000000"
+
+config PACMAN_BATTERY_WIDGET_NUM_COLOR
+    string ""
+    default "ffee00"
+
+config PACMAN_BATTERY_WIDGET_NUMBER
+    int ""
+    default 0
+
+config PACMAN_BATTERY_WIDGET_PERCENTAGE_COLOR
+    string ""
+    default "ffb897"
+
+config PACMAN_BATTERY_WIDGET_TEXT_COLOR
+    string ""
+    default "ffb897"
+
+config PACMAN_BT_BG_COLOR
+    string ""
+    default "000000"
+
+config PACMAN_BT_NUM_COLOR
+    string ""
+    default "00ffff"
+
+config PACMAN_BT_STATUS_BG_COLOR
+    string ""
+    default "000000"
+
+config PACMAN_BT_STATUS_NOT_OK_COLOR
+    string ""
+    default "ff0000"
+
+config PACMAN_BT_STATUS_OK_COLOR
+    string ""
+    default "00e000"
+
+config PACMAN_BT_STATUS_OPEN_COLOR
+    string ""
+    default "ffb852"
+
+config PACMAN_DEFAULT_SCREEN
+    string "Default screen"
+    default "game"
+
+config PACMAN_FRAME_COLOR
+    string ""
+    default "2121de"
+
+config PACMAN_FRAME_COLOR_1
+    string ""
+    default "101078"
+
+config PACMAN_INFO_SLOT_1
+    string "Info slot 1"
+    default "modifiers"
+
+config PACMAN_INFO_SLOT_2
+    string "Info slot 2"
+    default "theme"
+
+config PACMAN_INFO_SLOT_3
+    string "Info slot 3"
+    default "wpm"
+
+config PACMAN_INFO_SLOT_4
+    string "Info slot 4"
+    default "empty"
+
+config PACMAN_INFO_SLOT_5
+    string "Info slot 5"
+    default "connectivity"
+
+config PACMAN_INFO_SLOT_6
+    string "Info slot 6"
+    default "layer"
+
+config PACMAN_INFO_SLOT_MODE
+    string "Info slot mode"
+    default "2-slot"
+
+config PACMAN_LAYER_FONT_BG_COLOR
+    string ""
+    default "000000"
+
+config PACMAN_LAYER_FONT_COLOR
+    string ""
+    default "ffee00"
+
+config PACMAN_LOGO_ACCENT_COLOR
+    string ""
+    default "ffb897"
+
+config PACMAN_LOGO_BG_COLOR
+    string ""
+    default "000000"
+
+config PACMAN_LOGO_FONT_COLOR
+    string ""
+    default "ffee00"
+
+config PACMAN_LOGO_WALK_INTERVAL
+    int "Logo walk interval"
+    default 50
+
+config PACMAN_MENU_BG_COLOR
+    string ""
+    default "000000"
+
+config PACMAN_MODIFIER_BG_COLOR
+    string ""
+    default "000000"
+
+config PACMAN_MODIFIER_SELECTED_COLOR
+    string ""
+    default "ffee00"
+
+config PACMAN_MODIFIER_UNSELECTED_COLOR
+    string ""
+    default "2121de"
+
+config PACMAN_SPLASH_BG_COLOR
+    string ""
+    default "000000"
+
+config PACMAN_SPLASH_CREATED_BY_COLOR
+    string ""
+    default "ffb897"
+
+config PACMAN_SPLASH_FRAMES
+    int "Ticks the splash screen stays up"
+    default 50
+    help
+      Times PACMAN_SPLASH_INTERVAL.  The default is two and a half seconds,
+      which is long enough that LVGL's first flush of its empty screen lands
+      on the splash rather than on the game.
+
+config PACMAN_SPLASH_INTERVAL
+    int "Milliseconds between splash screen ticks"
+    default 50
+
+config PACMAN_SPLASH_LOGO_COLOR
+    string ""
+    default "ffee00"
+
+config PACMAN_SPLASH_MULTICOLOR_0
+    string ""
+    default "000000"
+
+config PACMAN_SPLASH_MULTICOLOR_1
+    string ""
+    default "2121de"
+
+config PACMAN_SPLASH_MULTICOLOR_2
+    string ""
+    default "ffee00"
+
+config PACMAN_SPLASH_MULTICOLOR_3
+    string ""
+    default "ff0000"
+
+config PACMAN_SYMBOL_BG_COLOR
+    string ""
+    default "000000"
+
+config PACMAN_SYMBOL_SELECTED_COLOR
+    string ""
+    default "ffee00"
+
+config PACMAN_SYMBOL_UNSELECTED_COLOR
+    string ""
+    default "2121de"
+
+config PACMAN_THEME_BG_COLOR
+    string "Theme background color"
+    default "000000"
+
+config PACMAN_THEME_BG_DARKER_COLOR
+    string "Theme background darker color"
+    default "000000"
+
+config PACMAN_THEME_FONT_BG_COLOR
+    string ""
+    default "000000"
+
+config PACMAN_THEME_FONT_COLOR
+    string ""
+    default "ffb897"
+
+config PACMAN_THEME_FONT_COLOR_1
+    string ""
+    default "ffee00"
+
+config PACMAN_THEME_PRIMARY_COLOR
+    string "Theme primary color"
+    default "ffb897"
+
+config PACMAN_THEME_SECONDARY_COLOR
+    string "Theme secondary color"
+    default "2121de"
+
+config PACMAN_THEME_THRESHOLD
+    int "Theme threshold"
+    default 300
+
+config PACMAN_USE_BATTERY_FONT_3X5
+    bool "Use battery font 3x5"
+    default n
+
+config PACMAN_USE_COMPLETE_CUSTOM_THEME
+    bool "Complete custom theme"
+    default y
+
+config PACMAN_WPM_FONT_1_COLOR
+    string ""
+    default "ffee00"
+
+config PACMAN_WPM_FONT_BG_COLOR
+    string ""
+    default "000000"
+
+config PACMAN_WPM_FONT_COLOR
+    string ""
+    default "ffb897"

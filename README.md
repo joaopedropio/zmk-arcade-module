@@ -166,6 +166,54 @@ resumes it.
 
 ## Configuration
 
+## Three screens
+
+The panel is shared by three things, one at a time, and none of them is an
+LVGL widget - they all draw straight to the display.
+
+**The splash** goes up first: the wordmark, Pac-Man about to run into a ghost,
+and who to blame. It stays for `PACMAN_SPLASH_FRAMES` ticks of
+`PACMAN_SPLASH_INTERVAL` (two and a half seconds by default), which is also
+what keeps LVGL's first flush of its own empty screen off the game.
+
+**The game** is the maze, and it owns the whole panel.
+
+**The dashboard** is a grid of slots: `PACMAN_INFO_SLOT_MODE` picks the layout
+and `PACMAN_INFO_SLOT_1` … `_6` say what goes in each one - `connectivity`,
+`layer`, `theme`, `wpm`, `modifiers`, `battery` or nothing. Its header is a
+lap of the maze in miniature, a ring of pellets with Pac-Man running it and a
+ghost a few steps behind, which is the one thing on the dongle that animates
+while the game is not running. Batteries take the strip along the bottom, one,
+two or three of them per `PACMAN_BATTERY_SLOTS`.
+
+`PACMAN_DEFAULT_SCREEN` decides which of the last two comes up after the
+splash. One key on the keymap swaps between them and cycles the theme - bind
+`&dongle_action_behavior` to it, then tap it to swap screens or hold it past
+`PACMAN_THEME_THRESHOLD` to step to the next theme. Themes are the eleven
+colour schemes in `helpers/display.c`; the first is yours to set with
+`PACMAN_THEME_*`, and the choice is remembered across reboots.
+
+Themes colour the splash and the dashboard. The maze keeps the arcade's own
+colours whatever theme is up - they are set separately, by the
+`PACMAN_*_COLOR` options in the table below.
+
+The screens, their fonts and the slot machinery are ported from
+[snake-module](https://github.com/joaopedropio/snake-module): same widgets,
+same slot layout, same drawing helpers, with the artwork and the palette
+redrawn for this one. What was left behind is the sound - there is no buzzer
+support here, so the third (longest) press action snake uses for mute is gone.
+
+Both screens can be looked at without flashing anything:
+
+```sh
+tools/uisim/build.sh /tmp/uisim
+/tmp/uisim /tmp/frames        # splash.ppm and dashboard.ppm
+```
+
+That harness stubs Zephyr out and points the drawing helpers at a plain frame
+buffer, so it shows the layout and the artwork but not the slot contents,
+which come from ZMK state the host has none of.
+
 All options live in `Kconfig` and are prefixed with `PACMAN_`. Put them in
 your `config/<shield>.conf` (or the shield's `pacman_adapter.conf`):
 
@@ -173,7 +221,6 @@ your `config/<shield>.conf` (or the shield's `pacman_adapter.conf`):
 |---|---|---|
 | `CONFIG_PACMAN_ROTATE_DISPLAY` | `0` | Panel rotation: 0, 90, 180 or 270. Only the rotation you pick is compiled in. |
 | `CONFIG_PACMAN_FRAME_INTERVAL` | `33` | Milliseconds per frame (33 ≈ 30 fps). |
-| `CONFIG_PACMAN_START_DELAY` | `600` | Milliseconds before the first frame, so LVGL's initial flush cannot wipe the maze. |
 | `CONFIG_PACMAN_WPM_SPEED` | `y` | Speed the game up while you type. |
 | `CONFIG_PACMAN_WPM_SLOW` / `_FAST` | `20` / `60` | WPM thresholds for the 3px and 5px gears, either side of the 4px default. |
 | `CONFIG_PACMAN_BG_COLOR` | `000000` | Background. |
@@ -250,12 +297,29 @@ boards/shields/pacman_adapter/
 ├── custom_status_screen.c      hands ZMK an empty screen, starts the timer
 └── widgets/
     ├── pacman.c                display device, palette, LVGL timer, WPM speed
-    ├── action_button.c         pause / resume
+    ├── action_button.c         swaps screens, cycles themes
+    ├── splash.c                the wordmark, the chase and the credit
+    ├── logo.c                  the dashboard's animated header
+    ├── frames.c                the boxes the slots are drawn in
+    ├── configuration.c         Kconfig into runtime settings
+    ├── theme.c                 the colour schemes and which one is current
+    ├── battery_status.c        \
+    ├── output_status.c          | the slot widgets: what ZMK knows,
+    ├── layer_status.c           | drawn into whichever slot holds it
+    ├── wpm.c                    |
+    ├── modifier.c              /
+    ├── pacman_art.h            splash sprites (generated, see tools/sprites.py)
+    ├── helpers/
+    │   ├── display.c           the drawing engine: bitmaps, text, rectangles, themes, slots
+    │   ├── fonts.h             six pixel fonts
+    │   └── settings.c          the theme, remembered across reboots
     └── game/
         ├── pacman_core.c       maze, Pac-Man's pathfinding, ghost AI, rounds
         └── pacman_render.c     sprites, tiles and dirty-rectangle blitting
 src/, include/, dts/            the zmk,behavior-dongle-action behaviour
-tools/sim/                      host simulator
+tools/sim/                      host simulator for the game
+tools/uisim/                    host preview for the splash and the dashboard
+tools/sprites.py                regenerates the splash artwork
 ```
 
 ## Credits
