@@ -94,11 +94,22 @@ static bool solid_tile(const pm_game *g, int tx, int ty) {
  */
 enum { PM_WPX_OUT = 0, PM_WPX_LINE, PM_WPX_FILL };
 
-/* dx, dy are the distances in from the two open sides, so the centre of the
- * arc sits at (PM_WALL_R, PM_WALL_R) and the tile corner is at (0, 0) */
-static int corner_px(int dx, int dy) {
-    int a = PM_WALL_R - dx;
-    int b = PM_WALL_R - dy;
+/*
+ * The widest a corner box gets, when neither side faces a door.  The four
+ * boxes of a tile have to stay apart, or a pixel would fall in two of them and
+ * only the first would be drawn.
+ */
+#define PM_CORNER (PM_WALL_INSET + PM_WALL_R)
+_Static_assert(2 * PM_CORNER <= PM_TILE, "PM_WALL_INSET + PM_WALL_R too big for PM_TILE");
+
+/*
+ * An outside corner, where two open sides meet: a quarter circle tangent to
+ * both drawn faces.  cx, cy are where those faces put the centre - one radius
+ * in from each - which lets the two sides carry different insets.
+ */
+static int corner_px(int dx, int dy, int cx, int cy) {
+    int a = cx - dx;
+    int b = cy - dy;
     int d2 = a * a + b * b;
     int inner = PM_WALL_R - PM_WALL_LINE;
 
@@ -108,54 +119,99 @@ static int corner_px(int dx, int dy) {
     return d2 > inner * inner ? PM_WPX_LINE : PM_WPX_FILL;
 }
 
+/*
+ * An inside corner, where both neighbours are wall but the diagonal is open.
+ * Nothing has to be drawn from the open tile's side to round it: the inset
+ * already stands the wall off the corridor, so the whole turn happens inside
+ * the wall tiles and the corridor keeps its full width.  What matters is the
+ * distance to that open tile rather than to any one side, which rounds the
+ * corner off on its own as the inset grows.  Distances are squared to keep it
+ * integer: the nearest pixel of the diagonal tile is one further out than dx,
+ * dy count.
+ */
+static int diagonal_px(int dx, int dy) {
+    int d2 = (dx + 1) * (dx + 1) + (dy + 1) * (dy + 1);
+    int out = PM_WALL_INSET + 1;
+    int line = PM_WALL_INSET + PM_WALL_LINE + 1;
+
+    if (d2 < out * out) {
+        return PM_WPX_OUT;
+    }
+    return d2 < line * line ? PM_WPX_LINE : PM_WPX_FILL;
+}
+
+/*
+ * The ghost house door is not solid - ghosts pass through it - but it is part
+ * of the wall that closes the house, and it is drawn as a line spanning its
+ * own tile.  A wall standing back from it would leave the two ends of that
+ * line hanging in the gap, so a face looking at a door keeps its outline but
+ * takes no inset.
+ */
+static bool door_face(const pm_game *g, int tx, int ty) {
+    if (tx < 0 || tx >= PM_COLS || ty < 0 || ty >= PM_ROWS) {
+        return false;
+    }
+    return g->tiles[ty][tx] == PM_T_DOOR;
+}
+
 static int wall_px(const pm_game *g, int tx, int ty, int ix, int iy) {
     bool open_l = !solid_tile(g, tx - 1, ty);
     bool open_r = !solid_tile(g, tx + 1, ty);
     bool open_u = !solid_tile(g, tx, ty - 1);
     bool open_d = !solid_tile(g, tx, ty + 1);
 
+    /* how far the wall stands back from each side it faces */
+    int il = door_face(g, tx - 1, ty) ? 0 : PM_WALL_INSET;
+    int ir = door_face(g, tx + 1, ty) ? 0 : PM_WALL_INSET;
+    int iu = door_face(g, tx, ty - 1) ? 0 : PM_WALL_INSET;
+    int id = door_face(g, tx, ty + 1) ? 0 : PM_WALL_INSET;
+
     /* distances in from each of the four sides */
     int dl = ix, dr = PM_TILE - 1 - ix;
     int du = iy, dd = PM_TILE - 1 - iy;
 
-    /* 2 * PM_WALL_R <= PM_TILE, so at most one corner box holds the pixel */
-    if (dl < PM_WALL_R && du < PM_WALL_R && open_l && open_u) {
-        return corner_px(dl, du);
-    }
-    if (dr < PM_WALL_R && du < PM_WALL_R && open_r && open_u) {
-        return corner_px(dr, du);
-    }
-    if (dl < PM_WALL_R && dd < PM_WALL_R && open_l && open_d) {
-        return corner_px(dl, dd);
-    }
-    if (dr < PM_WALL_R && dd < PM_WALL_R && open_r && open_d) {
-        return corner_px(dr, dd);
+    if ((open_l && dl < il) || (open_r && dr < ir) ||
+        (open_u && du < iu) || (open_d && dd < id)) {
+        return PM_WPX_OUT;
     }
 
-    bool near_l = dl < PM_WALL_LINE;
-    bool near_r = dr < PM_WALL_LINE;
-    bool near_u = du < PM_WALL_LINE;
-    bool near_d = dd < PM_WALL_LINE;
-
-    if ((open_l && near_l) || (open_r && near_r) ||
-        (open_u && near_u) || (open_d && near_d)) {
-        return PM_WPX_LINE;
+    /* corner boxes are at most PM_CORNER, so only one can hold the pixel */
+    if (open_l && open_u && dl < il + PM_WALL_R && du < iu + PM_WALL_R) {
+        return corner_px(dl, du, il + PM_WALL_R, iu + PM_WALL_R);
+    }
+    if (open_r && open_u && dr < ir + PM_WALL_R && du < iu + PM_WALL_R) {
+        return corner_px(dr, du, ir + PM_WALL_R, iu + PM_WALL_R);
+    }
+    if (open_l && open_d && dl < il + PM_WALL_R && dd < id + PM_WALL_R) {
+        return corner_px(dl, dd, il + PM_WALL_R, id + PM_WALL_R);
+    }
+    if (open_r && open_d && dr < ir + PM_WALL_R && dd < id + PM_WALL_R) {
+        return corner_px(dr, dd, ir + PM_WALL_R, id + PM_WALL_R);
     }
 
-    /* corner nub: both neighbours solid, but the diagonal between them is not */
-    if (near_l && near_u && !open_l && !open_u && !solid_tile(g, tx - 1, ty - 1)) {
+    if ((open_l && dl < il + PM_WALL_LINE) || (open_r && dr < ir + PM_WALL_LINE) ||
+        (open_u && du < iu + PM_WALL_LINE) || (open_d && dd < id + PM_WALL_LINE)) {
         return PM_WPX_LINE;
     }
-    if (near_r && near_u && !open_r && !open_u && !solid_tile(g, tx + 1, ty - 1)) {
-        return PM_WPX_LINE;
+
+    int px = PM_WPX_FILL;
+    if (!open_l && !open_u && !solid_tile(g, tx - 1, ty - 1)) {
+        int d = diagonal_px(dl, du);
+        px = d < px ? d : px;
     }
-    if (near_l && near_d && !open_l && !open_d && !solid_tile(g, tx - 1, ty + 1)) {
-        return PM_WPX_LINE;
+    if (!open_r && !open_u && !solid_tile(g, tx + 1, ty - 1)) {
+        int d = diagonal_px(dr, du);
+        px = d < px ? d : px;
     }
-    if (near_r && near_d && !open_r && !open_d && !solid_tile(g, tx + 1, ty + 1)) {
-        return PM_WPX_LINE;
+    if (!open_l && !open_d && !solid_tile(g, tx - 1, ty + 1)) {
+        int d = diagonal_px(dl, dd);
+        px = d < px ? d : px;
     }
-    return PM_WPX_FILL;
+    if (!open_r && !open_d && !solid_tile(g, tx + 1, ty + 1)) {
+        int d = diagonal_px(dr, dd);
+        px = d < px ? d : px;
+    }
+    return px;
 }
 
 static uint16_t wall_colour(const pm_game *g, bool house, bool line) {
@@ -168,71 +224,12 @@ static uint16_t wall_colour(const pm_game *g, bool house, bool line) {
     return line ? pal.wall_edge : pal.wall_fill;
 }
 
-/*
- * The inside of an elbow: a corridor tile with wall along two perpendicular
- * sides.  The wall wraps that corner, and rounding it means the fillet bulges
- * into the corridor - so unlike the convex corners it has to be drawn from the
- * open tile, not the wall.  The arc is tangent to both wall faces, which puts
- * its centre PM_WALL_R - PM_WALL_LINE in from each of them, and everything
- * beyond it belongs to the wall.
- *
- * Corridors are a whole tile wide against sprites that are nearly as wide, so
- * this only ever bites into a corner a sprite's circle does not reach.
- */
-static bool elbow_px(const pm_game *g, int tx, int ty, int ix, int iy, uint16_t *col) {
-    int dl = ix, dr = PM_TILE - 1 - ix;
-    int du = iy, dd = PM_TILE - 1 - iy;
-
-    /* nothing to do down the middle of the tile, which is most of it */
-    if ((dl >= PM_WALL_R && dr >= PM_WALL_R) || (du >= PM_WALL_R && dd >= PM_WALL_R)) {
-        return false;
-    }
-
-    bool west = dl < PM_WALL_R;
-    bool north = du < PM_WALL_R;
-    int wx = west ? tx - 1 : tx + 1;
-    int wy = north ? ty - 1 : ty + 1;
-    /*
-     * Real wall tiles only.  solid_tile() calls everything off the grid solid
-     * so the outer wall gets no outline, but that wall is the border line
-     * painted round the panel - it is PM_MARGIN thick, not a tile, so an arc
-     * tangent to a tile face would not meet it.  The maze corners stay square,
-     * which is what the square border wants anyway.
-     */
-    if (wx < 0 || wx >= PM_COLS || wy < 0 || wy >= PM_ROWS) {
-        return false;
-    }
-    if (!solid_tile(g, wx, ty) || !solid_tile(g, tx, wy)) {
-        return false;
-    }
-
-    int c = PM_WALL_R - PM_WALL_LINE;
-    int a = c - (west ? dl : dr);
-    int b = c - (north ? du : dd);
-    int d2 = a * a + b * b;
-    if (d2 <= PM_WALL_R * PM_WALL_R) {
-        return false; /* still corridor */
-    }
-
-    int outer = PM_WALL_R + PM_WALL_LINE;
-    bool house = (g->tiles[ty][wx] == PM_T_HWALL);
-    *col = wall_colour(g, house, d2 <= outer * outer);
-    return true;
-}
-
 static uint16_t bg_pixel(const pm_game *g, int px, int py) {
     int tx = px / PM_TILE;
     int ty = py / PM_TILE;
     uint8_t t = g->tiles[ty][tx];
     int ix = px - tx * PM_TILE;
     int iy = py - ty * PM_TILE;
-
-    if (t != PM_T_WALL && t != PM_T_HWALL) {
-        uint16_t c;
-        if (elbow_px(g, tx, ty, ix, iy, &c)) {
-            return c;
-        }
-    }
 
     switch (t) {
     case PM_T_WALL:
@@ -487,39 +484,64 @@ static void paint(pm_game *g, int x0, int y0, int w, int h) {
 }
 
 /*
- * The maze has no border tiles: what walls it in is the margin left over from
- * PM_COLS * PM_TILE, painted in the wall colour at the very edge of the panel.
- * The sides have to open up wherever a row runs off into the tunnel.
+ * The maze has no border tiles: what walls it in is a frame drawn in the
+ * margin left over from PM_COLS * PM_TILE.  The frame hugs the playfield and
+ * is PM_BORDER_LINE thick (or the whole margin, when that is thinner); any
+ * margin outside it is background, which is what keeps the outer wall as light
+ * as the walls inside when the tile size leaves a wide margin.
+ *
+ * The far margin is a pixel wider than the near one when the leftover is odd,
+ * so the two are painted from PM_MARGIN and PM_MARGIN_END separately; using
+ * PM_MARGIN for both would leave the last row and column of the panel with
+ * whatever happened to be on it.
  */
+#define PM_FRAME_NEAR (PM_BORDER_LINE < PM_MARGIN ? PM_BORDER_LINE : PM_MARGIN)
+#define PM_FRAME_FAR  (PM_BORDER_LINE < PM_MARGIN_END ? PM_BORDER_LINE : PM_MARGIN_END)
+#define PM_FRAME_LO   (PM_MARGIN - PM_FRAME_NEAR)
+#define PM_FRAME_HI   (PM_MARGIN + PM_WIDTH - 1 + PM_FRAME_FAR)
+
+/* colour of one pixel of the margin, in panel coordinates */
+static uint16_t border_pixel(const pm_game *g, int px, int py, uint16_t line) {
+    if (px < PM_FRAME_LO || px > PM_FRAME_HI || py < PM_FRAME_LO || py > PM_FRAME_HI) {
+        return pal.bg;
+    }
+    /* the sides open up wherever a row runs off into the tunnel */
+    bool side = (px < PM_MARGIN || px >= PM_MARGIN + PM_WIDTH);
+    bool cap = (py < PM_MARGIN || py >= PM_MARGIN + PM_HEIGHT);
+    if (side && !cap && ((g->tunnel_rows >> ((py - PM_MARGIN) / PM_TILE)) & 1u)) {
+        return pal.bg;
+    }
+    return line;
+}
+
+/* fills one band of the margin; the four of them cover it exactly once */
+static void paint_band(const pm_game *g, int x0, int y0, int w, int h, uint16_t line) {
+    if (w <= 0 || h <= 0) {
+        return;
+    }
+    uint8_t *out = scratch;
+    for (int y = y0; y < y0 + h; y++) {
+        for (int x = x0; x < x0 + w; x++) {
+            uint16_t c = border_pixel(g, x, y, line);
+            *out++ = (uint8_t)(c >> 8);
+            *out++ = (uint8_t)(c & 0xFF);
+        }
+    }
+    pm_blit((uint16_t)x0, (uint16_t)y0, (uint16_t)w, (uint16_t)h, scratch);
+}
+
 static void paint_border(const pm_game *g) {
-    if (PM_MARGIN == 0) {
+    if (PM_MARGIN == 0 && PM_MARGIN_END == 0) {
         return; /* paint() covers the whole panel and draws the line itself */
     }
 
     uint16_t line = g->flash ? pal.wall_flash : pal.wall_edge;
-    uint8_t hi = (uint8_t)(line >> 8), lo = (uint8_t)(line & 0xFF);
-    uint8_t *out = scratch;
+    int inner = PM_MARGIN + PM_HEIGHT;
 
-    for (int i = 0; i < PM_PANEL * PM_MARGIN; i++) {
-        *out++ = hi;
-        *out++ = lo;
-    }
-    pm_blit(0, 0, PM_PANEL, PM_MARGIN, scratch);
-    pm_blit(0, PM_PANEL - PM_MARGIN, PM_PANEL, PM_MARGIN, scratch);
-
-    for (int side = 0; side < 2; side++) {
-        out = scratch;
-        for (int y = 0; y < PM_HEIGHT; y++) {
-            bool tunnel = (g->tunnel_rows >> (y / PM_TILE)) & 1u;
-            uint16_t c = tunnel ? pal.bg : line;
-            for (int i = 0; i < PM_MARGIN; i++) {
-                *out++ = (uint8_t)(c >> 8);
-                *out++ = (uint8_t)(c & 0xFF);
-            }
-        }
-        pm_blit((uint16_t)(side ? PM_PANEL - PM_MARGIN : 0), PM_MARGIN, PM_MARGIN, PM_HEIGHT,
-                scratch);
-    }
+    paint_band(g, 0, 0, PM_PANEL, PM_MARGIN, line);
+    paint_band(g, 0, inner, PM_PANEL, PM_MARGIN_END, line);
+    paint_band(g, 0, PM_MARGIN, PM_MARGIN, PM_HEIGHT, line);
+    paint_band(g, PM_MARGIN + PM_WIDTH, PM_MARGIN, PM_MARGIN_END, PM_HEIGHT, line);
 }
 
 static void paint_all(pm_game *g) {

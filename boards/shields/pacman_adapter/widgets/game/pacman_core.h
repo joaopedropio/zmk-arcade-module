@@ -19,15 +19,20 @@
  * and a corridor tile dead centre, which is where the ghost house goes.
  *
  * 9 is the smallest odd grid that still holds a maze worth watching, and it
- * buys the biggest tile: 26px carries a 24px sprite, where the old 12x12 grid
- * could only afford 18px.  On a 240px panel legibility beats layout - the
- * animation has to read at arm's length.
+ * buys a big tile: at 24px the sprites run 26px, wider than the tile itself,
+ * where the old 12x12 grid could only afford 18px.  On a 240px panel legibility beats layout - the animation
+ * has to read at arm's length.
+ *
+ * A wall is one tile thick in the layout, so the tile size sets how heavy the
+ * walls can look; PM_WALL_INSET then trims what is actually drawn, which is
+ * how the walls get lighter without the corridors or the sprites following
+ * them down.  9 * 24 also leaves an even margin, so the maze sits dead centre.
  */
 #define PM_COLS   9
 #define PM_ROWS   9
-#define PM_TILE   26                     /* pixels per tile */
-#define PM_WIDTH  (PM_COLS * PM_TILE)    /* 234 */
-#define PM_HEIGHT (PM_ROWS * PM_TILE)    /* 234 */
+#define PM_TILE   24                     /* pixels per tile */
+#define PM_WIDTH  (PM_COLS * PM_TILE)    /* 216 */
+#define PM_HEIGHT (PM_ROWS * PM_TILE)    /* 216 */
 
 /*
  * No tile is spent on a border: the maze is walled in by a line drawn round
@@ -37,8 +42,16 @@
  * that line; when it divides exactly the line is drawn over the outermost
  * pixels of the maze instead.
  */
-#define PM_PANEL  240                              /* the dongle's square panel */
-#define PM_MARGIN ((PM_PANEL - PM_WIDTH) / 2)      /* 3 at 9x26 */
+/*
+ * PM_MARGIN is the left and top margin, PM_MARGIN_END the right and bottom
+ * one.  They are equal at 9x24, but differ by a pixel whenever the panel and
+ * the grid leave an odd number over, and then the maze cannot sit dead centre.
+ * Anything painting the margin has to use the right one of the two or it
+ * leaves a line of the panel untouched down the far edge.
+ */
+#define PM_PANEL      240                                    /* the dongle's square panel */
+#define PM_MARGIN     ((PM_PANEL - PM_WIDTH) / 2)            /* 12 at 9x24 */
+#define PM_MARGIN_END (PM_PANEL - PM_MARGIN - PM_WIDTH)      /* 12 at 9x24 */
 
 #define PM_GHOSTS 4
 #define PM_ACTORS (PM_GHOSTS + 1)        /* ghosts + pac-man */

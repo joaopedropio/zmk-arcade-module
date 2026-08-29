@@ -23,12 +23,31 @@
  */
 #define PM_WALL_LINE  1                                 /* wall outline thickness */
 /*
- * Corner radius where two open sides of a wall meet.  Must be no more than
- * half a tile, so the four corner boxes of a tile cannot overlap; at exactly
- * half, the end of a one-tile-wide wall becomes a semicircular cap.
+ * How far the drawn wall stops short of its tile on every side that faces open
+ * space.  A wall is one tile thick in the layout, but drawing it in by this
+ * much on each side makes it 2 * PM_WALL_INSET thinner on screen and the
+ * corridor beside it that much wider, without touching the maze itself or the
+ * size of the sprites running down it.  Walls that meet stay joined: only
+ * open-facing sides are pulled in.
+ */
+#define PM_WALL_INSET 4                                 /* wall drawn 8px thinner */
+/*
+ * Corner radius where two open sides of a wall meet.  It reaches PM_WALL_INSET
+ * further in than the tile edge, so the two together must be no more than half
+ * a tile or opposite corners would overlap - a _Static_assert in the renderer
+ * holds that.  When the radius reaches half the drawn wall, the end of a
+ * one-tile-wide wall becomes a semicircular cap, which is where 8 puts it now.
  */
 #define PM_WALL_R     (PM_TILE / 3)                     /* rounded wall corners */
-#define PM_SPRITE     24                                /* sprite box, any size */
+/*
+ * Thickness of the outer wall, the frame drawn round the playfield.  The
+ * margin it lives in is whatever PM_COLS * PM_TILE leaves over, which grows as
+ * the tile shrinks; without a cap the outer wall would get heavier every time
+ * the inner ones got lighter.  Whatever margin is left outside the frame is
+ * background, so the maze stays centred in the panel either way.
+ */
+#define PM_BORDER_LINE 3                                /* outer wall thickness */
+#define PM_SPRITE     26                                /* sprite box, any size */
 #define PM_SPRITE_OFF ((PM_TILE - PM_SPRITE) / 2)       /* centres it on the tile */
 
 typedef struct {

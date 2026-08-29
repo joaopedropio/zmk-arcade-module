@@ -17,20 +17,47 @@ The game is drawn straight to the panel — no LVGL objects, no full frame
 buffer, only the tiles that actually changed are pushed over SPI.
 
 Proportions follow the arcade rather than the tile grid. The maze is 9x9
-tiles of 26px; walls and corridors are both exactly one tile thick, each wall
-drawn as a 1px tube rather than a filled slab, with corners rounded to
-`PM_WALL_R`. Sprites are 24px boxes centred on their tile — on a 240px panel read at arm's length, how big the characters
-are matters more than how elaborate the maze is, so the grid is kept as coarse
-as it can be while still holding a maze.
+tiles of 24px; walls and corridors are both exactly one tile thick in the
+layout, each wall drawn as a 1px tube rather than a filled slab, with corners
+rounded to `PM_WALL_R`. Sprites are 26px boxes centred on their tile — wider
+than the tile itself, the way the arcade runs a 16px Pac-Man down an 8px
+corridor. On a 240px panel read at arm's length, how big the characters are
+matters more than how elaborate the maze is, so the grid is kept as coarse as
+it can be while still holding a maze.
 
-No tile is spent on a border: the maze is walled in by a line drawn round the
-edge of the panel, with a gap wherever a row runs off into the tunnel, so the
-whole grid is playfield and the outer ring of tiles is a corridor. When the
-grid does not divide the panel exactly the leftover margin becomes that line;
-when it divides exactly the line is drawn over the outermost pixels of the
-maze instead — and because `paint()` draws it, a dirty rectangle along the
-edge repaints it too. At 9x26 the grid is 234px, so the line lives in the 3px
-margin.
+What is drawn is lighter than the layout: `PM_WALL_INSET` stops each wall 4px
+short of its tile on every side that faces open space, so a wall reads 16px
+rather than 24 and the corridor beside it 32px rather than 24 — which is what
+leaves room for a sprite wider than its own tile. Walls that meet
+stay joined, since only open-facing sides are pulled in. That is the knob for
+how heavy the walls look; shrinking `PM_TILE` instead takes the corridors and
+the sprites down with them. A face looking at the ghost house door is the one
+exception — it keeps its outline but takes no inset, because the door is drawn
+as a line spanning its own tile and a wall standing back from it would leave
+the ends of that line hanging in the gap.
+
+`PM_WALL_INSET + PM_WALL_R` is how far a rounded corner reaches in from a tile
+edge, and two opposite corners must not overlap; a `_Static_assert` fails the
+build rather than letting a pixel land in two corner boxes and get drawn from
+only the first. At a 24px tile it is exactly on that limit, so the walls are as
+thin as this radius allows — thinner ones want a smaller `PM_WALL_R` too.
+
+No tile is spent on a border: the maze is walled in by a frame drawn in the
+margin left over from `PM_COLS * PM_TILE`, with a gap wherever a row runs off
+into the tunnel, so the whole grid is playfield and the outer ring of tiles is
+a corridor. The frame hugs the playfield and is `PM_BORDER_LINE` thick; the
+rest of the margin is background. That cap matters, because the margin grows
+as the tile shrinks — without it the outer wall would get heavier every time
+the inner ones got lighter. When the grid divides the panel exactly there is
+no margin, and the line is drawn over the outermost pixels of the maze instead
+— and because `paint()` draws it, a dirty rectangle along the edge repaints it
+too.
+
+At 9x24 the grid is 216px, leaving an even 24, so the maze sits dead centre
+with 12 all round. It does not always: an odd leftover splits one pixel wider
+on the far side, which is why `PM_MARGIN` and `PM_MARGIN_END` are separate.
+Anything painting the margin has to use the right one of the two, or it leaves
+the last row and column of the panel untouched.
 
 A row only wraps where it runs off into a tunnel. Everywhere else the edge of
 the maze is that outer wall, which is what stops actors walking through the
@@ -51,15 +78,18 @@ Only the ghost next in line is drawn waiting in it, so four sprites never pile
 onto the same tile. Corners come in two kinds and are rounded differently. Where two open sides of
 a wall meet, the outline turns through a quarter circle and the tile's corner
 outside it drops back to the background — so the end of a one-tile wall is a
-cap, not a square. The inside of an elbow, where a corridor turns between two
-perpendicular walls, has to be filleted from the open tile instead, because
-rounding it means bulging into the corridor; corridors are a whole tile wide,
-so it only bites where a sprite's circle does not reach. The outer wall is
-exempt: it is the border line painted round the panel, `PM_MARGIN` thick
-rather than a tile, so an arc tangent to a tile face would not meet it.
+cap, not a square. An inside corner — both neighbours wall, the diagonal open
+— is measured from that open tile instead of from either side, which rounds it
+off on its own as the inset grows. Nothing is drawn from the corridor's side
+to do it: the inset already stands the wall off the corridor, so the whole
+turn happens inside the wall tiles and the corridor keeps its full width. The
+outer wall is exempt: it is the frame painted in the margin, `PM_BORDER_LINE`
+thick rather than a tile, so an arc tangent to a tile face would not meet
+it.
 
-`PM_TILE` in `pacman_core.h` sets the grid; `PM_WALL_LINE`, `PM_WALL_R` and
-`PM_SPRITE` in `pacman_render.h` set the drawing. Pellets,
+`PM_TILE` in `pacman_core.h` sets the grid; `PM_WALL_LINE`, `PM_WALL_INSET`,
+`PM_WALL_R`, `PM_BORDER_LINE` and `PM_SPRITE` in `pacman_render.h` set the
+drawing. Pellets,
 the ghost house door, the power pellets and the sprites all scale off
 `PM_TILE` rather than being hardcoded — `PM_SPRITE` only has to keep
 `PM_TILE`'s parity so the sprite centres on a whole pixel.
@@ -170,7 +200,7 @@ after being eaten. Each sits out one frame in five, which is what makes a
 good run possible at all.
 
 Over a two-hour soak (200k frames at 30fps) Pac-Man clears a maze about every
-90 seconds and gets caught about every 50 — 73 clears against 130 deaths. The
+75 seconds and gets caught about every 55 — 94 clears against 117 deaths. The
 9x9 maze is tighter than the old 12x12 one, so there is less room to dodge in
 and the animation turns over faster.
 
