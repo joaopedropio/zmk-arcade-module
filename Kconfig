@@ -43,7 +43,7 @@ config PACMAN_WALL_COLOR
 
 config PACMAN_WALL_FILL_COLOR
     string "Maze wall fill colour (rrggbb)"
-    default "000000"
+    default "00003c"
 
 config PACMAN_WALL_FLASH_COLOR
     string "Maze colour while it flashes at the end of a level (rrggbb)"

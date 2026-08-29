@@ -40,12 +40,12 @@
  */
 #define PM_WALL_R     (PM_TILE / 3)                     /* rounded wall corners */
 /*
- * The outer wall fills the margin from the edge of the panel inwards, stopping
- * PM_BORDER_GAP short of the playfield.  Sprites are wider than their tile, so
- * one running down the outermost corridor reaches the very first pixel of the
- * maze; without that gap it would be drawn right up against the border.  The
- * gap is the clearance, and everything outside it is wall, so no strip of
- * background is left showing at the edge of the screen.
+ * The maze is walled in by a line drawn round it, one PM_WALL_LINE thick and
+ * standing PM_WALL_INSET off the playfield - the same line a wall tile would
+ * draw if the maze had a border row - so the corridor round the outside comes
+ * out the width of the ones inside it, and the margin behind it is that wall's
+ * fill.  PM_BORDER_GAP is the clearance kept round the playfield for the
+ * sprites that hang over its edge.
  */
 #define PM_BORDER_GAP 2                                 /* clear pixels round the playfield */
 #define PM_SPRITE     28                                /* sprite box, any size */

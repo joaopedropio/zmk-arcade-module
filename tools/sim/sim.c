@@ -132,7 +132,7 @@ int main(int argc, char **argv) {
     int every = argc > 2 ? atoi(argv[2]) : 0;
     const char *dir = argc > 3 ? argv[3] : NULL;
     int from = argc > 4 ? atoi(argv[4]) : 0;
-    int speed = argc > 5 ? atoi(argv[5]) : 2;
+    int speed = argc > 5 ? atoi(argv[5]) : 4;
 
     pm_game g;
     pm_init(&g, 12345);

@@ -18,8 +18,8 @@ buffer, only the tiles that actually changed are pushed over SPI.
 
 Proportions follow the arcade rather than the tile grid. The maze is 9x9
 tiles of 24px; walls and corridors are both exactly one tile thick in the
-layout, each wall drawn as a 1px tube rather than a filled slab, with corners
-rounded to `PM_WALL_R`. Sprites are 28px boxes centred on their tile, drawing
+layout, each wall drawn as a 1px tube standing off its tile rather than a slab
+filling it, with corners rounded to `PM_WALL_R`. Sprites are 28px boxes centred on their tile, drawing
 a 26px character — wider than the tile itself, the way the arcade runs a 16px
 Pac-Man down an 8px corridor. On a 240px panel read at arm's length, how big the characters are
 matters more than how elaborate the maze is, so the grid is kept as coarse as
@@ -42,24 +42,31 @@ build rather than letting a pixel land in two corner boxes and get drawn from
 only the first. At a 24px tile it is exactly on that limit, so the walls are as
 thin as this radius allows — thinner ones want a smaller `PM_WALL_R` too.
 
-No tile is spent on a border: the maze is walled in by the margin left over
-from `PM_COLS * PM_TILE`, filled from the edge of the panel inwards, with a gap
-wherever a row runs off into the tunnel, so the whole grid is playfield and the
-outer ring of tiles is a corridor. It stops `PM_BORDER_GAP` short of the
-playfield rather than running up to it. Sprites are wider than their tile, so
-one running down the outermost corridor hangs over the edge of the maze; that
-gap is both its clearance from the border and the room it needs to be drawn in
-at all. Everything outside the gap is wall, so no background shows at the edge
-of the screen.
+No tile is spent on a border: the maze is walled in by a line drawn round it in
+the margin left over from `PM_COLS * PM_TILE`, with a gap wherever a row runs
+off into the tunnel, so the whole grid is playfield and the outer ring of tiles
+is a corridor. It is the same line a wall puts on a side facing open space —
+`PM_WALL_LINE` thick, standing `PM_WALL_INSET` off the playfield, fill behind
+it out to the edge of the panel — so the corridor round the outside comes out
+the width of the ones inside, and no background shows at the edge of the
+screen.
 
-That makes the gap part of what gets painted, not part of the border: `paint()`
-works on a canvas of the playfield plus the ring, `bg_pixel()` returns
-background for anything outside the maze, and the border stops where the canvas
-starts. Clipping a sprite at the maze edge instead would flatten its side, and
-letting the border paint over the ring would rub it out — between them the two
-cover the panel exactly once. When the grid divides the panel exactly there is no margin,
-and the line is drawn over the outermost pixels of the maze instead — and
-because `paint()` draws it, a dirty rectangle along the edge repaints it too.
+`PM_BORDER_GAP` is the clearance between the playfield and the margin. Sprites
+are wider than their tile, so one running down the outermost corridor hangs
+over the edge of the maze; that gap is the room it needs to be drawn in at all,
+which makes it part of what gets painted rather than part of the border:
+`paint()` works on a canvas of the playfield plus the ring and `bg_pixel()`
+returns background for anything outside the maze, while `paint_border()` fills
+the margin outside it. Clipping a sprite at the maze edge instead would flatten
+its side, and letting the margin paint over the ring would rub it out — between
+them the two cover the panel exactly once.
+
+The corners are the one place the two overlap, because a border corner rounds
+the other way than a wall's: a wall's arc cuts the tile corner away from the
+corridor, the border's wraps the corridor it encloses, so it reaches
+`PM_WALL_R` into the outermost tile — inside the canvas. `paint()` therefore
+draws the border too, underneath the sprites, which also means a dirty
+rectangle along the edge repaints it.
 
 At 9x24 the grid is 216px, leaving an even 24, so the maze sits dead centre
 with 12 all round. It does not always: an odd leftover splits one pixel wider
@@ -91,8 +98,7 @@ cap, not a square. An inside corner — both neighbours wall, the diagonal open
 off on its own as the inset grows. Nothing is drawn from the corridor's side
 to do it: the inset already stands the wall off the corridor, so the whole
 turn happens inside the wall tiles and the corridor keeps its full width. The
-outer wall is exempt: it is the margin filled in, not a tile, so an arc
-tangent to a tile face would not meet it.
+border has only the first kind, all four of them rounding inwards.
 
 `PM_TILE` in `pacman_core.h` sets the grid; `PM_WALL_LINE`, `PM_WALL_INSET`,
 `PM_WALL_R`, `PM_BORDER_GAP` and `PM_SPRITE` in `pacman_render.h` set the
@@ -105,7 +111,7 @@ the ghost house door, the power pellets and the sprites all scale off
 |---|---|
 | flash | ~9 KB |
 | RAM | ~10 KB static (mostly a 9.6 KB blit scratch buffer and the pathfinder's arrays) |
-| SPI traffic | ~1950 pixels/frame ≈ 3.8 KB/frame, about 115 KB/s at 30 fps |
+| SPI traffic | ~3800 pixels/frame ≈ 7.4 KB/frame, about 225 KB/s at 30 fps — a fifth of what a 20 MHz link carries |
 | LVGL widgets | none — the status screen is an empty `lv_obj` |
 
 ## Using it
@@ -169,10 +175,10 @@ your `config/<shield>.conf` (or the shield's `pacman_adapter.conf`):
 | `CONFIG_PACMAN_FRAME_INTERVAL` | `33` | Milliseconds per frame (33 ≈ 30 fps). |
 | `CONFIG_PACMAN_START_DELAY` | `600` | Milliseconds before the first frame, so LVGL's initial flush cannot wipe the maze. |
 | `CONFIG_PACMAN_WPM_SPEED` | `y` | Speed the game up while you type. |
-| `CONFIG_PACMAN_WPM_SLOW` / `_FAST` | `20` / `60` | WPM thresholds for the slow and fast gears. |
+| `CONFIG_PACMAN_WPM_SLOW` / `_FAST` | `20` / `60` | WPM thresholds for the 3px and 5px gears, either side of the 4px default. |
 | `CONFIG_PACMAN_BG_COLOR` | `000000` | Background. |
 | `CONFIG_PACMAN_WALL_COLOR` | `2121de` | Maze wall outline. |
-| `CONFIG_PACMAN_WALL_FILL_COLOR` | `000000` | Inside of the wall tubes. Set it to something like `00003c` to get filled walls back. |
+| `CONFIG_PACMAN_WALL_FILL_COLOR` | `00003c` | Inside of the wall tubes, and the margin behind the border line. Set it to `000000` for hollow walls. |
 | `CONFIG_PACMAN_WALL_FLASH_COLOR` | `f8f8f8` | Wall colour while the maze flashes at the end of a level. |
 | `CONFIG_PACMAN_HOUSE_COLOR` | `6d6dff` | Ghost house outline. |
 | `CONFIG_PACMAN_DOOR_COLOR` | `ffb8ff` | Ghost house door. |
@@ -206,10 +212,19 @@ when a power pellet is eaten, and go back to the house as a pair of eyes
 after being eaten. Each sits out one frame in five, which is what makes a
 good run possible at all.
 
+Everyone moves 4 pixels a frame, 5 while you type fast and 3 while you are
+idle — 120 pixels a second at 30 fps, twice what the arcade ran at. A
+power pellet is worth turning round for: Pac-Man picks up a pixel a frame
+while the ghosts are blue and they drop to half speed, so he closes on them at
+better than twice their pace. It costs nothing to draw — a faster sprite
+sweeps a wider dirty rectangle but fewer of them overlap, so the pixel count
+per frame comes out where it was.
+
 Over a two-hour soak (200k frames at 30fps) Pac-Man clears a maze about every
-75 seconds and gets caught about every 55 — 94 clears against 117 deaths. The
-9x9 maze is tighter than the old 12x12 one, so there is less room to dodge in
-and the animation turns over faster.
+26 seconds and gets caught about every 110 — 252 clears against 60 deaths. He
+used to clear one every 75 seconds and die every 55; the speed is most of the
+difference, and the rest is the power pellets, which now clear the board of
+ghosts long enough to matter.
 
 ## Trying it without flashing
 

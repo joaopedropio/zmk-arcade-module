@@ -9,12 +9,6 @@
 #define BAND_BYTES (PM_BLIT_MAX * 2)
 
 /* tile-relative sizes, so the grid can be rescaled without retuning them */
-/*
- * The border line: it lives in the margin when the grid leaves one, and is
- * drawn over the outermost pixels of the maze when it does not.
- */
-#define PM_BORDER    (PM_MARGIN > PM_WALL_LINE ? PM_MARGIN : PM_WALL_LINE)
-
 #define PM_PELLET    (PM_TILE / 4)                      /* pellet side, 2px at 10px tiles */
 #define PM_PELLET_AT ((PM_TILE - PM_PELLET) / 2)
 #define PM_DOOR_AT   ((PM_TILE - PM_WALL_LINE) / 2)
@@ -39,10 +33,10 @@ uint16_t pm_rgb565(uint32_t rgb888) {
 
 void pm_render_default_palette(pm_palette *p) {
     p->bg = pm_rgb565(0x000000);
-    p->wall_fill = pm_rgb565(0x000000);
+    p->wall_fill = pm_rgb565(0x00003c);
     p->wall_edge = pm_rgb565(0x2121de);
     p->wall_flash = pm_rgb565(0xf8f8f8);
-    p->house_fill = pm_rgb565(0x000000);
+    p->house_fill = pm_rgb565(0x00003c);
     p->house_edge = pm_rgb565(0x6d6dff);
     p->door = pm_rgb565(0xffb8ff);
     p->pellet = pm_rgb565(0xffb897);
@@ -411,6 +405,80 @@ static bool ghost_pixel(const pm_game *g, int idx, int i, int j, uint16_t *col) 
 /* painting                                                            */
 /* ------------------------------------------------------------------ */
 
+/*
+ * The maze has no border tiles: what walls it in is a line drawn round it in
+ * the margin left over from PM_COLS * PM_TILE, the same line a wall puts on a
+ * side facing open space - PM_WALL_LINE thick, standing PM_WALL_INSET off the
+ * playfield so the corridor round the outside comes out the width of the ones
+ * inside, and turning through a quarter circle of PM_WALL_R at the corners
+ * instead of a right angle.  What is behind it - the rest of the margin, out
+ * to the edge of the panel - is the wall's fill, and what is in front of it is
+ * the corridor running round the maze.
+ *
+ * The far margin is a pixel wider than the near one when the leftover is odd,
+ * so the two are painted from PM_MARGIN and PM_MARGIN_END separately; using
+ * PM_MARGIN for both would leave the last row and column of the panel with
+ * whatever happened to be on it.
+ */
+#define PM_BORDER_NEAR (PM_MARGIN - PM_BORDER_GAP)          /* left and top */
+#define PM_BORDER_FAR  (PM_MARGIN_END - PM_BORDER_GAP)      /* right and bottom */
+
+_Static_assert(PM_WALL_INSET + PM_WALL_LINE <= PM_MARGIN &&
+                   PM_WALL_INSET + PM_WALL_LINE <= PM_MARGIN_END,
+               "no room in the margin for the border line");
+
+/* whether a row of the maze runs off the edge into the tunnel */
+static bool tunnel_row(const pm_game *g, int py) {
+    int y = py - PM_MARGIN;
+    if (y < 0 || y >= PM_HEIGHT) {
+        return false;
+    }
+    return (g->tunnel_rows >> (y / PM_TILE)) & 1u;
+}
+
+/*
+ * Which of the three a pixel of the panel is - outside the border, on its
+ * line, or filling it - the same answer wall_px() gives for a wall.  ix and iy
+ * are how far the pixel lies in from the line's outer face: negative behind
+ * the border, 0 on it, growing towards the playfield.  That is the distance
+ * corner_px() wants, and measuring it from the playfield rather than from the
+ * panel keeps the border where it is whatever margin the grid leaves.
+ *
+ * A corner rounds towards the playfield, unlike a wall's, which rounds away
+ * from it: the border is the outside of the maze, so the arc it turns through
+ * reaches PM_WALL_R inside the tile it wraps, and the two sides of the arc
+ * come back the other way round than corner_px() names them.  Reaching into
+ * that tile is why paint() draws the border as well - part of the arc lands in
+ * the canvas it owns.
+ */
+static int border_px(const pm_game *g, int px, int py) {
+    int dl = PM_MARGIN - 1 - px, dr = px - (PM_MARGIN + PM_WIDTH);
+    int du = PM_MARGIN - 1 - py, dd = py - (PM_MARGIN + PM_HEIGHT);
+    int ix = PM_WALL_INSET - (dl > dr ? dl : dr);
+    int iy = PM_WALL_INSET - (du > dd ? du : dd);
+    bool corner_x = ix < PM_WALL_R;   /* near enough a side to be in a corner */
+    bool corner_y = iy < PM_WALL_R;
+
+    if (corner_x && corner_y) {
+        int c = corner_px(ix, iy, PM_WALL_R, PM_WALL_R);
+        if (c == PM_WPX_LINE) {
+            return PM_WPX_LINE;
+        }
+        return c == PM_WPX_OUT ? PM_WPX_FILL : PM_WPX_OUT;
+    }
+    if (corner_y) {                          /* a cap, which nothing breaks */
+        return iy < 0 ? PM_WPX_FILL : (iy < PM_WALL_LINE ? PM_WPX_LINE : PM_WPX_OUT);
+    }
+    if (corner_x) {
+        /* a side, which opens up wherever a row runs off into the tunnel */
+        if (tunnel_row(g, py)) {
+            return PM_WPX_OUT;
+        }
+        return ix < 0 ? PM_WPX_FILL : (ix < PM_WALL_LINE ? PM_WPX_LINE : PM_WPX_OUT);
+    }
+    return PM_WPX_OUT;
+}
+
 static bool actor_box(const pm_game *g, int idx, int16_t *ax, int16_t *ay) {
     if (idx == PM_GHOSTS) {
         *ax = g->pac.x;
@@ -449,6 +517,12 @@ static void paint(pm_game *g, int x0, int y0, int w, int h) {
         for (int x = x0; x < x0 + w; x++) {
             uint16_t c = bg_pixel(g, x, y);
 
+            /* the border rounds its corners into the canvas; sprites win */
+            int b = border_px(g, x + PM_MARGIN, y + PM_MARGIN);
+            if (b != PM_WPX_OUT) {
+                c = wall_colour(g, false, b == PM_WPX_LINE);
+            }
+
             for (int idx = PM_ACTORS - 1; idx >= 0; idx--) {
                 int16_t ax, ay;
                 if (!actor_box(g, idx, &ax, &ay)) {
@@ -468,24 +542,6 @@ static void paint(pm_game *g, int x0, int y0, int w, int h) {
                 }
             }
 
-            /*
-             * With no margin to put it in, the border is drawn over the
-             * outermost pixels of the maze; otherwise paint_border() owns it
-             * and must not be second-guessed here, or it would overwrite the
-             * clearance ring a sprite hangs into.
-             */
-            if (PM_MARGIN == 0) {
-                int px = x + PM_MARGIN, py = y + PM_MARGIN;
-                bool on_side = (px < PM_BORDER || px >= PM_PANEL - PM_BORDER);
-                bool on_cap = (py < PM_BORDER || py >= PM_PANEL - PM_BORDER);
-                if (on_side || on_cap) {
-                    bool tunnel = (g->tunnel_rows >> (y / PM_TILE)) & 1u;
-                    if (!(on_side && !on_cap && tunnel)) {
-                        c = g->flash ? pal.wall_flash : pal.wall_edge;
-                    }
-                }
-            }
-
             *out++ = (uint8_t)(c >> 8);
             *out++ = (uint8_t)(c & 0xFF);
         }
@@ -494,48 +550,16 @@ static void paint(pm_game *g, int x0, int y0, int w, int h) {
             (uint16_t)h, scratch);
 }
 
-/*
- * The maze has no border tiles: what walls it in is the margin left over from
- * PM_COLS * PM_TILE, filled from the edge of the panel inwards and stopping at
- * the canvas - that is, PM_BORDER_GAP short of the playfield.  The gap keeps a
- * sprite in the outermost corridor off the border, and filling everything
- * outside it means no background shows at the edge of the screen.
- *
- * The border stops where the canvas starts rather than overlapping it, because
- * paint() draws sprites into that ring and a border painted over the top would
- * rub them out.  Between them the two cover the panel exactly once.
- *
- * The far margin is a pixel wider than the near one when the leftover is odd,
- * so the two are painted from PM_MARGIN and PM_MARGIN_END separately; using
- * PM_MARGIN for both would leave the last row and column of the panel with
- * whatever happened to be on it.
- */
-#define PM_BORDER_NEAR (PM_MARGIN - PM_BORDER_GAP)          /* left and top */
-#define PM_BORDER_FAR  (PM_MARGIN_END - PM_BORDER_GAP)      /* right and bottom */
-
-_Static_assert(PM_BORDER_GAP <= PM_MARGIN && PM_BORDER_GAP <= PM_MARGIN_END,
-               "PM_BORDER_GAP wider than the margin leaves no border to draw");
-
-/* colour of one pixel of the margin, in panel coordinates */
-static uint16_t border_pixel(const pm_game *g, int px, int py, uint16_t line) {
-    (void)px;
-    /* the sides open up wherever a row runs off into the tunnel */
-    bool cap = (py < PM_MARGIN || py >= PM_MARGIN + PM_HEIGHT);
-    if (!cap && ((g->tunnel_rows >> ((py - PM_MARGIN) / PM_TILE)) & 1u)) {
-        return pal.bg;
-    }
-    return line;
-}
-
 /* fills one band of the margin; the four of them cover it exactly once */
-static void paint_band(const pm_game *g, int x0, int y0, int w, int h, uint16_t line) {
+static void paint_band(const pm_game *g, int x0, int y0, int w, int h) {
     if (w <= 0 || h <= 0) {
         return;
     }
     uint8_t *out = scratch;
     for (int y = y0; y < y0 + h; y++) {
         for (int x = x0; x < x0 + w; x++) {
-            uint16_t c = border_pixel(g, x, y, line);
+            int b = border_px(g, x, y);
+            uint16_t c = b == PM_WPX_OUT ? pal.bg : wall_colour(g, false, b == PM_WPX_LINE);
             *out++ = (uint8_t)(c >> 8);
             *out++ = (uint8_t)(c & 0xFF);
         }
@@ -544,18 +568,13 @@ static void paint_band(const pm_game *g, int x0, int y0, int w, int h, uint16_t 
 }
 
 static void paint_border(const pm_game *g) {
-    if (PM_BORDER_NEAR == 0 && PM_BORDER_FAR == 0) {
-        return; /* paint() covers the whole panel and draws the line itself */
-    }
-
-    uint16_t line = g->flash ? pal.wall_flash : pal.wall_edge;
     int lo = PM_BORDER_NEAR;                     /* where the canvas starts */
     int hi = PM_MARGIN + PM_HEIGHT + PM_BORDER_GAP;  /* and where it ends */
 
-    paint_band(g, 0, 0, PM_PANEL, lo, line);
-    paint_band(g, 0, hi, PM_PANEL, PM_BORDER_FAR, line);
-    paint_band(g, 0, lo, lo, hi - lo, line);
-    paint_band(g, hi, lo, PM_BORDER_FAR, hi - lo, line);
+    paint_band(g, 0, 0, PM_PANEL, lo);
+    paint_band(g, 0, hi, PM_PANEL, PM_BORDER_FAR);
+    paint_band(g, 0, lo, lo, hi - lo);
+    paint_band(g, hi, lo, PM_BORDER_FAR, hi - lo);
 }
 
 static void paint_all(pm_game *g) {

@@ -134,7 +134,7 @@ static void load_palette(void) {
     pm_render_default_palette(&p);
 
     p.bg = pm_rgb565(parse_hex(CONFIG_PACMAN_BG_COLOR, 0x000000));
-    p.wall_fill = pm_rgb565(parse_hex(CONFIG_PACMAN_WALL_FILL_COLOR, 0x000000));
+    p.wall_fill = pm_rgb565(parse_hex(CONFIG_PACMAN_WALL_FILL_COLOR, 0x00003c));
     p.wall_edge = pm_rgb565(parse_hex(CONFIG_PACMAN_WALL_COLOR, 0x2121de));
     p.wall_flash = pm_rgb565(parse_hex(CONFIG_PACMAN_WALL_FLASH_COLOR, 0xf8f8f8));
     p.house_fill = p.wall_fill;
@@ -160,17 +160,18 @@ struct pacman_wpm_state {
 };
 
 /*
- * Speeds are pixels per frame, so they set how fast the maze crosses the
- * panel rather than how many tiles pass per second.  1, 2 and 3 all divide
- * an 18px tile exactly, so every gear steps evenly.
+ * Speeds are pixels per frame, so they set how fast the maze crosses the panel
+ * rather than how many tiles pass per second.  3 and 4 divide a 24px tile
+ * exactly and step evenly; 5 does not, and just spends a short frame arriving
+ * at each tile, since advance() never overshoots one.
  */
 static void apply_wpm(uint8_t wpm) {
 #if IS_ENABLED(CONFIG_PACMAN_WPM_SPEED)
-    uint8_t speed = 2;
+    uint8_t speed = 4;
     if (wpm > CONFIG_PACMAN_WPM_FAST) {
-        speed = 3;
+        speed = 5;
     } else if (wpm < CONFIG_PACMAN_WPM_SLOW) {
-        speed = 1;
+        speed = 3;
     }
     pm_set_speed(&game, speed, speed);
 #else
@@ -219,7 +220,7 @@ void zmk_widget_pacman_init(void) {
 
     load_palette();
     pm_init(&game, (uint32_t)k_uptime_get_32() | 1u);
-    pm_set_speed(&game, 2, 2);
+    pm_set_speed(&game, 4, 4);
 
     pacman_wpm_init();
 

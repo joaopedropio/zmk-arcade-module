@@ -70,6 +70,17 @@ static const char *const MAZE_ART[PM_ROWS] = {
 #define CHASE_FRAMES   (FPS * 20)
 #define EYE_SPEED      5
 
+/*
+ * What a power pellet buys.  Pac-Man picks up a pixel a frame while the ghosts
+ * are blue and they drop to half speed, the way the arcade does it - the
+ * chase is only worth turning round for if catching them is easy while it
+ * lasts.  Their one frame in five off comes off the halved speed rather than
+ * instead of it, which is what keeps the two ratios apart: normal ghosts run
+ * at 0.8 of their speed, frightened ones at about half that.
+ */
+#define PAC_FRIGHT_STEP(s)   ((s) + 1)
+#define GHOST_FRIGHT_STEP(s) (((s) + 1) / 2)
+
 struct ghost_start {
     uint8_t x, y;
     uint16_t release;
@@ -580,16 +591,14 @@ static void ghost_step(pm_game *g, int i) {
             ghost_choose(g, i);
         }
         /*
-         * A hair slower than Pac-Man, so a clean run can outpace them.  Each
-         * ghost sits out one frame in five; on the old 24x24 grid one in
-         * eight was enough, but 12px tiles mean fewer decisions per second
-         * for Pac-Man, and the wider handicap is what keeps the clear rate
-         * where it was.
+         * A hair slower than Pac-Man, so a clean run can outpace them: each
+         * ghost sits out one frame in five.  A coarse grid gives Pac-Man fewer
+         * decisions per second to escape with, which is what this handicap is
+         * paying for, so it is a share of their speed rather than a fixed
+         * number of pixels.
          */
-        if (g->fright > 0) {
-            advance(a, 1);
-        } else if ((g->frame % 5) != (unsigned)i) {
-            advance(a, g->ghost_speed);
+        if ((g->frame % 5) != (unsigned)i) {
+            advance(a, g->fright > 0 ? GHOST_FRIGHT_STEP(g->ghost_speed) : g->ghost_speed);
         }
         break;
 
@@ -697,8 +706,8 @@ static void new_game(pm_game *g) {
 void pm_init(pm_game *g, uint32_t seed) {
     g->rng = seed ? seed : 1u;
     g->frame = 0;
-    g->pac_speed = 2;
-    g->ghost_speed = 2;
+    g->pac_speed = 4;
+    g->ghost_speed = 4;
     new_game(g);
 }
 
@@ -751,7 +760,7 @@ static void play_step(pm_game *g) {
         pac_choose(g);
     }
     if (!aligned(&g->pac) || can_go(g, &g->pac, g->pac.dir, false)) {
-        advance(&g->pac, g->pac_speed);
+        advance(&g->pac, g->fright > 0 ? PAC_FRIGHT_STEP(g->pac_speed) : g->pac_speed);
     }
     if (aligned(&g->pac)) {
         pac_eat(g);
@@ -782,6 +791,12 @@ static void play_step(pm_game *g) {
         if (dy < 0) {
             dy = -dy;
         }
+        /*
+         * Overlap rather than a shared tile, so a ghost passing the other way
+         * counts.  The window is 13px across and the two of them close at most
+         * 11 in a frame (both clamped to 5, and Pac-Man a pixel over that while
+         * they are blue), so neither can step through the other unseen.
+         */
         if (dx >= 7 || dy >= 7) {
             continue;
         }
