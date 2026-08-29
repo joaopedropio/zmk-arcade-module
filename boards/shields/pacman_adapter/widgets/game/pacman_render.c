@@ -6,7 +6,7 @@
 
 #include "pacman_render.h"
 
-#define BAND_BYTES (PM_WIDTH * PM_TILE * 2)
+#define BAND_BYTES (PM_BLIT_MAX * 2)
 
 /* tile-relative sizes, so the grid can be rescaled without retuning them */
 /*
@@ -225,6 +225,9 @@ static uint16_t wall_colour(const pm_game *g, bool house, bool line) {
 }
 
 static uint16_t bg_pixel(const pm_game *g, int px, int py) {
+    if (px < 0 || px >= PM_WIDTH || py < 0 || py >= PM_HEIGHT) {
+        return pal.bg; /* the clearance ring a sprite may hang into */
+    }
     int tx = px / PM_TILE;
     int ty = py / PM_TILE;
     uint8_t t = g->tiles[ty][tx];
@@ -423,19 +426,19 @@ static bool actor_box(const pm_game *g, int idx, int16_t *ax, int16_t *ay) {
 }
 
 static void paint(pm_game *g, int x0, int y0, int w, int h) {
-    if (x0 < 0) {
-        w += x0;
-        x0 = 0;
+    if (x0 < PM_CANVAS_LO) {
+        w -= PM_CANVAS_LO - x0;
+        x0 = PM_CANVAS_LO;
     }
-    if (y0 < 0) {
-        h += y0;
-        y0 = 0;
+    if (y0 < PM_CANVAS_LO) {
+        h -= PM_CANVAS_LO - y0;
+        y0 = PM_CANVAS_LO;
     }
-    if (x0 + w > PM_WIDTH) {
-        w = PM_WIDTH - x0;
+    if (x0 + w > PM_CANVAS_LO + PM_CANVAS_W) {
+        w = PM_CANVAS_LO + PM_CANVAS_W - x0;
     }
-    if (y0 + h > PM_HEIGHT) {
-        h = PM_HEIGHT - y0;
+    if (y0 + h > PM_CANVAS_LO + PM_CANVAS_H) {
+        h = PM_CANVAS_LO + PM_CANVAS_H - y0;
     }
     if (w <= 0 || h <= 0) {
         return;
@@ -465,13 +468,21 @@ static void paint(pm_game *g, int x0, int y0, int w, int h) {
                 }
             }
 
-            int px = x + PM_MARGIN, py = y + PM_MARGIN;
-            bool on_side = (px < PM_BORDER || px >= PM_PANEL - PM_BORDER);
-            bool on_cap = (py < PM_BORDER || py >= PM_PANEL - PM_BORDER);
-            if (on_side || on_cap) {
-                bool tunnel = (g->tunnel_rows >> (y / PM_TILE)) & 1u;
-                if (!(on_side && !on_cap && tunnel)) {
-                    c = g->flash ? pal.wall_flash : pal.wall_edge;
+            /*
+             * With no margin to put it in, the border is drawn over the
+             * outermost pixels of the maze; otherwise paint_border() owns it
+             * and must not be second-guessed here, or it would overwrite the
+             * clearance ring a sprite hangs into.
+             */
+            if (PM_MARGIN == 0) {
+                int px = x + PM_MARGIN, py = y + PM_MARGIN;
+                bool on_side = (px < PM_BORDER || px >= PM_PANEL - PM_BORDER);
+                bool on_cap = (py < PM_BORDER || py >= PM_PANEL - PM_BORDER);
+                if (on_side || on_cap) {
+                    bool tunnel = (g->tunnel_rows >> (y / PM_TILE)) & 1u;
+                    if (!(on_side && !on_cap && tunnel)) {
+                        c = g->flash ? pal.wall_flash : pal.wall_edge;
+                    }
                 }
             }
 
@@ -484,31 +495,33 @@ static void paint(pm_game *g, int x0, int y0, int w, int h) {
 }
 
 /*
- * The maze has no border tiles: what walls it in is a frame drawn in the
- * margin left over from PM_COLS * PM_TILE.  The frame hugs the playfield and
- * is PM_BORDER_LINE thick (or the whole margin, when that is thinner); any
- * margin outside it is background, which is what keeps the outer wall as light
- * as the walls inside when the tile size leaves a wide margin.
+ * The maze has no border tiles: what walls it in is the margin left over from
+ * PM_COLS * PM_TILE, filled from the edge of the panel inwards and stopping at
+ * the canvas - that is, PM_BORDER_GAP short of the playfield.  The gap keeps a
+ * sprite in the outermost corridor off the border, and filling everything
+ * outside it means no background shows at the edge of the screen.
+ *
+ * The border stops where the canvas starts rather than overlapping it, because
+ * paint() draws sprites into that ring and a border painted over the top would
+ * rub them out.  Between them the two cover the panel exactly once.
  *
  * The far margin is a pixel wider than the near one when the leftover is odd,
  * so the two are painted from PM_MARGIN and PM_MARGIN_END separately; using
  * PM_MARGIN for both would leave the last row and column of the panel with
  * whatever happened to be on it.
  */
-#define PM_FRAME_NEAR (PM_BORDER_LINE < PM_MARGIN ? PM_BORDER_LINE : PM_MARGIN)
-#define PM_FRAME_FAR  (PM_BORDER_LINE < PM_MARGIN_END ? PM_BORDER_LINE : PM_MARGIN_END)
-#define PM_FRAME_LO   (PM_MARGIN - PM_FRAME_NEAR)
-#define PM_FRAME_HI   (PM_MARGIN + PM_WIDTH - 1 + PM_FRAME_FAR)
+#define PM_BORDER_NEAR (PM_MARGIN - PM_BORDER_GAP)          /* left and top */
+#define PM_BORDER_FAR  (PM_MARGIN_END - PM_BORDER_GAP)      /* right and bottom */
+
+_Static_assert(PM_BORDER_GAP <= PM_MARGIN && PM_BORDER_GAP <= PM_MARGIN_END,
+               "PM_BORDER_GAP wider than the margin leaves no border to draw");
 
 /* colour of one pixel of the margin, in panel coordinates */
 static uint16_t border_pixel(const pm_game *g, int px, int py, uint16_t line) {
-    if (px < PM_FRAME_LO || px > PM_FRAME_HI || py < PM_FRAME_LO || py > PM_FRAME_HI) {
-        return pal.bg;
-    }
+    (void)px;
     /* the sides open up wherever a row runs off into the tunnel */
-    bool side = (px < PM_MARGIN || px >= PM_MARGIN + PM_WIDTH);
     bool cap = (py < PM_MARGIN || py >= PM_MARGIN + PM_HEIGHT);
-    if (side && !cap && ((g->tunnel_rows >> ((py - PM_MARGIN) / PM_TILE)) & 1u)) {
+    if (!cap && ((g->tunnel_rows >> ((py - PM_MARGIN) / PM_TILE)) & 1u)) {
         return pal.bg;
     }
     return line;
@@ -531,22 +544,24 @@ static void paint_band(const pm_game *g, int x0, int y0, int w, int h, uint16_t 
 }
 
 static void paint_border(const pm_game *g) {
-    if (PM_MARGIN == 0 && PM_MARGIN_END == 0) {
+    if (PM_BORDER_NEAR == 0 && PM_BORDER_FAR == 0) {
         return; /* paint() covers the whole panel and draws the line itself */
     }
 
     uint16_t line = g->flash ? pal.wall_flash : pal.wall_edge;
-    int inner = PM_MARGIN + PM_HEIGHT;
+    int lo = PM_BORDER_NEAR;                     /* where the canvas starts */
+    int hi = PM_MARGIN + PM_HEIGHT + PM_BORDER_GAP;  /* and where it ends */
 
-    paint_band(g, 0, 0, PM_PANEL, PM_MARGIN, line);
-    paint_band(g, 0, inner, PM_PANEL, PM_MARGIN_END, line);
-    paint_band(g, 0, PM_MARGIN, PM_MARGIN, PM_HEIGHT, line);
-    paint_band(g, PM_MARGIN + PM_WIDTH, PM_MARGIN, PM_MARGIN_END, PM_HEIGHT, line);
+    paint_band(g, 0, 0, PM_PANEL, lo, line);
+    paint_band(g, 0, hi, PM_PANEL, PM_BORDER_FAR, line);
+    paint_band(g, 0, lo, lo, hi - lo, line);
+    paint_band(g, hi, lo, PM_BORDER_FAR, hi - lo, line);
 }
 
 static void paint_all(pm_game *g) {
-    for (int band = 0; band < PM_ROWS; band++) {
-        paint(g, 0, band * PM_TILE, PM_WIDTH, PM_TILE);
+    for (int y = PM_CANVAS_LO; y < PM_CANVAS_LO + PM_CANVAS_H; y += PM_TILE) {
+        int h = PM_CANVAS_LO + PM_CANVAS_H - y;
+        paint(g, PM_CANVAS_LO, y, PM_CANVAS_W, h < PM_TILE ? h : PM_TILE);
     }
     paint_border(g);
 }

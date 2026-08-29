@@ -19,9 +19,9 @@ buffer, only the tiles that actually changed are pushed over SPI.
 Proportions follow the arcade rather than the tile grid. The maze is 9x9
 tiles of 24px; walls and corridors are both exactly one tile thick in the
 layout, each wall drawn as a 1px tube rather than a filled slab, with corners
-rounded to `PM_WALL_R`. Sprites are 26px boxes centred on their tile — wider
-than the tile itself, the way the arcade runs a 16px Pac-Man down an 8px
-corridor. On a 240px panel read at arm's length, how big the characters are
+rounded to `PM_WALL_R`. Sprites are 28px boxes centred on their tile, drawing
+a 26px character — wider than the tile itself, the way the arcade runs a 16px
+Pac-Man down an 8px corridor. On a 240px panel read at arm's length, how big the characters are
 matters more than how elaborate the maze is, so the grid is kept as coarse as
 it can be while still holding a maze.
 
@@ -42,16 +42,24 @@ build rather than letting a pixel land in two corner boxes and get drawn from
 only the first. At a 24px tile it is exactly on that limit, so the walls are as
 thin as this radius allows — thinner ones want a smaller `PM_WALL_R` too.
 
-No tile is spent on a border: the maze is walled in by a frame drawn in the
-margin left over from `PM_COLS * PM_TILE`, with a gap wherever a row runs off
-into the tunnel, so the whole grid is playfield and the outer ring of tiles is
-a corridor. The frame hugs the playfield and is `PM_BORDER_LINE` thick; the
-rest of the margin is background. That cap matters, because the margin grows
-as the tile shrinks — without it the outer wall would get heavier every time
-the inner ones got lighter. When the grid divides the panel exactly there is
-no margin, and the line is drawn over the outermost pixels of the maze instead
-— and because `paint()` draws it, a dirty rectangle along the edge repaints it
-too.
+No tile is spent on a border: the maze is walled in by the margin left over
+from `PM_COLS * PM_TILE`, filled from the edge of the panel inwards, with a gap
+wherever a row runs off into the tunnel, so the whole grid is playfield and the
+outer ring of tiles is a corridor. It stops `PM_BORDER_GAP` short of the
+playfield rather than running up to it. Sprites are wider than their tile, so
+one running down the outermost corridor hangs over the edge of the maze; that
+gap is both its clearance from the border and the room it needs to be drawn in
+at all. Everything outside the gap is wall, so no background shows at the edge
+of the screen.
+
+That makes the gap part of what gets painted, not part of the border: `paint()`
+works on a canvas of the playfield plus the ring, `bg_pixel()` returns
+background for anything outside the maze, and the border stops where the canvas
+starts. Clipping a sprite at the maze edge instead would flatten its side, and
+letting the border paint over the ring would rub it out — between them the two
+cover the panel exactly once. When the grid divides the panel exactly there is no margin,
+and the line is drawn over the outermost pixels of the maze instead — and
+because `paint()` draws it, a dirty rectangle along the edge repaints it too.
 
 At 9x24 the grid is 216px, leaving an even 24, so the maze sits dead centre
 with 12 all round. It does not always: an odd leftover splits one pixel wider
@@ -83,12 +91,11 @@ cap, not a square. An inside corner — both neighbours wall, the diagonal open
 off on its own as the inset grows. Nothing is drawn from the corridor's side
 to do it: the inset already stands the wall off the corridor, so the whole
 turn happens inside the wall tiles and the corridor keeps its full width. The
-outer wall is exempt: it is the frame painted in the margin, `PM_BORDER_LINE`
-thick rather than a tile, so an arc tangent to a tile face would not meet
-it.
+outer wall is exempt: it is the margin filled in, not a tile, so an arc
+tangent to a tile face would not meet it.
 
 `PM_TILE` in `pacman_core.h` sets the grid; `PM_WALL_LINE`, `PM_WALL_INSET`,
-`PM_WALL_R`, `PM_BORDER_LINE` and `PM_SPRITE` in `pacman_render.h` set the
+`PM_WALL_R`, `PM_BORDER_GAP` and `PM_SPRITE` in `pacman_render.h` set the
 drawing. Pellets,
 the ghost house door, the power pellets and the sprites all scale off
 `PM_TILE` rather than being hardcoded — `PM_SPRITE` only has to keep

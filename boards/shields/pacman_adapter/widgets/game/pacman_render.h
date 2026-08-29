@@ -40,15 +40,29 @@
  */
 #define PM_WALL_R     (PM_TILE / 3)                     /* rounded wall corners */
 /*
- * Thickness of the outer wall, the frame drawn round the playfield.  The
- * margin it lives in is whatever PM_COLS * PM_TILE leaves over, which grows as
- * the tile shrinks; without a cap the outer wall would get heavier every time
- * the inner ones got lighter.  Whatever margin is left outside the frame is
- * background, so the maze stays centred in the panel either way.
+ * The outer wall fills the margin from the edge of the panel inwards, stopping
+ * PM_BORDER_GAP short of the playfield.  Sprites are wider than their tile, so
+ * one running down the outermost corridor reaches the very first pixel of the
+ * maze; without that gap it would be drawn right up against the border.  The
+ * gap is the clearance, and everything outside it is wall, so no strip of
+ * background is left showing at the edge of the screen.
  */
-#define PM_BORDER_LINE 3                                /* outer wall thickness */
-#define PM_SPRITE     26                                /* sprite box, any size */
+#define PM_BORDER_GAP 2                                 /* clear pixels round the playfield */
+#define PM_SPRITE     28                                /* sprite box, any size */
 #define PM_SPRITE_OFF ((PM_TILE - PM_SPRITE) / 2)       /* centres it on the tile */
+
+/*
+ * What gets painted is the playfield plus the clearance ring round it: a
+ * sprite is wider than its tile, so one in the outermost corridor hangs over
+ * the edge of the maze, and clipping it there would flatten its side.  The
+ * ring is background, and the border fills the margin outside it.
+ */
+#define PM_CANVAS_LO (-PM_BORDER_GAP)                   /* in maze coordinates */
+#define PM_CANVAS_W  (PM_WIDTH + 2 * PM_BORDER_GAP)
+#define PM_CANVAS_H  (PM_HEIGHT + 2 * PM_BORDER_GAP)
+
+/* the widest run of pixels any one blit can carry */
+#define PM_BLIT_MAX  (PM_CANVAS_W * PM_TILE)
 
 typedef struct {
     uint16_t bg;

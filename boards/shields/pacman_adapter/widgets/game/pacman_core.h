@@ -19,7 +19,7 @@
  * and a corridor tile dead centre, which is where the ghost house goes.
  *
  * 9 is the smallest odd grid that still holds a maze worth watching, and it
- * buys a big tile: at 24px the sprites run 26px, wider than the tile itself,
+ * buys a big tile: at 24px the sprites run 28px, wider than the tile itself,
  * where the old 12x12 grid could only afford 18px.  On a 240px panel legibility beats layout - the animation
  * has to read at arm's length.
  *

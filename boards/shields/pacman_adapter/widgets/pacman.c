@@ -37,7 +37,7 @@ static uint32_t frames;
 
 #if PACMAN_ROTATION == 90 || PACMAN_ROTATION == 180 || PACMAN_ROTATION == 270
 #define PACMAN_ROTATED 1
-static uint8_t rot_buf[PM_WIDTH * PM_TILE * 2];
+static uint8_t rot_buf[PM_BLIT_MAX * 2];
 #endif
 
 /* the panel keeps its contents while ZMK blanks it, but repaint everything
