@@ -78,39 +78,146 @@ static bool solid_tile(const pm_game *g, int tx, int ty) {
 
 /*
  * A wall tile is drawn as a line along each side that faces open space, so a
- * block of wall comes out as a hollow tube instead of a solid slab.  A nub is
- * added where only the diagonal is open, which closes the outside of a corner.
+ * block of wall comes out as a hollow tube instead of a solid slab.
+ *
+ * Where two open sides meet, the outline turns through a quarter circle of
+ * radius PM_WALL_R instead of a right angle, and the tile's own corner outside
+ * that arc drops back to the background - the arcade's rounded wall ends.  The
+ * pixel is therefore one of three things, not two: outside the wall, on its
+ * outline, or filling it.  Outside has to be the background rather than the
+ * fill colour, or a wall drawn with PACMAN_WALL_FILL_COLOR set would keep its
+ * square corners.
+ *
+ * A corner where only the diagonal is open is the other kind, the inside of an
+ * elbow.  Rounding that one means bulging into the corridor it wraps, so it
+ * keeps the single-pixel nub that closes the two lines up instead.
  */
-static bool wall_line_px(const pm_game *g, int tx, int ty, int ix, int iy) {
+enum { PM_WPX_OUT = 0, PM_WPX_LINE, PM_WPX_FILL };
+
+/* dx, dy are the distances in from the two open sides, so the centre of the
+ * arc sits at (PM_WALL_R, PM_WALL_R) and the tile corner is at (0, 0) */
+static int corner_px(int dx, int dy) {
+    int a = PM_WALL_R - dx;
+    int b = PM_WALL_R - dy;
+    int d2 = a * a + b * b;
+    int inner = PM_WALL_R - PM_WALL_LINE;
+
+    if (d2 > PM_WALL_R * PM_WALL_R) {
+        return PM_WPX_OUT;
+    }
+    return d2 > inner * inner ? PM_WPX_LINE : PM_WPX_FILL;
+}
+
+static int wall_px(const pm_game *g, int tx, int ty, int ix, int iy) {
     bool open_l = !solid_tile(g, tx - 1, ty);
     bool open_r = !solid_tile(g, tx + 1, ty);
     bool open_u = !solid_tile(g, tx, ty - 1);
     bool open_d = !solid_tile(g, tx, ty + 1);
 
-    bool near_l = ix < PM_WALL_LINE;
-    bool near_r = ix >= PM_TILE - PM_WALL_LINE;
-    bool near_u = iy < PM_WALL_LINE;
-    bool near_d = iy >= PM_TILE - PM_WALL_LINE;
+    /* distances in from each of the four sides */
+    int dl = ix, dr = PM_TILE - 1 - ix;
+    int du = iy, dd = PM_TILE - 1 - iy;
+
+    /* 2 * PM_WALL_R <= PM_TILE, so at most one corner box holds the pixel */
+    if (dl < PM_WALL_R && du < PM_WALL_R && open_l && open_u) {
+        return corner_px(dl, du);
+    }
+    if (dr < PM_WALL_R && du < PM_WALL_R && open_r && open_u) {
+        return corner_px(dr, du);
+    }
+    if (dl < PM_WALL_R && dd < PM_WALL_R && open_l && open_d) {
+        return corner_px(dl, dd);
+    }
+    if (dr < PM_WALL_R && dd < PM_WALL_R && open_r && open_d) {
+        return corner_px(dr, dd);
+    }
+
+    bool near_l = dl < PM_WALL_LINE;
+    bool near_r = dr < PM_WALL_LINE;
+    bool near_u = du < PM_WALL_LINE;
+    bool near_d = dd < PM_WALL_LINE;
 
     if ((open_l && near_l) || (open_r && near_r) ||
         (open_u && near_u) || (open_d && near_d)) {
-        return true;
+        return PM_WPX_LINE;
     }
 
     /* corner nub: both neighbours solid, but the diagonal between them is not */
     if (near_l && near_u && !open_l && !open_u && !solid_tile(g, tx - 1, ty - 1)) {
-        return true;
+        return PM_WPX_LINE;
     }
     if (near_r && near_u && !open_r && !open_u && !solid_tile(g, tx + 1, ty - 1)) {
-        return true;
+        return PM_WPX_LINE;
     }
     if (near_l && near_d && !open_l && !open_d && !solid_tile(g, tx - 1, ty + 1)) {
-        return true;
+        return PM_WPX_LINE;
     }
     if (near_r && near_d && !open_r && !open_d && !solid_tile(g, tx + 1, ty + 1)) {
-        return true;
+        return PM_WPX_LINE;
     }
-    return false;
+    return PM_WPX_FILL;
+}
+
+static uint16_t wall_colour(const pm_game *g, bool house, bool line) {
+    if (g->flash) {
+        return line ? pal.wall_flash : pal.wall_fill;
+    }
+    if (house) {
+        return line ? pal.house_edge : pal.house_fill;
+    }
+    return line ? pal.wall_edge : pal.wall_fill;
+}
+
+/*
+ * The inside of an elbow: a corridor tile with wall along two perpendicular
+ * sides.  The wall wraps that corner, and rounding it means the fillet bulges
+ * into the corridor - so unlike the convex corners it has to be drawn from the
+ * open tile, not the wall.  The arc is tangent to both wall faces, which puts
+ * its centre PM_WALL_R - PM_WALL_LINE in from each of them, and everything
+ * beyond it belongs to the wall.
+ *
+ * Corridors are a whole tile wide against sprites that are nearly as wide, so
+ * this only ever bites into a corner a sprite's circle does not reach.
+ */
+static bool elbow_px(const pm_game *g, int tx, int ty, int ix, int iy, uint16_t *col) {
+    int dl = ix, dr = PM_TILE - 1 - ix;
+    int du = iy, dd = PM_TILE - 1 - iy;
+
+    /* nothing to do down the middle of the tile, which is most of it */
+    if ((dl >= PM_WALL_R && dr >= PM_WALL_R) || (du >= PM_WALL_R && dd >= PM_WALL_R)) {
+        return false;
+    }
+
+    bool west = dl < PM_WALL_R;
+    bool north = du < PM_WALL_R;
+    int wx = west ? tx - 1 : tx + 1;
+    int wy = north ? ty - 1 : ty + 1;
+    /*
+     * Real wall tiles only.  solid_tile() calls everything off the grid solid
+     * so the outer wall gets no outline, but that wall is the border line
+     * painted round the panel - it is PM_MARGIN thick, not a tile, so an arc
+     * tangent to a tile face would not meet it.  The maze corners stay square,
+     * which is what the square border wants anyway.
+     */
+    if (wx < 0 || wx >= PM_COLS || wy < 0 || wy >= PM_ROWS) {
+        return false;
+    }
+    if (!solid_tile(g, wx, ty) || !solid_tile(g, tx, wy)) {
+        return false;
+    }
+
+    int c = PM_WALL_R - PM_WALL_LINE;
+    int a = c - (west ? dl : dr);
+    int b = c - (north ? du : dd);
+    int d2 = a * a + b * b;
+    if (d2 <= PM_WALL_R * PM_WALL_R) {
+        return false; /* still corridor */
+    }
+
+    int outer = PM_WALL_R + PM_WALL_LINE;
+    bool house = (g->tiles[ty][wx] == PM_T_HWALL);
+    *col = wall_colour(g, house, d2 <= outer * outer);
+    return true;
 }
 
 static uint16_t bg_pixel(const pm_game *g, int px, int py) {
@@ -120,17 +227,21 @@ static uint16_t bg_pixel(const pm_game *g, int px, int py) {
     int ix = px - tx * PM_TILE;
     int iy = py - ty * PM_TILE;
 
+    if (t != PM_T_WALL && t != PM_T_HWALL) {
+        uint16_t c;
+        if (elbow_px(g, tx, ty, ix, iy, &c)) {
+            return c;
+        }
+    }
+
     switch (t) {
     case PM_T_WALL:
     case PM_T_HWALL: {
-        bool line = wall_line_px(g, tx, ty, ix, iy);
-        if (g->flash) {
-            return line ? pal.wall_flash : pal.wall_fill;
+        int w = wall_px(g, tx, ty, ix, iy);
+        if (w == PM_WPX_OUT) {
+            return pal.bg;
         }
-        if (t == PM_T_HWALL) {
-            return line ? pal.house_edge : pal.house_fill;
-        }
-        return line ? pal.wall_edge : pal.wall_fill;
+        return wall_colour(g, t == PM_T_HWALL, w == PM_WPX_LINE);
     }
     case PM_T_DOOR:
         return (iy >= PM_DOOR_AT && iy < PM_DOOR_AT + PM_WALL_LINE) ? pal.door : pal.bg;
@@ -306,7 +417,7 @@ static bool actor_box(const pm_game *g, int idx, int16_t *ax, int16_t *ay) {
         *ay = g->pac.y;
         return !(g->phase == PM_DYING && g->death >= 5);
     }
-    if (g->hide_ghosts) {
+    if (g->hide_ghosts || !pm_ghost_visible(g, idx)) {
         return false;
     }
     *ax = g->ghosts[idx].actor.x;

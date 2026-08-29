@@ -9,11 +9,25 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define PM_COLS   12
-#define PM_ROWS   12
-#define PM_TILE   20                     /* pixels per tile */
-#define PM_WIDTH  (PM_COLS * PM_TILE)    /* 240 */
-#define PM_HEIGHT (PM_ROWS * PM_TILE)    /* 240 */
+/*
+ * The grid is odd-sized on purpose.  Walls and corridors are both exactly one
+ * tile thick, which only works on a lattice: tiles on even rows and columns
+ * are always corridor, tiles on an odd row AND an odd column are always wall,
+ * and the ones in between are the links that may be either.  Every 2x2 block
+ * then holds exactly one tile of each kind, so neither walls nor corridors
+ * can ever double up.  An odd count also puts a corridor along all four edges
+ * and a corridor tile dead centre, which is where the ghost house goes.
+ *
+ * 9 is the smallest odd grid that still holds a maze worth watching, and it
+ * buys the biggest tile: 26px carries a 24px sprite, where the old 12x12 grid
+ * could only afford 18px.  On a 240px panel legibility beats layout - the
+ * animation has to read at arm's length.
+ */
+#define PM_COLS   9
+#define PM_ROWS   9
+#define PM_TILE   26                     /* pixels per tile */
+#define PM_WIDTH  (PM_COLS * PM_TILE)    /* 234 */
+#define PM_HEIGHT (PM_ROWS * PM_TILE)    /* 234 */
 
 /*
  * No tile is spent on a border: the maze is walled in by a line drawn round
@@ -24,7 +38,7 @@
  * pixels of the maze instead.
  */
 #define PM_PANEL  240                              /* the dongle's square panel */
-#define PM_MARGIN ((PM_PANEL - PM_WIDTH) / 2)      /* 0 at 12x20 */
+#define PM_MARGIN ((PM_PANEL - PM_WIDTH) / 2)      /* 3 at 9x26 */
 
 #define PM_GHOSTS 4
 #define PM_ACTORS (PM_GHOSTS + 1)        /* ghosts + pac-man */
@@ -117,5 +131,8 @@ void pm_step(pm_game *g);
 void pm_set_speed(pm_game *g, uint8_t pac_px, uint8_t ghost_px);
 
 /* helpers shared with the renderer */
+/* false while a ghost waits its turn in the one-tile house, so the queue
+ * behind the next one out is not drawn stacked on the same tile */
+bool pm_ghost_visible(const pm_game *g, int i);
 bool pm_power_visible(const pm_game *g);
 bool pm_fright_flashing(const pm_game *g);

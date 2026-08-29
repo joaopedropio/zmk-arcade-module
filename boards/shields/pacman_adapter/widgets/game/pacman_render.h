@@ -22,7 +22,13 @@
  * fine too, it just sits half a pixel towards the tile's top-left.
  */
 #define PM_WALL_LINE  1                                 /* wall outline thickness */
-#define PM_SPRITE     18                                /* sprite box, any size */
+/*
+ * Corner radius where two open sides of a wall meet.  Must be no more than
+ * half a tile, so the four corner boxes of a tile cannot overlap; at exactly
+ * half, the end of a one-tile-wide wall becomes a semicircular cap.
+ */
+#define PM_WALL_R     (PM_TILE / 3)                     /* rounded wall corners */
+#define PM_SPRITE     24                                /* sprite box, any size */
 #define PM_SPRITE_OFF ((PM_TILE - PM_SPRITE) / 2)       /* centres it on the tile */
 
 typedef struct {

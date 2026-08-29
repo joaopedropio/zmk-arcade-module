@@ -16,27 +16,50 @@ Same idea (and the same hardware definition) as the
 The game is drawn straight to the panel — no LVGL objects, no full frame
 buffer, only the tiles that actually changed are pushed over SPI.
 
-Proportions follow the arcade rather than the tile grid. The maze is 12x12
-tiles of 20px, and every wall in it is a single tile thick, drawn as a 1px
-tube hugging the corridors rather than a filled block. Sprites are 18px boxes
-centred on their tile.
+Proportions follow the arcade rather than the tile grid. The maze is 9x9
+tiles of 26px; walls and corridors are both exactly one tile thick, each wall
+drawn as a 1px tube rather than a filled slab, with corners rounded to
+`PM_WALL_R`. Sprites are 24px boxes centred on their tile — on a 240px panel read at arm's length, how big the characters
+are matters more than how elaborate the maze is, so the grid is kept as coarse
+as it can be while still holding a maze.
 
 No tile is spent on a border: the maze is walled in by a line drawn round the
 edge of the panel, with a gap wherever a row runs off into the tunnel, so the
 whole grid is playfield and the outer ring of tiles is a corridor. When the
 grid does not divide the panel exactly the leftover margin becomes that line;
-when it divides exactly, as 12x20 does, the line is drawn over the outermost
-pixels of the maze instead — and because `paint()` draws it, a dirty rectangle
-along the edge repaints it too.
+when it divides exactly the line is drawn over the outermost pixels of the
+maze instead — and because `paint()` draws it, a dirty rectangle along the
+edge repaints it too. At 9x26 the grid is 234px, so the line lives in the 3px
+margin.
 
 A row only wraps where it runs off into a tunnel. Everywhere else the edge of
 the maze is that outer wall, which is what stops actors walking through the
 border line on any row they like.
 
-The tile size is what keeps one-tile walls from turning the maze into a
-lattice: one wall tile covers what took two or three on a 24x24 grid, so the
-corridors stay wide and few. `PM_TILE` in `pacman_core.h` sets the grid;
-`PM_WALL_LINE` and `PM_SPRITE` in `pacman_render.h` set the drawing. Pellets,
+What keeps both walls and corridors one tile thick is the lattice an odd grid
+sets up. Tiles on an even row and even column are always corridor, tiles on an
+odd row and odd column are always wall, and the ones in between are links that
+may be either. Every 2x2 block then holds exactly one tile of each kind, so no
+2x2 can be all corridor (a corridor widening) or all wall (a wall thickening).
+Only the links are a design choice. Dead ends reduce to a single rule on top
+of that — every even/even corridor tile needs two of its four links open —
+because a link tile always joins exactly two of them.
+
+The ghost house is the smallest one the lattice allows: the centre tile alone,
+walled in by the ring of eight around it with the top link left as the door.
+Only the ghost next in line is drawn waiting in it, so four sprites never pile
+onto the same tile. Corners come in two kinds and are rounded differently. Where two open sides of
+a wall meet, the outline turns through a quarter circle and the tile's corner
+outside it drops back to the background — so the end of a one-tile wall is a
+cap, not a square. The inside of an elbow, where a corridor turns between two
+perpendicular walls, has to be filleted from the open tile instead, because
+rounding it means bulging into the corridor; corridors are a whole tile wide,
+so it only bites where a sprite's circle does not reach. The outer wall is
+exempt: it is the border line painted round the panel, `PM_MARGIN` thick
+rather than a tile, so an arc tangent to a tile face would not meet it.
+
+`PM_TILE` in `pacman_core.h` sets the grid; `PM_WALL_LINE`, `PM_WALL_R` and
+`PM_SPRITE` in `pacman_render.h` set the drawing. Pellets,
 the ghost house door, the power pellets and the sprites all scale off
 `PM_TILE` rather than being hardcoded — `PM_SPRITE` only has to keep
 `PM_TILE`'s parity so the sprite centres on a whole pixel.
@@ -127,7 +150,7 @@ converted to RGB565 once at boot.
 ## How it plays itself
 
 Pac-Man decides at every tile centre, with a breadth-first search over the
-12x12 maze:
+9x9 maze:
 
 1. While the ghosts are blue, head for the closest one.
 2. Otherwise, if a hunting ghost is within 8 tiles, run for a power pellet.
@@ -146,8 +169,10 @@ when a power pellet is eaten, and go back to the house as a pair of eyes
 after being eaten. Each sits out one frame in five, which is what makes a
 good run possible at all.
 
-Over a two-hour soak (200k frames) Pac-Man clears a maze about every two
-minutes and gets caught about once a minute.
+Over a two-hour soak (200k frames at 30fps) Pac-Man clears a maze about every
+90 seconds and gets caught about every 50 — 73 clears against 130 deaths. The
+9x9 maze is tighter than the old 12x12 one, so there is less room to dodge in
+and the animation turns over faster.
 
 ## Trying it without flashing
 

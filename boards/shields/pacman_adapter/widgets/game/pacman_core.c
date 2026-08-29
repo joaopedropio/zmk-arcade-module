@@ -16,43 +16,51 @@
 /* '#' wall  '.' pellet  'o' power pellet  ' ' empty  'H' house wall
  * 'h' house inside  'D' house door
  *
- * 12x12 tiles of 20px.  Every wall is one tile thick, which is what lets the
- * renderer draw them as thin tubes.  No tile is spent on a border: the maze is
- * walled in by a line round the edge of the panel, so the whole grid is
- * playfield and the outer ring of tiles is a corridor.
+ * 9x9 tiles of 26px.  No tile is spent on a border: the maze is walled in by a
+ * line round the edge of the panel, so the whole grid is playfield and the
+ * outer ring of tiles is the corridor that runs round it.
  *
- * The rule that keeps walls one tile thick is that horizontal bars only sit on
- * even rows and vertical bars only on columns 1, 4, 7 and 10, no two of which
- * are adjacent, so two adjacent rows can never both be wall across two
- * adjacent columns.  Columns 5 and 6 straddle the centre line and mirror onto
- * each other, so they can never both carry a bar - which is why the ghost
- * house sits there.
+ * Walls and corridors are both exactly one tile thick.  What guarantees it is
+ * the lattice PM_ROWS/PM_COLS being odd sets up (see pacman_core.h): the 25
+ * tiles on even row and even column are always corridor, the 16 on odd row and
+ * odd column are always wall, and the 40 in between are links that may be
+ * either.  Every 2x2 block therefore contains exactly one of each, so no 2x2
+ * is all corridor (which would widen a corridor) and none is all wall (which
+ * would thicken a wall).  Only the links are a design choice; everything else
+ * is forced.
  *
  * There are no dead ends anywhere: a tile with one way in and out is a trap,
  * because Pac-Man cannot turn round ahead of a ghost, and every one of them
- * costs him a life sooner or later. */
+ * costs him a life sooner or later.  On the lattice that reduces to one rule -
+ * every corridor tile on an even row and even column needs two of its four
+ * links open - because a link tile always joins exactly two of them.
+ *
+ * The ghost house is the smallest one that can exist here: the single centre
+ * tile, walled in by the ring of eight around it with the top link left as the
+ * door.  Only one ghost is drawn waiting in it, the rest queue up unseen, so
+ * four sprites never pile onto one tile.
+ *
+ * Row 4 is the tunnel: it leaves the maze at both ends (' ', no pellet) and
+ * wraps round. */
 static const char *const MAZE_ART[PM_ROWS] = {
-    "o..........o",
-    ".#........#.",
-    ".#.######.#.",
-    " .......... ",
-    ".#..HDDH..#.",
-    ".#..HhhH..#.",
-    "....HhhH....",
-    ".#..HhhH..#.",
-    ".#..HHHH..#.",
-    ".#........#.",
-    ".#.######.#.",
-    "o..........o",
+    "o.......o",
+    ".#.###.#.",
+    ".#.....#.",
+    ".#.HDH.#.",
+    " ..HhH.. ",
+    ".#.HHH.#.",
+    ".#.....#.",
+    ".#.###.#.",
+    "o.......o",
 };
 
-/* the ghost house sits in the middle of the maze */
-#define HOUSE_EXIT_X 5
-#define HOUSE_EXIT_Y 3
-#define HOUSE_IN_Y   6
+/* the ghost house is the single tile in the middle of the maze */
+#define HOUSE_EXIT_X 4
+#define HOUSE_EXIT_Y 2
+#define HOUSE_IN_Y   4
 
-#define PAC_START_X  5
-#define PAC_START_Y  9
+#define PAC_START_X  4
+#define PAC_START_Y  6
 
 #define FPS            30
 #define READY_FRAMES   (FPS * 3 / 2)
@@ -68,16 +76,19 @@ struct ghost_start {
     pm_ghost_state state;
 };
 
+#define HOUSE_X 4
+#define HOUSE_Y 4
+
 static const struct ghost_start GHOST_START[PM_GHOSTS] = {
     {HOUSE_EXIT_X, HOUSE_EXIT_Y, 0, PM_G_OUT},   /* red   - starts on the prowl */
-    {5, 5, FPS * 2, PM_G_HOUSE},                 /* pink  */
-    {6, 5, FPS * 5, PM_G_HOUSE},                 /* cyan  */
-    {6, 6, FPS * 9, PM_G_HOUSE},                 /* orange */
+    {HOUSE_X, HOUSE_Y, FPS * 2, PM_G_HOUSE},     /* pink  */
+    {HOUSE_X, HOUSE_Y, FPS * 5, PM_G_HOUSE},     /* cyan  */
+    {HOUSE_X, HOUSE_Y, FPS * 9, PM_G_HOUSE},     /* orange */
 };
 
 /* scatter corners, one per ghost */
-static const int8_t SCATTER_X[PM_GHOSTS] = {10, 1, 10, 1};
-static const int8_t SCATTER_Y[PM_GHOSTS] = {1, 1, 10, 10};
+static const int8_t SCATTER_X[PM_GHOSTS] = {8, 0, 8, 0};
+static const int8_t SCATTER_Y[PM_GHOSTS] = {0, 0, 8, 8};
 
 /* ------------------------------------------------------------------ */
 /* small helpers                                                       */
@@ -694,6 +705,30 @@ void pm_init(pm_game *g, uint32_t seed) {
 void pm_set_speed(pm_game *g, uint8_t pac_px, uint8_t ghost_px) {
     g->pac_speed = pac_px < 1 ? 1 : (pac_px > 5 ? 5 : pac_px);
     g->ghost_speed = ghost_px < 1 ? 1 : (ghost_px > 5 ? 5 : ghost_px);
+}
+
+/*
+ * The house is one tile wide, so the ghosts still waiting in it would all be
+ * drawn on top of each other.  Only the one next in line is shown - the rest
+ * queue up unseen and appear as they leave.  Release timers are distinct at
+ * the start of a round but two ghosts eaten together come home with the same
+ * one, so the index breaks the tie.
+ */
+bool pm_ghost_visible(const pm_game *g, int i) {
+    const pm_ghost *gh = &g->ghosts[i];
+    if (gh->state != PM_G_HOUSE || gh->release == 0) {
+        return true;
+    }
+    for (int j = 0; j < PM_GHOSTS; j++) {
+        const pm_ghost *other = &g->ghosts[j];
+        if (j == i || other->state != PM_G_HOUSE) {
+            continue;
+        }
+        if (other->release < gh->release || (other->release == gh->release && j < i)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool pm_power_visible(const pm_game *g) {
