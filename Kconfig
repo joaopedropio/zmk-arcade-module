@@ -1,0 +1,86 @@
+# Pac-Man dongle module options.
+#
+# Every symbol is prefixed with PACMAN_ so this module can live next to
+# other dongle modules without fighting over Kconfig names.
+
+config PACMAN_ROTATE_DISPLAY
+    int "Rotate the display (0, 90, 180 or 270)"
+    default 0
+
+config PACMAN_FRAME_INTERVAL
+    int "Milliseconds between frames"
+    default 33
+    help
+      33 ms is roughly 30 frames per second.  Raise it for a calmer,
+      cheaper animation, lower it for a snappier one.
+
+config PACMAN_START_DELAY
+    int "Milliseconds to wait before the first frame"
+    default 600
+    help
+      Gives LVGL time to flush its (empty) screen once before the maze
+      is painted over it.
+
+config PACMAN_WPM_SPEED
+    bool "Speed the game up while you type"
+    default y
+
+config PACMAN_WPM_SLOW
+    int "Words per minute below which the game idles"
+    default 20
+
+config PACMAN_WPM_FAST
+    int "Words per minute above which the game runs fast"
+    default 60
+
+config PACMAN_BG_COLOR
+    string "Background colour (rrggbb)"
+    default "000000"
+
+config PACMAN_WALL_COLOR
+    string "Maze wall outline colour (rrggbb)"
+    default "2121de"
+
+config PACMAN_WALL_FILL_COLOR
+    string "Maze wall fill colour (rrggbb)"
+    default "000000"
+
+config PACMAN_WALL_FLASH_COLOR
+    string "Maze colour while it flashes at the end of a level (rrggbb)"
+    default "f8f8f8"
+
+config PACMAN_HOUSE_COLOR
+    string "Ghost house outline colour (rrggbb)"
+    default "6d6dff"
+
+config PACMAN_DOOR_COLOR
+    string "Ghost house door colour (rrggbb)"
+    default "ffb8ff"
+
+config PACMAN_PELLET_COLOR
+    string "Pellet colour (rrggbb)"
+    default "ffb897"
+
+config PACMAN_PACMAN_COLOR
+    string "Pac-Man colour (rrggbb)"
+    default "ffee00"
+
+config PACMAN_GHOST_0_COLOR
+    string "First ghost colour (rrggbb)"
+    default "ff0000"
+
+config PACMAN_GHOST_1_COLOR
+    string "Second ghost colour (rrggbb)"
+    default "ffb8ff"
+
+config PACMAN_GHOST_2_COLOR
+    string "Third ghost colour (rrggbb)"
+    default "00ffff"
+
+config PACMAN_GHOST_3_COLOR
+    string "Fourth ghost colour (rrggbb)"
+    default "ffb852"
+
+config PACMAN_FRIGHT_COLOR
+    string "Colour of a frightened ghost (rrggbb)"
+    default "2121de"
