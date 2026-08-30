@@ -6,7 +6,7 @@ little arcade cabinet. Nobody drives it — Pac-Man hunts pellets on his own,
 runs for a power pellet when he is cornered, chases the blue ghosts, and the
 four ghosts use the classic scatter/chase targeting rules.
 
-<img src="docs/demo.gif" width="320" alt="Pac-Man playing itself on the dongle display"/>
+<img src="docs/demo.gif" width="320" alt="The splash screen, then Pac-Man playing itself on the dongle display"/>
 
 Same idea (and the same hardware definition) as the
 [snake module](https://github.com/joaopedropio/snake-module), just a different game.
@@ -284,9 +284,15 @@ frames:
 ```sh
 tools/sim/build.sh /tmp/pacman-sim
 /tmp/pacman-sim 3000                        # 100 seconds, invariants only
-/tmp/pacman-sim 900 2 /tmp/frames 0 2       # frames, every-nth, dir, from, speed
-ffmpeg -framerate 15 -i /tmp/frames/frame_%05d.ppm /tmp/pacman.gif
+/tmp/pacman-sim 640 2 /tmp/frames 40        # frames, every-nth, dir, from, speed
+ffmpeg -framerate 15 -i /tmp/frames/frame_%05d.ppm -vf palettegen=max_colors=64 /tmp/pal.png
+ffmpeg -framerate 15 -i /tmp/frames/frame_%05d.ppm -i /tmp/pal.png \
+    -lavfi paletteuse=dither=none /tmp/pacman.gif
 ```
+
+Every other frame at 15 fps runs the gif at the speed the dongle plays it, and
+starting at 40 skips the READY pause.  `docs/demo.gif` is that, with the
+splash from `tools/uisim` held in front of it for the first two seconds.
 
 ## Layout
 
