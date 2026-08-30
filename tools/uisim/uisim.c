@@ -12,7 +12,7 @@
  *      boards/shields/pacman_adapter/widgets/helpers/display.c \
  *      boards/shields/pacman_adapter/widgets/splash.c \
  *      boards/shields/pacman_adapter/widgets/logo.c
- *   /tmp/uisim <out-dir> [theme] [rotation]
+ *   /tmp/uisim <out-dir> [theme] [rotation] [slot-mode]
  *
  * SPDX-License-Identifier: MIT
  */
@@ -130,6 +130,7 @@ int main(int argc, char **argv) {
     const char *dir = argc > 1 ? argv[1] : ".";
     int theme = argc > 2 ? atoi(argv[2]) : 0;
     int rotation = argc > 3 ? atoi(argv[3]) : 0;
+    int slots = argc > 4 ? atoi(argv[4]) : 2;
 
     set_battery_slots(2);
     switch (rotation) {
@@ -138,9 +139,18 @@ int main(int argc, char **argv) {
     case 270: set_display_orientation(DISPLAY_ORIENTATION_270); break;
     default: set_display_orientation(DISPLAY_ORIENTATION_0); break;
     }
-    set_slot_mode(SLOT_MODE_2);
-    set_slot_5(SLOT_NAME_WPM);
-    set_slot_6(SLOT_NAME_LAYER);
+    switch (slots) {
+    case 4: set_slot_mode(SLOT_MODE_4); break;
+    case 5: set_slot_mode(SLOT_MODE_5); break;
+    case 6: set_slot_mode(SLOT_MODE_6); break;
+    default: set_slot_mode(SLOT_MODE_2); break;
+    }
+    set_slot_1(SLOT_NAME_LAYER);
+    set_slot_2(SLOT_NAME_WPM);
+    set_slot_3(SLOT_NAME_THEME);
+    set_slot_4(SLOT_NAME_CONNECTIVITY);
+    set_slot_5(SLOT_NAME_MODIFIERS);
+    set_slot_6(SLOT_NAME_NONE);
     set_custom_theme_colors(0xffb897u, 0x2121deu, 0x1a1a2eu, 0x000000u);
     apply_current_theme(theme);
     init_display();

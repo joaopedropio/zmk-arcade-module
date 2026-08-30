@@ -222,9 +222,22 @@ void logo_animation_timer(lv_timer_t *timer) {
 
 void stop_animation(void) { animation_running = false; }
 
+/*
+ * What the slot mode leaves the header: the two-slot layout has room for the
+ * whole lap, the four-slot one for the wordmark alone, and the other two for
+ * neither - the five-slot layout gives that band to whichever widget is in
+ * slot 2, and the six-slot one fills the panel with slots, so anything drawn
+ * up there would land on a widget.
+ */
+static bool has_lap(void) { return get_slot_mode() == SLOT_MODE_2; }
+
+static bool has_wordmark(void) { return get_slot_mode() == SLOT_MODE_4; }
+
 void start_animation(void) {
-    if (get_slot_mode() != SLOT_MODE_2) {
-        print_logo_text(); /* no room for the lap: the wordmark alone */
+    if (!has_lap()) {
+        if (has_wordmark()) {
+            print_logo_text();
+        }
         return;
     }
     animation_initialized = false;
@@ -232,14 +245,19 @@ void start_animation(void) {
 }
 
 void logo_animation_init(void) {
+    if (!has_lap() && !has_wordmark()) {
+        return;
+    }
+
+    if (has_wordmark()) {
+        logo_text_y = 20;
+        logo_text_font_scale = 4;
+    }
     logo_text_buf = k_malloc(
         SCALED_BITMAP_BYTES(logo_text_font_width, logo_text_font_height, logo_text_font_scale));
 
-    if (get_slot_mode() != SLOT_MODE_2) {
-        logo_text_y = 20;
-        logo_text_font_scale = 4;
-        return;
+    if (has_lap()) {
+        animation_sections_total = (logo_animation_width * 2) + (logo_animation_height * 2);
+        animation_buf = k_malloc(SCALED_BITMAP_BYTES(6, 6, logo_animation_scale));
     }
-    animation_sections_total = (logo_animation_width * 2) + (logo_animation_height * 2);
-    animation_buf = k_malloc(SCALED_BITMAP_BYTES(6, 6, logo_animation_scale));
 }
