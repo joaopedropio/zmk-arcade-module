@@ -334,7 +334,17 @@ tools/sfxsim/build.sh /tmp/sfxsim
 `widgets/sound.c` is the part that has to know about Zephyr: it keeps blocks
 of samples going to the I2S driver while a tune is sounding and stops the
 clock when it is not, which is what keeps the amplifier from hissing between
-sounds.  Only that thread touches the synth; the game's timer asks for a tune
+sounds.
+
+It runs above the display thread, which ZMK puts at priority 5.  Filling a
+block is well under a millisecond of the sixteen it buys, so the maze loses
+nothing it can notice; underneath the display it lost whole blocks every time
+the screen was busy, and repainting the whole maze is 240x240 pixels down a
+20 MHz SPI.  Eight blocks are in flight and four go over before the clock
+starts, so a scheduling hiccup has 64 ms to sort itself out - and when one is
+missed anyway the driver stops the transfer rather than gapping it, so the
+stream is dropped back to ready and picked up from wherever the synth has got
+to, instead of losing the rest of the tune.  Only that thread touches the synth; the game's timer asks for a tune
 and reads back what the voice is doing, both through atomics.
 
 `CONFIG_PACMAN_SOUND=n` compiles all of it out, and so does leaving the

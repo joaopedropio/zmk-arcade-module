@@ -36,8 +36,16 @@ LOG_MODULE_DECLARE(pacman, LOG_LEVEL_INF);
 #define FRAMES_PER_BLOCK 256
 #define CHANNELS 2 /* the amplifier sums the two, so both carry the same */
 #define BLOCK_BYTES (FRAMES_PER_BLOCK * CHANNELS * sizeof(int16_t))
-#define BLOCK_COUNT 4
-#define QUEUED_BEFORE_START 2 /* the driver wants one to play and one to follow */
+/*
+ * Eight blocks of 16 ms each.  The amplifier needs one every 16 ms and misses
+ * nothing as long as the thread gets the CPU inside that; the depth is what
+ * covers the times it does not, and the display thread repainting the whole
+ * maze is 240x240 pixels down a 20 MHz SPI - tens of milliseconds during which
+ * nothing else runs.  Four of them are handed over before the clock starts, so
+ * a tune opens with 64 ms in hand.
+ */
+#define BLOCK_COUNT 8
+#define QUEUED_BEFORE_START 4
 
 K_MEM_SLAB_DEFINE_STATIC(sound_slab, BLOCK_BYTES, BLOCK_COUNT, 4);
 
@@ -95,6 +103,34 @@ static int write_block(void) {
     return err;
 }
 
+static bool start_stream(void) {
+    amp_power(true);
+    for (int i = 0; i < QUEUED_BEFORE_START; i++) {
+        if (write_block() < 0) {
+            break;
+        }
+    }
+    if (i2s_trigger(i2s_dev, I2S_DIR_TX, I2S_TRIGGER_START) < 0) {
+        LOG_ERR("i2s start failed");
+        amp_power(false);
+        return false;
+    }
+    streaming = true;
+    return true;
+}
+
+/*
+ * An underrun is not just a gap: the driver gives up on the transfer and will
+ * not take another block until it has been dropped back to ready.  Rather than
+ * losing the rest of the tune, pick the stream up again from wherever the
+ * synth has got to.
+ */
+static bool restart_stream(void) {
+    (void)i2s_trigger(i2s_dev, I2S_DIR_TX, I2S_TRIGGER_DROP);
+    streaming = false;
+    return start_stream();
+}
+
 static void stop_stream(void) {
     if (!streaming) {
         return;
@@ -129,23 +165,13 @@ static void sound_thread(void *a, void *b, void *c) {
         take_request();
 
         while (pm_sfx_sounding()) {
-            if (!streaming) {
-                amp_power(true);
-                for (int i = 0; i < QUEUED_BEFORE_START; i++) {
-                    if (write_block() < 0) {
-                        break;
-                    }
-                }
-                if (i2s_trigger(i2s_dev, I2S_DIR_TX, I2S_TRIGGER_START) < 0) {
-                    LOG_ERR("i2s start failed");
-                    amp_power(false);
-                    pm_sfx_stop();
-                    break;
-                }
-                streaming = true;
+            if (!streaming && !start_stream()) {
+                pm_sfx_stop();
+                break;
             }
 
-            if (write_block() < 0) {
+            if (write_block() < 0 && !restart_stream()) {
+                pm_sfx_stop();
                 break;
             }
 
@@ -158,7 +184,13 @@ static void sound_thread(void *a, void *b, void *c) {
     }
 }
 
-K_THREAD_DEFINE(pacman_sound, 2048, sound_thread, NULL, NULL, NULL, K_PRIO_PREEMPT(10), 0, 0);
+/*
+ * Above the display thread, which ZMK runs at 5.  Filling a block is well
+ * under a millisecond of the sixteen it buys, so the maze loses nothing it can
+ * notice, while underneath the display it lost whole blocks every time the
+ * screen was busy.
+ */
+K_THREAD_DEFINE(pacman_sound, 2048, sound_thread, NULL, NULL, NULL, K_PRIO_PREEMPT(3), 0, 0);
 
 static void request(pm_tune_id id) {
     if (!ready) {
