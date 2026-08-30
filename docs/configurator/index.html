@@ -146,6 +146,25 @@
   .choices button { padding: 5px 10px; font-size: 13px; }
   .previewbar { display: flex; gap: 8px; margin-top: 10px; }
   .screenpick.on { border-color: var(--pac); color: var(--pac); }
+  nav {
+    display: flex;
+    gap: 4px;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--edge);
+    background: var(--panel);
+    flex-wrap: wrap;
+  }
+  nav button {
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: none;
+    padding: 12px 18px;
+    color: var(--dim);
+    letter-spacing: .04em;
+  }
+  nav button:hover:not(:disabled) { color: var(--ink); }
+  nav button.on { color: var(--pac); border-bottom-color: var(--pac); }
   .row.flash { animation: flash 1.4s ease-out; }
   @keyframes flash {
     from { background: #2a2a12; }
@@ -166,6 +185,8 @@
   <button id="reload" disabled>Reload</button>
   <button id="resetall" disabled>Reset all</button>
 </header>
+
+<nav id="nav"></nav>
 
 <main>
   <div id="status">Not connected.</div>
@@ -192,8 +213,8 @@
           ask — but its layout and every colour are the real thing.
         </p>
         <div id="picked"></div>
-        <div class="previewbar" id="tabs"></div>
-        <div class="previewbar">
+        <div class="previewbar" id="screens"></div>
+        <div class="previewbar" id="playbar">
           <button id="play">Play</button>
           <button id="rewind">Rewind</button>
         </div>
@@ -224,23 +245,33 @@
 
 const PROMPT_FALLBACK = "uart:~$";
 /*
- * One tab at a time, and the three that are a screen also drive the preview.
- * Every setting belongs to exactly one: the matchers are exact enough that
- * their order does not matter, and Dashboard takes whatever the others leave,
- * so a setting added to the firmware turns up somewhere rather than nowhere.
+ * The navbar is the sections; the first of them is the panel itself, and
+ * inside it the three screens the dongle shows.  A setting belongs to one
+ * section, and if that section is Screen, to one of the three - Dashboard
+ * takes whatever the other two leave, so a colour added to the firmware turns
+ * up somewhere rather than nowhere.
  */
-const TABS = [
-  { name: "Game",      screen: 0,    match: (n) => /^game-/.test(n) },
-  { name: "Splash",    screen: 1,    match: (n) => /^splash-(multi|logo|created-by|bg)/.test(n) },
-  { name: "Dashboard", screen: 2,    match: null },
-  { name: "Layout",    screen: 2,    match: (n) => /^(screen|slot-mode|slot[1-6]|battery-slots|rotate)$/.test(n) },
-  { name: "Sound",     screen: null, match: (n) => /^(mute|volume|bass-floor|sample-rate|mute-threshold)$/.test(n) },
-  { name: "Timing",    screen: null, match: (n) => /^(frame-interval|splash-frames|splash-interval|logo-interval|wpm-slow|wpm-fast|theme-threshold)$/.test(n) },
+const SCREENS = [
+  { name: "Game",      match: (n) => /^game-/.test(n) },
+  { name: "Splash",    match: (n) => /^splash-(multi|logo|created-by|bg)/.test(n) },
+  { name: "Dashboard", match: null },
 ];
 
-function tabOf(name) {
-  for (const tab of TABS) if (tab.match && tab.match(name)) return tab;
-  return TABS.find((tab) => !tab.match);
+const SECTIONS = [
+  { name: "Screen", match: null },
+  { name: "Layout", match: (n) => /^(screen|slot-mode|slot[1-6]|battery-slots|rotate)$/.test(n) },
+  { name: "Sound",  match: (n) => /^(mute|volume|bass-floor|sample-rate|mute-threshold)$/.test(n) },
+  { name: "Timing", match: (n) => /^(frame-interval|splash-frames|splash-interval|logo-interval|wpm-slow|wpm-fast|theme-threshold)$/.test(n) },
+];
+
+function sectionOf(name) {
+  for (const section of SECTIONS) if (section.match && section.match(name)) return section;
+  return SECTIONS[0];
+}
+
+function screenOf(name) {
+  for (const screen of SCREENS) if (screen.match && screen.match(name)) return screen;
+  return SCREENS[2];
 }
 
 const GROUPS = [
@@ -265,7 +296,7 @@ const FRAME_MS = 66; /* about 15 fps, which is the speed the dongle plays it */
 
 let port = null, writer = null, incoming = "", prompt = PROMPT_FALLBACK;
 let settings = [];
-let wasm = null, playing = null, screenIndex = 0, tabIndex = 0;
+let wasm = null, playing = null, screenIndex = 0, navIndex = 0;
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -352,12 +383,13 @@ async function loadSchema() {
   if (!rows.length) throw new Error("`pacman schema` said nothing - is this the right firmware?");
   settings = rows;
   render();
-  buildTabs();
+  buildNav();
+  buildScreens();
   guardPreview("drawing the screen", () => {
-    $("previewpanel").classList.remove("hidden");
-    setScreen(TABS[tabIndex].screen ?? screenIndex);
+    setScreen(screenIndex);
     pushAll();
   });
+  showChrome();
   say("Connected. " + rows.length + " settings.", "good");
 }
 
@@ -481,8 +513,11 @@ function render() {
   const panels = $("panels");
   panels.textContent = "";
 
-  const tab = TABS[tabIndex];
-  const mine = settings.filter((setting) => tabOf(setting.name) === tab);
+  const section = SECTIONS[navIndex];
+  const mine = settings.filter((setting) => {
+    if (sectionOf(setting.name) !== section) return false;
+    return section !== SECTIONS[0] || screenOf(setting.name) === SCREENS[screenIndex];
+  });
   $("count").textContent = mine.length + " of " + settings.length + " settings. ";
 
   const order = GROUPS.map(([title]) => title).concat("Other");
@@ -616,33 +651,57 @@ function renderScreen() {
 
 function setScreen(index) {
   screenIndex = index;
+  setPlaying(false);
+  buildScreens();
+  render();
+  showChrome();
   wasm._preview_set_screen(index);
   if (index === 0) rewind(); else renderScreen();
 }
 
-function buildTabs() {
-  const strip = $("tabs");
+function buildNav() {
+  const strip = $("nav");
   strip.textContent = "";
-  TABS.forEach((tab, i) => {
+  SECTIONS.forEach((section, i) => {
     const button = document.createElement("button");
-    button.className = "screenpick" + (i === tabIndex ? " on" : "");
-    button.textContent = tab.name;
-    button.addEventListener("click", () => setTab(i));
+    button.className = i === navIndex ? "on" : "";
+    button.textContent = section.name;
+    button.addEventListener("click", () => setNav(i));
+    strip.append(button);
+  });
+}
+
+function buildScreens() {
+  const strip = $("screens");
+  strip.textContent = "";
+  SCREENS.forEach((screen, i) => {
+    const button = document.createElement("button");
+    button.className = "screenpick" + (i === screenIndex ? " on" : "");
+    button.textContent = screen.name;
+    button.addEventListener("click", () => setScreen(i));
     strip.append(button);
   });
 }
 
 /*
- * Switching tab switches the screen too where the tab is one, so what is on
- * the panel is always the thing whose colours are listed underneath it.
+ * The panel only means anything on the Screen section, and only the game runs
+ * on by itself - the splash is a fixed picture and the dashboard's only motion
+ * is its header - so the transport hides everywhere else rather than offering
+ * a Play that does nothing.
  */
-function setTab(index) {
-  tabIndex = index;
+function showChrome() {
+  const onScreen = navIndex === 0;
+  $("previewpanel").classList.toggle("hidden", !onScreen || !wasm);
+  $("playbar").classList.toggle("hidden", !(onScreen && screenIndex === 0));
+}
+
+function setNav(index) {
+  navIndex = index;
   setPlaying(false);
-  buildTabs();
+  buildNav();
   render();
-  const screen = TABS[index].screen;
-  if (screen !== null) guardPreview("switching screen", () => setScreen(screen));
+  showChrome();
+  if (navIndex === 0) guardPreview("switching screen", () => setScreen(screenIndex));
 }
 
 function rewind() {
@@ -668,12 +727,16 @@ function setPlaying(on) {
 function pickSetting(name) {
   const setting = settings.find((s) => s.name === name);
 
-  /* the row is only in the DOM if its tab is showing, so go there first */
-  const wanted = TABS.indexOf(tabOf(name));
-  if (wanted !== -1 && wanted !== tabIndex) {
-    tabIndex = wanted;
-    buildTabs();
+  /* the row is only in the DOM if its section is showing, so go there first */
+  const section = SECTIONS.indexOf(sectionOf(name));
+  const screen = SCREENS.indexOf(screenOf(name));
+  if (section !== navIndex || (section === 0 && screen !== screenIndex)) {
+    navIndex = section;
+    if (section === 0) screenIndex = screen;
+    buildNav();
+    buildScreens();
     render();
+    showChrome();
   }
   const row = [...document.querySelectorAll(".row")]
     .find((r) => r.querySelector("label").firstChild.textContent === name);
@@ -869,10 +932,10 @@ PacmanPreview().then((module) => {
   $("screen").classList.remove("idle");
   if (settings.length) {
     guardPreview("drawing the screen", () => {
-      $("previewpanel").classList.remove("hidden");
       setScreen(screenIndex);
       pushAll();
     });
+    showChrome();
   }
 }).catch((err) => say("The preview renderer would not load: " + err.message, "bad"));
 

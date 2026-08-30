@@ -220,12 +220,14 @@ slot position changes. The dashboard's slot contents are made up — a browser
 has no keyboard to ask for a layer name or a battery level, so those come from
 `tools/uisim/stub/uisim_state.h` — but its layout and every colour are real.
 
-The settings are shown one tab at a time — Game, Splash, Dashboard, Layout,
-Sound, Timing — and the three that are a screen switch the preview with them,
-so what is on the panel is always the thing whose colours are listed under it.
+A navbar splits the settings into Screen, Layout, Sound and Timing, so you
+configure one thing at a time. Screen is the panel itself: a second strip picks
+Game, Splash or Dashboard, the preview switches with it, and the colours listed
+below are that screen's. Play and rewind only appear on Game, because it is the
+only screen that moves.
 
-Click anything and the page jumps to the colour that painted it, switching tab
-if that colour lives on another one. It narrows
+Click anything and the page jumps to the colour that painted it, changing
+section and screen if that colour lives on another one. It narrows
 the field by asking the renderer to quantise each setting the way the panel
 does, then settles it by changing each candidate to something it cannot
 already be and redrawing to see which one moved. That second step is what

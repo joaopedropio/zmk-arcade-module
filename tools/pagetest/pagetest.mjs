@@ -26,7 +26,13 @@ const make = (id = "") => {
   const el = {
     id, textContent: "", value: "", type: "", className: "", dataset: {}, style: {},
     children: [], hidden: false, spellcheck: false,
-    classList: { add(){}, remove(){}, toggle(){}, contains: () => false },
+    classes: new Set(),
+    classList: {
+      add(c){ el.classes.add(c); }, remove(c){ el.classes.delete(c); },
+      contains: (c) => el.classes.has(c),
+      toggle(c, on){ const want = on === undefined ? !el.classes.has(c) : !!on;
+                     if (want) el.classes.add(c); else el.classes.delete(c); },
+    },
     addEventListener(){}, append(...k){ el.children.push(...k); },
     scrollIntoView(){}, getBoundingClientRect: () => ({left:0, top:0, width:300, height:300}),
     querySelector: () => make(), querySelectorAll: () => [],
@@ -80,19 +86,26 @@ check(vm.runInContext("wasm !== null", ctx), "the preview survived loading");
 check(/^Connected\./.test(vm.runInContext('document.getElementById("status").textContent', ctx)),
       "the page says it connected");
 
-/* every setting must land in exactly one tab, or it is unreachable in the UI */
+/* every setting must be reachable: one section, and one screen within Screen */
 const partition = vm.runInContext(`(() => {
   const counts = {}, ambiguous = [];
   for (const s of settings) {
-    const hits = TABS.filter((t) => t.match && t.match(s.name));
-    if (hits.length > 1) ambiguous.push(s.name);
-    const name = tabOf(s.name).name;
-    counts[name] = (counts[name] || 0) + 1;
+    const sections = SECTIONS.filter((x) => x.match && x.match(s.name));
+    if (sections.length > 1) ambiguous.push(s.name + " (sections)");
+    const section = sectionOf(s.name);
+    let key = section.name;
+    if (section === SECTIONS[0]) {
+      const screens = SCREENS.filter((x) => x.match && x.match(s.name));
+      if (screens.length > 1) ambiguous.push(s.name + " (screens)");
+      key += "/" + screenOf(s.name).name;
+    }
+    counts[key] = (counts[key] || 0) + 1;
   }
-  return { counts, ambiguous, empty: TABS.filter((t) => !counts[t.name]).map((t) => t.name) };
+  const want = SECTIONS.flatMap((x) => x === SECTIONS[0] ? SCREENS.map((y) => "Screen/" + y.name) : [x.name]);
+  return { counts, ambiguous, empty: want.filter((k) => !counts[k]) };
 })()`, ctx);
-check(partition.ambiguous.length === 0, `no setting matches two tabs${partition.ambiguous.length ? ": " + partition.ambiguous : ""}`);
-check(partition.empty.length === 0, `no empty tabs${partition.empty.length ? ": " + partition.empty : ""}`);
+check(partition.ambiguous.length === 0, `nothing matches two places${partition.ambiguous.length ? ": " + partition.ambiguous : ""}`);
+check(partition.empty.length === 0, `no empty section${partition.empty.length ? ": " + partition.empty : ""}`);
 check(Object.values(partition.counts).reduce((a, b) => a + b, 0) === n,
       `all ${n} settings reachable: ` + JSON.stringify(partition.counts));
 
@@ -108,37 +121,45 @@ try {
     return Array.from(wasm.HEAPU16.subarray(b, b + wasm._preview_panel() ** 2)); };
   const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
   const ref = {};
-  for (const t of TABS) if (t.screen !== null && !(t.screen in ref)) {
-    setScreen(t.screen); ref[t.screen] = frame();
-  }
+  for (let i = 0; i < SCREENS.length; i++) { setNav(0); setScreen(i); ref[i] = frame(); }
+
   const wrong = [];
-  for (let a = 0; a < TABS.length; a++) for (let b = 0; b < TABS.length; b++) for (const rep of [1, 2, 3]) {
-    setTab(a);
-    for (let i = 0; i < rep; i++) setTab(b);
-    const want = TABS[b].screen;
-    if (want === null) continue;
-    const got = frame();
-    const where = TABS[a].name + " -> " + TABS[b].name + " x" + rep;
-    for (const other of Object.keys(ref)) {
-      if (Number(other) !== want && same(got, ref[other])) {
-        wrong.push(where + " showed another screen");
-      }
-    }
-    /* a trapped or half-drawn renderer leaves a flat frame */
-    if (new Set(got).size < 3) wrong.push(where + " drew a blank frame");
-    /* the splash is deterministic, so it must come back exactly as it went */
-    if (want === 1 && !same(got, ref[1])) wrong.push(where + " drew the splash differently");
+  const states = [];
+  for (let sec = 0; sec < SECTIONS.length; sec++) {
+    if (sec === 0) { for (let i = 0; i < SCREENS.length; i++) states.push([0, i]); }
+    else states.push([sec, null]);
   }
-  return { wrong, tried: TABS.length * TABS.length * 3 };
+  for (const from of states) for (const to of states) for (const rep of [1, 2, 3]) {
+    setNav(from[0]); if (from[1] !== null) setScreen(from[1]);
+    for (let i = 0; i < rep; i++) { setNav(to[0]); if (to[1] !== null) setScreen(to[1]); }
+    const where = JSON.stringify(from) + " -> " + JSON.stringify(to) + " x" + rep;
+
+    /* Play and Rewind belong to the game and nowhere else */
+    const playShown = !document.getElementById("playbar").classList.contains("hidden");
+    const wantPlay = to[0] === 0 && to[1] === 0;
+    if (playShown !== wantPlay) wrong.push(where + (wantPlay ? " hid" : " showed") + " the transport");
+
+    if (to[1] === null) {
+      if (!document.getElementById("previewpanel").classList.contains("hidden")) {
+        wrong.push(where + " left the panel up off the Screen section");
+      }
+      continue;
+    }
+    const got = frame();
+    for (const other of Object.keys(ref)) {
+      if (Number(other) !== to[1] && same(got, ref[other])) wrong.push(where + " showed another screen");
+    }
+    if (new Set(got).size < 3) wrong.push(where + " drew a blank frame");
+    if (to[1] === 1 && !same(got, ref[1])) wrong.push(where + " drew the splash differently");
+  }
+  return { wrong, tried: states.length * states.length * 3 };
 })()`, ctx);
 } catch (err) {
-  /* a trapped renderer leaves the last good picture up, which is the bug
-     this check exists for - report it rather than dying with a stack */
   switching = { wrong: ["the renderer trapped: " + err.message], tried: 0 };
 }
 check(switching.wrong.length === 0,
-      `${switching.tried} tab switches each drew their own screen` +
-      (switching.wrong.length ? ": " + switching.wrong.slice(0, 3).join("; ") : ""));
+      `${switching.tried} navigations drew the right thing` +
+      (switching.wrong.length ? ": " + [...new Set(switching.wrong)].slice(0, 3).join("; ") : ""));
 
 console.log(failures ? `\n${failures} failed` : "\nall checks passed");
 process.exit(failures ? 1 : 0);
