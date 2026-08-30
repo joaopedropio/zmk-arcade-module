@@ -50,7 +50,7 @@ static const pm_tone pm_tune_siren_tones[] = {
 };
 
 static const pm_tone pm_tune_ghost_tones[] = {
-    {220, 1760, 380, 25},
+    {220, 880, 300, 50},
 };
 
 static const pm_tone pm_tune_death_tones[] = {
@@ -78,7 +78,7 @@ static const pm_tune PM_TUNES[PM_TUNE_COUNT] = {
     [PM_TUNE_MUNCH_B] = {pm_tune_munch_b_tones, 1, false, 1, PM_WAVE_TRIANGLE, 45},
     [PM_TUNE_POWER] = {pm_tune_power_tones, 2, false, 2, PM_WAVE_PULSE, 80},
     [PM_TUNE_SIREN] = {pm_tune_siren_tones, 2, true, 0, PM_WAVE_TRIANGLE, 35},
-    [PM_TUNE_GHOST] = {pm_tune_ghost_tones, 1, false, 2, PM_WAVE_PULSE, 85},
+    [PM_TUNE_GHOST] = {pm_tune_ghost_tones, 1, false, 2, PM_WAVE_TRIANGLE, 55},
     [PM_TUNE_DEATH] = {pm_tune_death_tones, 7, false, 4, PM_WAVE_PULSE, 100},
     [PM_TUNE_CLEAR] = {pm_tune_clear_tones, 6, false, 3, PM_WAVE_PULSE, 90},
 };

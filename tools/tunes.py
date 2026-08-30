@@ -54,8 +54,10 @@ MUNCH_B = [glide(300, 660, 55)]
 POWER = [glide(392, 784, 90, 33), glide(784, 1245, 110, 33)]
 SIREN = [glide(260, 400, 260), glide(400, 260, 260)]
 
-# Catching one of them: a rising swoop.  Losing to one: four falling ones.
-GHOST = [glide(220, 1760, 380, 25)]
+# Catching one of them: a rising swoop.  It happens every couple of seconds
+# while a power pellet lasts, so it is voiced closer to the munch than to the
+# death - and it stops climbing well below where the ear is sharpest.
+GHOST = [glide(220, 880, 300)]
 DEATH = [
     glide(620, 200, 300, 50), rest(40),
     glide(580, 180, 300, 50), rest(40),
@@ -81,7 +83,7 @@ TUNES = [
     ("PM_TUNE_MUNCH_B", MUNCH_B, False, 1, TRIANGLE, 45),
     ("PM_TUNE_POWER", POWER, False, 2, PULSE, 80),
     ("PM_TUNE_SIREN", SIREN, True, 0, TRIANGLE, 35),
-    ("PM_TUNE_GHOST", GHOST, False, 2, PULSE, 85),
+    ("PM_TUNE_GHOST", GHOST, False, 2, TRIANGLE, 55),
     ("PM_TUNE_DEATH", DEATH, False, 4, PULSE, 100),
     ("PM_TUNE_CLEAR", CLEAR, False, 3, PULSE, 90),
 ]

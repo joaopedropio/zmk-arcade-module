@@ -122,12 +122,13 @@ size_t pm_sfx_render(int16_t *out, size_t count) {
 
                 if (tune->wave == PM_WAVE_TRIANGLE) {
                     /* up for the first half of the period and back down the
-                     * second, which is the same walk with a fold in it */
+                     * second, which is the same walk with a fold in it, and
+                     * then 0..PHASE_ONE spread across -peak..+peak */
                     int32_t up = (int32_t)(at_phase * 2u);
-                    if (at_phase >= PHASE_ONE / 2u) {
+                    if (up >= (int32_t)PHASE_ONE) {
                         up = (int32_t)(2 * PHASE_ONE) - up;
                     }
-                    sample = ((up - (int32_t)PHASE_ONE) * peak) / (int32_t)PHASE_ONE;
+                    sample = (((up * 2) - (int32_t)PHASE_ONE) * peak) / (int32_t)PHASE_ONE;
                 } else {
                     sample = (at_phase < high) ? peak : -peak;
                 }
