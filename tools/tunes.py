@@ -15,6 +15,7 @@ NOTES = {"C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5, "F#": 6,
          "G": 7, "G#": 8, "A": 9, "A#": 10, "B": 11}
 
 BELL, PLUCK, PAD, NOISE = "PM_INST_BELL", "PM_INST_PLUCK", "PM_INST_PAD", "PM_INST_NOISE"
+CHIME = "PM_INST_CHIME"
 
 
 def hz(note):
@@ -36,67 +37,36 @@ def chord(at, notes, ms, inst=PAD, level=100, spread=0):
 
 
 # ---------------------------------------------------------------- the tunes
+#
+# Two sounds, and both are status rather than music: a keyboard arriving, and
+# one going away.
+#
+# They have been wrong twice, in opposite directions.  First they were written
+# like the game's tunes were - a rolled arpeggio landing on a bell over a pad
+# at 131 and 196 Hz, which a 20 mm speaker is 20 dB down on, so the pad spent
+# headroom without reaching the room and the bell rang for 1200 ms after an
+# event that took an instant.  Then they were plucks up at 880 and 1319 Hz to
+# fix the length, and a pluck is a triangle: odd harmonics at 4 and 6.6 kHz,
+# right where the ear is sharpest and a small cone peaks.  Short, and it stung.
+#
+# What was wrong both times was timbre and attack, not the notes.  So: the
+# chime, which is a sine with one quiet octave for body and nothing above it,
+# on a fifth in the middle of the speaker's range rather than the top of it.
+# It takes 110 ms to reach level, which is slow enough to have no audible
+# beginning at all, and the second note comes in while the first is still
+# ringing, so the pair swells rather than taps - up for a keyboard that has
+# arrived, down for one that has gone.
 
-# Switching on: a major ninth rolled upwards on bells, over a pad that swells
-# under it.  Two things a buzzer cannot do at all - several notes at once, and
-# a note that rings on after the next has started.
-INTRO = (
-    chord(0, ["C3", "G3"], 1900, PAD, 55)
-    + [n(0, "C5", 900, BELL, 90), n(150, "E5", 900, BELL, 85),
-       n(300, "G5", 900, BELL, 80), n(450, "B5", 1100, BELL, 75),
-       n(700, "D6", 1300, BELL, 70)]
-)
-
-# A pellet: a marimba tap, two pitches alternating so a run of them has a lilt
-# rather than a stutter.
-MUNCH_A = [n(0, "C5", 40, PLUCK, 55)]
-MUNCH_B = [n(0, "G4", 40, PLUCK, 55)]
-
-# A power pellet: the chord opens up.
-POWER = (
-    chord(0, ["F3", "C4"], 900, PAD, 60)
-    + [n(0, "F5", 400, BELL, 80), n(120, "A5", 400, BELL, 75), n(240, "C6", 600, BELL, 70)]
-)
-
-# And the fright itself: two chords breathing in and out, quiet, while the
-# ghosts are blue.  It loops for as long as that lasts, so it has to be
-# something you could listen to for ten seconds without minding.
-SIREN = (
-    chord(0, ["A3", "C4", "E4"], 1500, PAD, 42)
-    + chord(1600, ["G3", "B3", "D4"], 1500, PAD, 42)
-)
-
-# Catching one: a bright little third, and gone.
-GHOST = [n(0, "E5", 220, BELL, 70), n(60, "G#5", 260, BELL, 65)]
-
-# Losing one: a minor chord falling away under a slow melody.  The pad holds
-# through it, so it sounds like an ending rather than an error.
-DEATH = (
-    chord(0, ["A2", "E3"], 2000, PAD, 55)
-    + [n(0, "A4", 500, BELL, 75), n(320, "F4", 500, BELL, 70),
-       n(640, "D4", 600, BELL, 65), n(960, "A3", 1200, BELL, 60)]
-)
-
-# Clearing the maze: a cadence that lands.
-CLEAR = (
-    chord(0, ["G3", "D4"], 700, PAD, 55)
-    + [n(0, "G4", 200, PLUCK, 80), n(150, "B4", 200, PLUCK, 80),
-       n(300, "D5", 200, PLUCK, 80)]
-    + chord(500, ["C4", "E4", "G4"], 1200, PAD, 60)
-    + [n(500, "C6", 900, BELL, 70)]
-)
+CONNECT = [n(0, "D5", 420, CHIME, 60), n(200, "A5", 560, CHIME, 60)]
+DISCONNECT = [n(0, "A5", 420, CHIME, 56), n(200, "D5", 600, CHIME, 56)]
 
 # name, notes, loops, priority, and how long the tune runs before it is over
 # or goes round again (None works it out from the last note and its tail)
 TUNES = [
-    ("PM_TUNE_INTRO", INTRO, False, 3, None),
-    ("PM_TUNE_MUNCH_A", MUNCH_A, False, 1, None),
-    ("PM_TUNE_MUNCH_B", MUNCH_B, False, 1, None),
-    ("PM_TUNE_POWER", POWER, False, 2, None),
-    ("PM_TUNE_SIREN", SIREN, True, 0, 3100),  # the two chords run into each other
-    ("PM_TUNE_GHOST", GHOST, False, 2, None),
-    ("PM_TUNE_DEATH", DEATH, False, 4, None),
-    ("PM_TUNE_CLEAR", CLEAR, False, 3, None),
+    ("PM_TUNE_CONNECT", CONNECT, False, 1, None),
+    # a keyboard dropping is the more useful of the two to hear, so it takes
+    # the voice off a connect rather than the other way about
+    ("PM_TUNE_DISCONNECT", DISCONNECT, False, 2, None),
 ]
 
 HEADER = '''/*
@@ -129,7 +99,7 @@ def main():
     rows = []
     for name, notes, loop, prio, length in TUNES:
         # the tune is over when its last note has finished ringing
-        tail = {BELL: 1200, PLUCK: 360, PAD: 700, NOISE: 200}
+        tail = {BELL: 1200, PLUCK: 360, PAD: 700, NOISE: 200, CHIME: 520}
         end = length or max(at + ms + tail[inst] for at, _f, ms, inst, _l in notes)
         rows.append(f"    [{name}] = {{{name.lower()}_notes, {len(notes)}, {end}, "
                     f"{'true' if loop else 'false'}, {prio}}}")

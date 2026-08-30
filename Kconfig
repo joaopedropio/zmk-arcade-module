@@ -15,7 +15,7 @@ config PACMAN_FRAME_INTERVAL
       cheaper animation, lower it for a snappier one.
 
 config PACMAN_SOUND
-    bool "Play the game's sounds through the I2S amplifier"
+    bool "Drive the I2S amplifier"
     default y
     select I2S
     help
@@ -25,11 +25,53 @@ config PACMAN_SOUND
 
 config PACMAN_SOUND_VOLUME
     int "How loud, 0 to 100"
-    default 60
+    default 80
     range 0 100
     help
-      A square wave at full scale is louder than it looks, so the synth keeps
-      a third of the range in hand before this is applied.
+      100 is unity: one voice at full tilt reaches full scale on its own, and
+      a limiter catches whatever stacks on top of it.  80 is the default
+      because the last 2 dB above it costs more squashing than it is worth.
+      Take the rest from the amplifier: GAIN tied to GND instead of left
+      floating is 6 dB and does not touch the waveform.
+
+config PACMAN_SOUND_BASS_FLOOR_HZ
+    int "Lowest pitch worth sending to the speaker"
+    default 0
+    range 0 4000
+    help
+      A small speaker radiates almost nothing below its own resonance, so a
+      note written down there reaches it as silence that has still cost mixing
+      headroom.  Notes below this are doubled until they clear it, which keeps
+      the intervals - a chord stays that chord, voiced higher.
+
+      The lower of the two chirp notes is D5, at 587 Hz, which most small
+      drivers manage - so there is little here for this to fix.  It is kept
+      for a score of your own in tools/tunes.py that does go low.
+
+config PACMAN_SOUND_CONNECT
+    bool "Chirp when a keyboard connects or drops off"
+    default y
+    help
+      Two chime notes rising when a half reports in, the same shape falling
+      when it goes away, so the dongle tells you the link dropped without your
+      having to look at it.
+
+      The dongle is the central and ZMK announces the split connection only on
+      the peripheral side, so this reads it off the battery level instead: 0
+      means gone.  A half sitting at a genuine 0% therefore reads as gone,
+      which is the same bargain the battery readout already makes.  Nothing
+      sounds at power-on, when the halves connecting is not news.
+
+config PACMAN_MUTE_THRESHOLD
+    int "Milliseconds of hold that mute and unmute the speaker"
+    default 600
+    help
+      The third and longest press on the action button, past the short one
+      that opens the dashboard and the medium one that changes theme.  Muting
+      stops whatever is sounding; unmuting chirps, so you can tell it worked.
+      The setting is saved, so a muted dongle comes back muted.
+
+      Set it to 0 to leave the button with its two actions and no mute.
 
 config PACMAN_SOUND_SAMPLE_RATE
     int "Samples per second"

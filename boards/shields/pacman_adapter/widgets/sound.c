@@ -24,6 +24,7 @@
 #include <zephyr/logging/log.h>
 
 #include "game/pacman_sfx.h"
+#include "helpers/settings.h"
 #include "sound.h"
 
 LOG_MODULE_DECLARE(pacman, LOG_LEVEL_INF);
@@ -57,15 +58,13 @@ static bool streaming;
 static bool ready;
 
 /*
- * Only the sound thread touches the synth.  The game's timer runs on the
- * display thread and says what it wants through these two: the tune it would
- * like next, and what the voice is actually doing, which is how the siren
- * knows it has been interrupted.  PM_TUNE_QUIET is "stop".
+ * Only the sound thread touches the synth.  Everything else - the battery
+ * widget noticing a half come or go, the button muting - leaves the tune it
+ * wants in an atomic and wakes the thread.  PM_TUNE_QUIET is "stop".
  */
 #define PM_TUNE_QUIET (PM_TUNE_COUNT + 1)
 
 static atomic_t pending = ATOMIC_INIT(PM_TUNE_NONE);
-static atomic_t voice = ATOMIC_INIT(PM_TUNE_NONE);
 
 static void amp_power(bool on) {
     if (amp_enable.port != NULL) {
@@ -152,7 +151,6 @@ static void take_request(void) {
     } else if (asked != PM_TUNE_NONE) {
         pm_sfx_play((pm_tune_id)asked);
     }
-    atomic_set(&voice, pm_sfx_playing());
 }
 
 static void sound_thread(void *a, void *b, void *c) {
@@ -176,10 +174,8 @@ static void sound_thread(void *a, void *b, void *c) {
             }
 
             take_request(); /* and anything that arrived while it played */
-            atomic_set(&voice, pm_sfx_playing());
         }
 
-        atomic_set(&voice, PM_TUNE_NONE);
         stop_stream();
     }
 }
@@ -192,8 +188,14 @@ static void sound_thread(void *a, void *b, void *c) {
  */
 K_THREAD_DEFINE(pacman_sound, 2048, sound_thread, NULL, NULL, NULL, K_PRIO_PREEMPT(3), 0, 0);
 
+/*
+ * Everything that wants to make a noise comes through here, so the mute is a
+ * single check rather than one at every caller.  Stopping is not a request and
+ * does not pass this way, which is what lets the mute itself be heard - or
+ * rather, not heard.
+ */
 static void request(pm_tune_id id) {
-    if (!ready) {
+    if (!ready || pacman_settings_get_mute()) {
         return;
     }
     atomic_set(&pending, id);
@@ -228,15 +230,14 @@ void pacman_sound_init(void) {
         return;
     }
 
-    pm_sfx_init(SAMPLE_RATE, CONFIG_PACMAN_SOUND_VOLUME);
+    pm_sfx_init(SAMPLE_RATE, CONFIG_PACMAN_SOUND_VOLUME,
+                CONFIG_PACMAN_SOUND_BASS_FLOOR_HZ);
     ready = true;
 
     /*
-     * The arcade sings when it is switched on, and so does this - which also
-     * means the speaker says whether it is wired up before the game has even
-     * started, without anyone having to lose a life to find out.
+     * Nothing plays here.  Starting a game makes no sound of its own either,
+     * so the first thing the speaker says is a half reporting in.
      */
-    request(PM_TUNE_INTRO);
 }
 
 void pacman_sound_quiet(void) {
@@ -247,49 +248,30 @@ void pacman_sound_quiet(void) {
     k_sem_give(&wake);
 }
 
-void pacman_sound_step(const pm_game *game) {
-    static bool munch_b;
-    static bool was_frightened;
-
-    if (!ready) {
+void pacman_sound_connected(bool connected) {
+    if (!IS_ENABLED(CONFIG_PACMAN_SOUND_CONNECT)) {
         return;
     }
+    request(connected ? PM_TUNE_CONNECT : PM_TUNE_DISCONNECT);
+}
 
-    /* loudest first: only one voice, and the synth keeps the better tune */
-    if (game->sfx & PM_SFX_DEATH) {
-        request(PM_TUNE_DEATH);
-    } else if (game->sfx & PM_SFX_CLEAR) {
-        request(PM_TUNE_CLEAR);
-    } else if (game->sfx & PM_SFX_GHOST) {
-        request(PM_TUNE_GHOST);
-    } else if (game->sfx & PM_SFX_START) {
-        request(PM_TUNE_INTRO);
-    } else if (game->sfx & PM_SFX_POWER) {
-        request(PM_TUNE_POWER);
-    } else if (game->sfx & PM_SFX_PELLET) {
-        request(munch_b ? PM_TUNE_MUNCH_B : PM_TUNE_MUNCH_A);
-        munch_b = !munch_b;
+void pacman_sound_set_mute(bool muted) {
+    if (muted) {
+        pacman_sound_quiet(); /* mid-tune */
+        return;
     }
-
     /*
-     * The siren is a state rather than a moment: it starts when the ghosts
-     * turn blue and has to be asked for again whenever a munch or a caught
-     * ghost has taken the voice off it.
+     * Unmuting has to make a sound or there is no way to tell it worked, and
+     * the connect chirp is the one that already means "this thing is on".
      */
-    bool frightened = game->fright > 0;
-    if (frightened && atomic_get(&voice) == PM_TUNE_NONE) {
-        request(PM_TUNE_SIREN);
-    }
-    if (was_frightened && !frightened && atomic_get(&voice) == PM_TUNE_SIREN) {
-        pacman_sound_quiet();
-    }
-    was_frightened = frightened;
+    request(PM_TUNE_CONNECT);
 }
 
 #else /* no amplifier in the devicetree, or the sound is switched off */
 
 void pacman_sound_init(void) {}
-void pacman_sound_step(const pm_game *game) { ARG_UNUSED(game); }
 void pacman_sound_quiet(void) {}
+void pacman_sound_connected(bool connected) { ARG_UNUSED(connected); }
+void pacman_sound_set_mute(bool muted) { ARG_UNUSED(muted); }
 
 #endif

@@ -12,6 +12,7 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(pacman_configuration, LOG_LEVEL_INF);
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -104,10 +105,14 @@ static void custom_theme(void) {
 
 static void action_button(void) {
     set_theme_threshold(300);
-    if (CONFIG_PACMAN_THEME_THRESHOLD <= 0) {
-        return;
+    if (CONFIG_PACMAN_THEME_THRESHOLD > 0) {
+        set_theme_threshold(CONFIG_PACMAN_THEME_THRESHOLD);
     }
-    set_theme_threshold(CONFIG_PACMAN_THEME_THRESHOLD);
+    /*
+     * 0 means no mute: a hold can never be less than nothing, so the longest
+     * press stays whatever the theme threshold made it.
+     */
+    set_mute_threshold(CONFIG_PACMAN_MUTE_THRESHOLD > 0 ? CONFIG_PACMAN_MUTE_THRESHOLD : UINT16_MAX);
 }
 
 static void rotate_display(void) {

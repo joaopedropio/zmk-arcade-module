@@ -161,8 +161,21 @@ animation starts by itself once the dongle boots.
 ### The action button
 
 The dongle's action button (P0.31) is wired up through the sideband kscan, so
-no keymap change is needed: a press pauses the animation, another press
-resumes it.
+no keymap change is needed. How long it is held decides which of three things
+it does:
+
+| Held | What it does |
+|---|---|
+| up to 300 ms | swaps between the game and the dashboard |
+| 300-600 ms | steps to the next theme |
+| past 600 ms | mutes, or unmutes |
+
+The two thresholds are `CONFIG_PACMAN_THEME_THRESHOLD` and
+`CONFIG_PACMAN_MUTE_THRESHOLD`. The mute is saved, so a dongle switched off
+muted comes back muted, and it silences whatever is sounding at the time.
+Unmuting chirps, since a mute that says nothing either way
+gives you no way to tell which state you are in. Setting
+`CONFIG_PACMAN_MUTE_THRESHOLD=0` leaves the button with the first two.
 
 ## Configuration
 
@@ -200,8 +213,9 @@ colours whatever theme is up - they are set separately, by the
 The screens, their fonts and the slot machinery are ported from
 [snake-module](https://github.com/joaopedropio/snake-module): same widgets,
 same slot layout, same drawing helpers, with the artwork and the palette
-redrawn for this one. What was left behind is the sound - there is no buzzer
-support here, so the third (longest) press action snake uses for mute is gone.
+redrawn for this one. What was left behind is the buzzer: snake's sounds are
+PWM square waves, and these go out of an I2S amplifier as sampled audio
+instead. The button keeps snake's three presses, mute included.
 
 Both screens can be looked at without flashing anything:
 
@@ -221,8 +235,11 @@ your `config/<shield>.conf` (or the shield's `pacman_adapter.conf`):
 |---|---|---|
 | `CONFIG_PACMAN_ROTATE_DISPLAY` | `0` | Panel rotation: 0, 90, 180 or 270. Only the rotation you pick is compiled in. |
 | `CONFIG_PACMAN_FRAME_INTERVAL` | `33` | Milliseconds per frame (33 ≈ 30 fps). |
-| `CONFIG_PACMAN_SOUND` | `y` | Play the game's sounds through the I2S amplifier. |
-| `CONFIG_PACMAN_SOUND_VOLUME` | `60` | How loud, 0 to 100. |
+| `CONFIG_PACMAN_SOUND` | `y` | Drive the I2S amplifier at all. `n` compiles the whole sound path out. |
+| `CONFIG_PACMAN_SOUND_VOLUME` | `80` | How loud, 0 to 100. 100 is unity; a limiter catches the peaks. |
+| `CONFIG_PACMAN_SOUND_CONNECT` | `y` | Chirp when a keyboard connects or drops off. |
+| `CONFIG_PACMAN_MUTE_THRESHOLD` | `600` | Milliseconds of hold that mute and unmute. `0` disables the mute press. |
+| `CONFIG_PACMAN_SOUND_BASS_FLOOR_HZ` | `0` | Notes below this are doubled until they clear it, for a speaker that cannot reproduce them. Off by default: it changes the voicing. |
 | `CONFIG_PACMAN_SOUND_SAMPLE_RATE` | `16000` | Samples per second; the nRF I2S clock picks the closest it can hit. |
 | `CONFIG_PACMAN_WPM_SPEED` | `y` | Speed the game up while you type. |
 | `CONFIG_PACMAN_WPM_SLOW` / `_FAST` | `20` / `60` | WPM thresholds for the 3px and 5px gears, either side of the 4px default. |
@@ -293,34 +310,101 @@ module solders on as one straight run:
 | BCLK | P1.15 | bit clock |
 | DIN | P1.13 | the samples |
 | SD | P1.11 | held high while something is playing, low the rest of the time |
-| GAIN | — | leave it floating for 9 dB, or tie it as the datasheet says |
+| GAIN | — | floating is 9 dB; tie it straight to GND for 15 dB |
 | GND, Vin | GND, VCC | 3.3 V works; 5 V is louder if the board has it |
 
 Those pins are `i2s0_default` and the `pacman_amp` node in
 `pacman_adapter.overlay`, which is the only place to change them if your
 wiring differs.
 
-What it plays is a small polyphonic synth, because a DAC can do things a
-buzzer cannot: six voices, each an instrument with its own timbre and
-envelope, playing a score.  Switching on rolls a major ninth upwards on bells
-over a pad that swells underneath; a pellet is a marimba tap, two pitches
-alternating so a run of them has a lilt; a power pellet opens the chord up;
-the fright is two chords breathing in and out, quietly, for as long as it
-lasts; catching a ghost is a bright third; dying is a minor chord falling away
-under a slow melody; and clearing the maze is a cadence that lands.
+The game itself is silent.  Pac-Man munching, dying and clearing the maze all
+went out of the speaker once, and none of it was worth hearing on a loop for
+hours at a desk - a dongle that chirps every time a pellet is eaten is a
+dongle you unplug.  What is left is the one thing worth interrupting you for:
+a keyboard arriving, and a keyboard dropping off.
 
-An instrument is two oscillators and an envelope, and what separates a bell
-from a marimba is mostly how fast it dies away and how far out of tune its
-second partial is - 2.76 for the bell, an octave for the marimba, six cents
-for the pad, whose two oscillators drift in and out of phase and give it its
-warmth.  All integer: 16.16 phases, Q15 envelopes, one 256-entry sine table,
-about 5% of the CPU at six voices.
+Behind them is still a small polyphonic synth rather than a beeper, and the
+two chirps use about as little of it as anything could - one instrument, two
+notes.  An instrument is two oscillators and an envelope, and what separates
+them is how fast they die away, whether the wave is a sine or a triangle, and
+how far out of tune the second oscillator is: an octave for the marimba, 2.76
+for the bell, six cents for the pad, whose two drift in and out of phase and
+give it its warmth.  The chime the chirps use is the plainest of them - a sine
+with a quiet octave over it, eased in rather than struck.  All integer: 16.16
+phases, Q15 envelopes, one 256-entry sine table.  Four voices are mixed, and
+when a fifth note arrives the quietest gives way, not the oldest - what is
+least missed is whatever is contributing least.
 
-A tune has a priority, so dying interrupts munching and nothing interrupts
-dying.  When a seventh note arrives the quietest voice gives way, not the
-oldest - what is least missed is whatever is contributing least, and stealing
-the oldest would take the pad holding a chord underneath everything and spare
-the bell that has already rung out.
+A tune has a priority, so a disconnect takes the voice off a connect and not
+the other way about: which of the two you want to hear through the other is
+not a close call.
+
+### Getting it loud on a small speaker
+
+Most of what was keeping this quiet was not the amplifier.  The volume knob
+scales the sample amplitude, so it is linear in voltage: a config carrying
+`CONFIG_PACMAN_SOUND_VOLUME=25` is 12 dB down before the speaker sees anything,
+and on a small driver that is most of the way to inaudible.  80 is the default
+now.
+
+The rest was headroom.  Four voices can land on the same sample, so the old
+answer was to keep a third of the range in reserve - which charged every sound
+10 dB to protect the loudest instant of the loudest one.  A soft limiter does
+that job instead: untouched below half scale, bent into what is left above it,
+so a stacked chord leans on the curve where it used to clip flat.  The two
+chirps are two notes each and never come near it.
+
+Register and timbre are the rest of it, and the chirps have been wrong in both
+directions.  A 20 mm cone radiates almost nothing below its own resonance, so
+anything written down at C3 arrives as silence that has still spent mixing
+headroom on the way: the first pair were built like music, a rolled arpeggio
+landing on a bell over a pad at 131 and 196 Hz, and the pad was inaudible on
+the speaker while dragging the notes that were audible down through the
+limiter.  Moving them up to a marimba at 880 and 1319 Hz fixed that and
+introduced the opposite fault.  A marimba here is a triangle wave, and a
+triangle carries odd harmonics falling off as 1/n squared - so a note at
+1319 Hz puts real energy at 4 and 6.6 kHz, which is both the band the ear is
+sharpest in and the band a small cone peaks in.  It was short, and it stung.
+
+What the chirps use now is a sine with one quiet octave over it and nothing
+else, sitting on a fifth in the middle of the speaker's range instead of the
+top, and taking 110 ms to reach level rather than 2.  Measured over the whole
+chirp that moves 4.5% of the energy above 2.5 kHz down to 0.003%, and turns a
+2 ms onset - a step, which is a click with a note behind it - into a 290 ms
+swell with no audible beginning at all.  Timbre and attack were the whole of
+it; the notes never were.
+
+`CONFIG_PACMAN_SOUND_BASS_FLOOR_HZ` doubles any note below it until it clears,
+keeping the intervals - a chord stays that chord, voiced higher.  It was the
+last resort for the pads, and with the pads gone it has little left to do: the
+lower chirp note is D5, at 587 Hz, which most small drivers manage.  It stays
+for a score of your own that does go low.
+
+Past that it is hardware, and hardware is the cheap 6 dB: `GAIN` tied straight
+to GND instead of left floating, and 5 V into `Vin` rather than 3.3 V.  Both
+cost nothing in waveform.
+
+### Telling you the keyboard dropped
+
+`CONFIG_PACMAN_SOUND_CONNECT=y` gives the halves the only sound the dongle
+makes: two soft chime notes rising a fifth when one reports in, D5 up to A5,
+and the same two falling when one goes away. The same pair of pitches in
+opposite orders, which is about as easy as a pair gets to learn, and a fifth is
+wide enough to read as a direction from across a room rather than as a wobble.
+Each note takes 110 ms to reach level and the second enters while the first is
+still ringing, so the pair swells into the room rather than tapping at it -
+about 1.3 seconds end to end, and it peaks at just over half full scale.
+
+Finding out is the awkward part. ZMK raises its split connection event on the
+peripheral, and the dongle is the central, so it never sees one. What the
+central does raise is a peripheral battery level of 0 on disconnect, and the
+next real reading is the first thing heard from a half that has come back - so
+that is the signal, the same one the battery readout on screen already trusts.
+A half sitting at a genuine 0% reads as gone, which is the price of using it.
+
+A disconnect outranks a connect, so a half that drops the instant another
+reconnects is still the thing you hear. Nothing sounds at power-on, when the
+halves connecting is the normal state of things rather than news.
 
 The synth is portable C in `widgets/game/pacman_sfx.c` and the tunes are
 written as notes in `tools/tunes.py`.  Nothing about it is Zephyr, so the same
@@ -328,8 +412,12 @@ code renders the sounds to .wav files to listen to before flashing:
 
 ```sh
 tools/sfxsim/build.sh /tmp/sfxsim
-/tmp/sfxsim /tmp/sounds        # intro.wav, munch_a.wav, siren.wav, ...
+/tmp/sfxsim /tmp/sounds 16000        # connect.wav and disconnect.wav
 ```
+
+The third argument, if given, is the bass floor.  Neither chirp goes low
+enough for it to bite, which is the point - it is there for a score of your
+own that does.
 
 `widgets/sound.c` is the part that has to know about Zephyr: it keeps blocks
 of samples going to the I2S driver while a tune is sounding and stops the

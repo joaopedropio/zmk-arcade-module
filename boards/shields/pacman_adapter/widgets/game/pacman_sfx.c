@@ -32,18 +32,46 @@ typedef struct {
     uint16_t partial_num; /* the second oscillator, as a ratio of the first */
     uint16_t partial_den;
     int32_t partial_mix; /* how much of it, Q15 */
+    int32_t gain;        /* what the instrument is worth against the others, Q15 */
     bool triangle;       /* triangles for the wooden and breathy ones */
 } pm_instrument;
 
+/*
+ * The last number is what the instrument is worth against the others.
+ *
+ * A pad is a bed for something else to sit on, but it holds its level for as
+ * long as the key is down while a bell is already dying, and a chord of three
+ * puts all three at that level on the same sample - in phase, because they are
+ * six cents apart.  At equal weight that alone runs past full scale before a
+ * bell has played a note, and the limiter then pulls the bell down with it.
+ * Half weight puts the pad back underneath, where it can be heard rather than
+ * heard over.
+ */
 static const pm_instrument INSTRUMENTS[] = {
     /* a struck bell: the 2.76 partial is what stops it sounding like an organ */
-    [PM_INST_BELL] = {3, 900, 0, 260, 276, 100, ENV_ONE * 35 / 100, false},
+    [PM_INST_BELL] = {3, 900, 0, 260, 276, 100, ENV_ONE * 35 / 100, ENV_ONE, false},
     /* a marimba: an octave above, gone almost at once */
-    [PM_INST_PLUCK] = {2, 260, 0, 90, 2, 1, ENV_ONE * 25 / 100, true},
+    [PM_INST_PLUCK] = {2, 260, 0, 90, 2, 1, ENV_ONE * 25 / 100, ENV_ONE, true},
     /* a pad: six cents apart, so the two drift in and out of phase */
-    [PM_INST_PAD] = {140, 260, ENV_ONE * 72 / 100, 420, 1006, 1000, ENV_ONE * 85 / 100, true},
+    [PM_INST_PAD] = {140, 260, ENV_ONE * 72 / 100, 420, 1006, 1000, ENV_ONE * 85 / 100,
+                     ENV_ONE * 45 / 100, true},
     /* and a soft tick */
-    [PM_INST_NOISE] = {1, 130, 0, 50, 1, 1, 0, false},
+    [PM_INST_NOISE] = {1, 130, 0, 50, 1, 1, 0, ENV_ONE, false},
+    /*
+     * The one the chirps use, and it is defined by what it leaves out.  A
+     * triangle carries odd harmonics falling off as 1/n squared, so a marimba
+     * note at 1300 Hz puts real energy at 4 and 6.6 kHz - the band the ear is
+     * sharpest in and the band a small cone peaks in, which is what made the
+     * first chirps sting.  A sine has none of them.  The 2 ms attack was the
+     * other half, and the larger half: 32 samples from nothing to full scale
+     * is a step, and a step is a click with a note behind it.  This takes
+     * 110 ms to reach full level, which is slow enough that the note has no
+     * discernible beginning - it is simply there, having arrived while you
+     * were not listening for it.  What is left is one quiet octave above the
+     * fundamental, a harmonic of it rather than a partial at odds with it,
+     * for enough body that it does not sound like a test tone.
+     */
+    [PM_INST_CHIME] = {110, 950, 0, 460, 2, 1, ENV_ONE * 12 / 100, ENV_ONE, false},
 };
 
 static const int16_t SINE[256] = PM_SINE_TABLE;
@@ -63,7 +91,8 @@ typedef struct {
 } pm_voice;
 
 static uint32_t rate = 16000;
-static int32_t volume;
+static int32_t volume;      /* Q15: what the knob asks for, before the limiter */
+static uint32_t floor_hz;   /* the lowest pitch the speaker is worth sending */
 static pm_voice voices[VOICES];
 
 static pm_tune_id current = PM_TUNE_NONE;
@@ -86,6 +115,36 @@ static int32_t osc(uint32_t phase, bool triangle) {
         up = (int32_t)(2 * PHASE_ONE) - up;
     }
     return ((up * 2) - (int32_t)PHASE_ONE) / 2;
+}
+
+/*
+ * What keeps the mix inside the DAC.
+ *
+ * Six voices can land on the same sample, so a chord runs well past full
+ * scale even though a single tap sits nowhere near it.  Reserving a third of
+ * the range for that moment is the cheap answer, and it costs every sound
+ * 10 dB to protect the loudest instant of the loudest one - which is most of
+ * why a pellet is inaudible on a small speaker.
+ *
+ * So instead: everything up to the knee passes through untouched, and what is
+ * over it is bent into the range that is left.  The curve approaches full
+ * scale without reaching it, so a chord leans on it and squashes where it
+ * used to clip flat, while a marimba tap never touches it at all.
+ */
+#define LIMIT_KNEE (INT16_MAX / 2)
+
+static int32_t soft_limit(int32_t x) {
+    int32_t room = INT16_MAX - LIMIT_KNEE;
+    int32_t sign = (x < 0) ? -1 : 1;
+    int32_t mag = x * sign;
+    int32_t over;
+
+    if (mag <= LIMIT_KNEE) {
+        return x;
+    }
+    over = mag - LIMIT_KNEE;
+
+    return sign * (LIMIT_KNEE + (int32_t)(((int64_t)over * room) / (over + room)));
 }
 
 /* where the voice is in its envelope, Q15, and false once it is finished */
@@ -148,9 +207,10 @@ static int32_t voice_sample(pm_voice *v) {
     v->phase += v->step;
     v->phase2 += v->step2;
     v->age++;
-    v->loud = (env * v->level) / ENV_ONE;
+    v->loud = (((env * v->level) / ENV_ONE) * v->inst->gain) / ENV_ONE;
 
-    return (((a * env) / ENV_ONE) * v->level) / ENV_ONE;
+    a = (((a * env) / ENV_ONE) * v->level) / ENV_ONE;
+    return (a * v->inst->gain) / ENV_ONE;
 }
 
 static void start_note(const pm_note *n) {
@@ -173,7 +233,21 @@ static void start_note(const pm_note *n) {
     }
 
     const pm_instrument *in = &INSTRUMENTS[n->inst];
-    uint32_t step = (uint32_t)(((uint64_t)n->hz * PHASE_ONE) / rate);
+    uint32_t hz = n->hz;
+    uint32_t step;
+
+    /*
+     * Up into the band the speaker can move air in.  Doubling is the one
+     * transposition that leaves the tune recognisable - the pitch class does
+     * not change, so a chord stays that chord, only voiced higher.  The
+     * second bound keeps the doubling from walking a note into the aliasing
+     * that lives just under half the sample rate.
+     */
+    while (hz != 0 && hz < floor_hz && hz * 2 < rate / 3) {
+        hz *= 2;
+    }
+
+    step = (uint32_t)(((uint64_t)hz * PHASE_ONE) / rate);
 
     pick->on = true;
     pick->inst = in;
@@ -192,13 +266,15 @@ static void start_note(const pm_note *n) {
     pick->noise = 0x13579BDFu;
 }
 
-void pm_sfx_init(uint32_t sample_rate, uint8_t vol) {
+void pm_sfx_init(uint32_t sample_rate, uint8_t vol, uint16_t low_hz) {
     rate = sample_rate ? sample_rate : 16000;
     if (vol > 100) {
         vol = 100;
     }
-    /* six voices can land on the same sample, so leave them room */
-    volume = (INT16_MAX / 3) * vol / 100;
+    /* 100 is unity: one voice at full tilt reaches full scale on its own, and
+     * soft_limit() is what holds the chords that stack on top of it */
+    volume = ENV_ONE * vol / 100;
+    floor_hz = low_hz;
     pm_sfx_stop();
 }
 
@@ -276,13 +352,8 @@ size_t pm_sfx_render(int16_t *out, size_t count) {
             }
         }
 
-        mix = (mix * volume) / INT16_MAX;
-        if (mix > INT16_MAX) {
-            mix = INT16_MAX;
-        } else if (mix < -INT16_MAX) {
-            mix = -INT16_MAX;
-        }
-        out[i] = (int16_t)mix;
+        mix = (int32_t)(((int64_t)mix * volume) / ENV_ONE);
+        out[i] = (int16_t)soft_limit(mix);
     }
 
     /* the tune can be over while its last notes are still ringing */

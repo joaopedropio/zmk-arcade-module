@@ -209,7 +209,6 @@ static void pacman_timer_cb(lv_timer_t *timer) {
 
     pm_step(&game);
     pm_render_frame(&game);
-    pacman_sound_step(&game);
 }
 
 void zmk_widget_pacman_init(void) {
@@ -238,7 +237,6 @@ void pacman_start(void) {
 
 void pacman_stop(void) {
     running = false;
-    pacman_sound_quiet(); /* the dashboard is a quiet place */
 }
 
 void pacman_toggle_pause(void) {

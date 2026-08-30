@@ -46,74 +46,17 @@
      -3196,  -2801,  -2404,  -2005,  -1606,  -1205,   -804,   -402 \
 }
 
-static const pm_note pm_tune_intro_notes[] = {
-    {0, 131, 1900, PM_INST_PAD, 55},
-    {0, 196, 1900, PM_INST_PAD, 55},
-    {0, 523, 900, PM_INST_BELL, 90},
-    {150, 659, 900, PM_INST_BELL, 85},
-    {300, 784, 900, PM_INST_BELL, 80},
-    {450, 988, 1100, PM_INST_BELL, 75},
-    {700, 1175, 1300, PM_INST_BELL, 70},
+static const pm_note pm_tune_connect_notes[] = {
+    {0, 587, 420, PM_INST_CHIME, 60},
+    {200, 880, 560, PM_INST_CHIME, 60},
 };
 
-static const pm_note pm_tune_munch_a_notes[] = {
-    {0, 523, 40, PM_INST_PLUCK, 55},
-};
-
-static const pm_note pm_tune_munch_b_notes[] = {
-    {0, 392, 40, PM_INST_PLUCK, 55},
-};
-
-static const pm_note pm_tune_power_notes[] = {
-    {0, 175, 900, PM_INST_PAD, 60},
-    {0, 262, 900, PM_INST_PAD, 60},
-    {0, 698, 400, PM_INST_BELL, 80},
-    {120, 880, 400, PM_INST_BELL, 75},
-    {240, 1047, 600, PM_INST_BELL, 70},
-};
-
-static const pm_note pm_tune_siren_notes[] = {
-    {0, 220, 1500, PM_INST_PAD, 42},
-    {0, 262, 1500, PM_INST_PAD, 42},
-    {0, 330, 1500, PM_INST_PAD, 42},
-    {1600, 196, 1500, PM_INST_PAD, 42},
-    {1600, 247, 1500, PM_INST_PAD, 42},
-    {1600, 294, 1500, PM_INST_PAD, 42},
-};
-
-static const pm_note pm_tune_ghost_notes[] = {
-    {0, 659, 220, PM_INST_BELL, 70},
-    {60, 831, 260, PM_INST_BELL, 65},
-};
-
-static const pm_note pm_tune_death_notes[] = {
-    {0, 110, 2000, PM_INST_PAD, 55},
-    {0, 165, 2000, PM_INST_PAD, 55},
-    {0, 440, 500, PM_INST_BELL, 75},
-    {320, 349, 500, PM_INST_BELL, 70},
-    {640, 294, 600, PM_INST_BELL, 65},
-    {960, 220, 1200, PM_INST_BELL, 60},
-};
-
-static const pm_note pm_tune_clear_notes[] = {
-    {0, 196, 700, PM_INST_PAD, 55},
-    {0, 294, 700, PM_INST_PAD, 55},
-    {0, 392, 200, PM_INST_PLUCK, 80},
-    {150, 494, 200, PM_INST_PLUCK, 80},
-    {300, 587, 200, PM_INST_PLUCK, 80},
-    {500, 262, 1200, PM_INST_PAD, 60},
-    {500, 330, 1200, PM_INST_PAD, 60},
-    {500, 392, 1200, PM_INST_PAD, 60},
-    {500, 1047, 900, PM_INST_BELL, 70},
+static const pm_note pm_tune_disconnect_notes[] = {
+    {0, 880, 420, PM_INST_CHIME, 56},
+    {200, 587, 600, PM_INST_CHIME, 56},
 };
 
 static const pm_tune PM_TUNES[PM_TUNE_COUNT] = {
-    [PM_TUNE_INTRO] = {pm_tune_intro_notes, 7, 3200, false, 3},
-    [PM_TUNE_MUNCH_A] = {pm_tune_munch_a_notes, 1, 400, false, 1},
-    [PM_TUNE_MUNCH_B] = {pm_tune_munch_b_notes, 1, 400, false, 1},
-    [PM_TUNE_POWER] = {pm_tune_power_notes, 5, 2040, false, 2},
-    [PM_TUNE_SIREN] = {pm_tune_siren_notes, 6, 3100, true, 0},
-    [PM_TUNE_GHOST] = {pm_tune_ghost_notes, 2, 1520, false, 2},
-    [PM_TUNE_DEATH] = {pm_tune_death_notes, 6, 3360, false, 4},
-    [PM_TUNE_CLEAR] = {pm_tune_clear_notes, 9, 2600, false, 3},
+    [PM_TUNE_CONNECT] = {pm_tune_connect_notes, 2, 1280, false, 1},
+    [PM_TUNE_DISCONNECT] = {pm_tune_disconnect_notes, 2, 1320, false, 2},
 };

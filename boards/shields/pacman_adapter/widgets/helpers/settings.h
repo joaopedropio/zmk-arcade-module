@@ -1,3 +1,14 @@
+/*
+ * Pac-Man dongle - what survives a power cycle.
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+#pragma once
+
+#include <stdbool.h>
+#include <stdint.h>
+
 typedef struct {
     uint8_t current_theme;
     bool mute;

@@ -5,7 +5,7 @@
  *   cc -I boards/shields/pacman_adapter/widgets/game \
  *      -o /tmp/sfxsim tools/sfxsim/sfxsim.c \
  *      boards/shields/pacman_adapter/widgets/game/pacman_sfx.c
- *   /tmp/sfxsim <out-dir> [sample-rate]
+ *   /tmp/sfxsim <out-dir> [sample-rate] [bass-floor-hz]
  *
  * SPDX-License-Identifier: MIT
  */
@@ -19,7 +19,7 @@
 #define MAX_SECONDS 6
 
 static const char *const NAMES[PM_TUNE_COUNT] = {
-    "intro", "munch_a", "munch_b", "power", "siren", "ghost", "death", "clear",
+    "connect", "disconnect",
 };
 
 static void put32(FILE *f, uint32_t v) { fwrite(&v, 4, 1, f); }
@@ -52,6 +52,7 @@ static void write_wav(const char *path, const int16_t *samples, size_t count, ui
 int main(int argc, char **argv) {
     const char *dir = argc > 1 ? argv[1] : ".";
     uint32_t rate = argc > 2 ? (uint32_t)atoi(argv[2]) : 16000;
+    uint16_t floor_hz = argc > 3 ? (uint16_t)atoi(argv[3]) : 0;
     size_t cap = rate * MAX_SECONDS;
     int16_t *buf = malloc(cap * sizeof(int16_t));
 
@@ -60,7 +61,7 @@ int main(int argc, char **argv) {
     }
 
     for (int id = 0; id < PM_TUNE_COUNT; id++) {
-        pm_sfx_init(rate, 100);
+        pm_sfx_init(rate, 100, floor_hz);
         pm_sfx_play((pm_tune_id)id);
 
         size_t total = 0;

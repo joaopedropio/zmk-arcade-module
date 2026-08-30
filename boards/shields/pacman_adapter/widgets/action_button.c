@@ -29,17 +29,20 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include "battery_status.h"
 #include "frames.h"
 #include "helpers/display.h"
+#include "helpers/settings.h"
 #include "layer_status.h"
 #include "logo.h"
 #include "modifier.h"
 #include "output_status.h"
 #include "pacman.h"
+#include "sound.h"
 #include "theme.h"
 #include "wpm.h"
 
 static uint8_t *buf_frame;
 static uint16_t menu_threshold = 0;
 static uint16_t theme_threshold = 300;
+static uint16_t mute_threshold = 600;
 static int64_t pressed_timestamp = 0;
 
 static bool action_button_initialized = false;
@@ -50,11 +53,14 @@ static bool dongle_lock = false;
 typedef enum {
     ACTION_MENU,
     ACTION_THEME,
+    ACTION_MUTE,
 } Action;
 
 static Action action;
 
 void set_theme_threshold(uint16_t term_ms) { theme_threshold = term_ms; }
+
+void set_mute_threshold(uint16_t term_ms) { mute_threshold = term_ms; }
 
 void print_menu(void) {
     clear_screen(get_menu_bg_color());
@@ -100,6 +106,11 @@ static void change_theme(void) {
     pacman_start(); /* the maze is repainted from the top on the next frame */
 }
 
+static void toggle_mute(void) {
+    pacman_settings_toggle_mute();
+    pacman_sound_set_mute(pacman_settings_get_mute());
+}
+
 static void run_action(void) {
     if (dongle_lock) {
         return;
@@ -110,6 +121,9 @@ static void run_action(void) {
     }
     if (action == ACTION_THEME) {
         change_theme();
+    }
+    if (action == ACTION_MUTE) {
+        toggle_mute();
     }
     dongle_lock = false;
 }
@@ -124,7 +138,9 @@ static void dongle_action_update_cb(struct zmk_dongle_actioned state) {
     }
 
     int64_t elapsed_time = state.timestamp - pressed_timestamp;
-    if (elapsed_time > theme_threshold) {
+    if (elapsed_time > mute_threshold) {
+        action = ACTION_MUTE;
+    } else if (elapsed_time > theme_threshold) {
         action = ACTION_THEME;
     } else if (elapsed_time > menu_threshold) {
         action = ACTION_MENU;

@@ -22,9 +22,11 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 #include "battery_status.h"
 #include "helpers/display.h"
+#include "sound.h"
 
 
 static bool battery_status_running = false;
+static bool battery_status_initialized = false;
 static struct peripheral_battery_state battery_state_0;
 static struct peripheral_battery_state battery_state_1;
 static struct peripheral_battery_state battery_state_2;
@@ -191,7 +193,45 @@ void set_battery_symbol() {
 }
 
 
+/*
+ * The dongle is the central, and ZMK only raises the split connection event on
+ * the peripheral side - so this is where a half arriving or dropping shows up:
+ * central.c posts a battery level of 0 when a peripheral disconnects, and the
+ * next real reading is the first thing heard from one that has come back.  A
+ * half sitting at a genuine 0% would read as gone, which is the same bargain
+ * the battery readout on screen already makes.
+ *
+ * The old level is still in battery_state_N when this runs, since the caller
+ * has not stored the new one yet.  Nothing sounds before the splash is over:
+ * at power-on the halves connecting is the normal state of things rather than
+ * news.
+ */
+static void announce_connection(struct peripheral_battery_state state) {
+    uint8_t was;
+
+    if (!battery_status_initialized) {
+        return;
+    }
+    switch (state.source) {
+    case 0:
+        was = battery_state_0.level;
+        break;
+    case 1:
+        was = battery_state_1.level;
+        break;
+    case 2:
+        was = battery_state_2.level;
+        break;
+    default:
+        return;
+    }
+    if ((was == 0) != (state.level == 0)) {
+        pacman_sound_connected(state.level != 0);
+    }
+}
+
 void battery_status_update_cb(struct peripheral_battery_state state) {
+    announce_connection(state);
     if (state.source == 0) {
         battery_state_0 = state;
     } else if (state.source == 1) {
@@ -293,6 +333,7 @@ void zmk_widget_peripheral_battery_status_init() {
 }
 
 void initialize_battery_status() {
+    battery_status_initialized = true;
 }
 
 void start_battery_status() {
