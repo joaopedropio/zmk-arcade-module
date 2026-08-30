@@ -201,9 +201,14 @@ void zmk_widget_layer_init() {
             k_malloc(SCALED_BITMAP_BYTES(layer_font_width, layer_font_height, layer_font_scale));
     }
 
+    /*
+     * An empty string, not a null one: print_layer() clears whatever it
+     * printed last before printing the next, and the first time it runs that
+     * is this - so strlen() gets a look at it before anything real is here.
+     */
     last_printed_layer = (struct layer_status_state) {
         .index = 0,
-        .label = '\0'
+        .label = ""
     };
 
     widget_layer_status_init();
