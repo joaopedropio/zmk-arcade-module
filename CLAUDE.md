@@ -78,6 +78,7 @@ boards/shields/pacman_adapter/
     └── game/                pacman_core.c, pacman_render.c, pacman_sfx.c
 src/ include/ dts/           the zmk,behavior-dongle-action behaviour
 tools/                       the three host harnesses and two generators
+tools/wasm/                  the renderer built for the browser, by emscripten
 docs/configurator/           the WebSerial settings page, served by GitHub Pages
 ```
 
@@ -142,6 +143,13 @@ may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
 - **`pacman schema` is a wire format.** The configurator page parses those
   tab-separated columns, so adding a setting is free but adding or reordering a
   column breaks the page.
+- **The configurator's preview is the real renderer**, compiled by
+  `tools/wasm/build.sh` and committed as `docs/configurator/preview.js`. Change
+  the game's drawing code and that file is stale until it is rebuilt. Two
+  orders have to stay together by hand: `PREVIEW_COLORS` in the page and the
+  enum in `tools/wasm/preview.c`, and `preview_apply_colors()` mirrors
+  `pacman_reload_palette()` including the house being filled with the wall's
+  colour.
 
 ## Style
 

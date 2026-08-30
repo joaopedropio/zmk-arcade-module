@@ -125,6 +125,35 @@
   .tag.stored { color: var(--pac); border-color: var(--pac); }
   .tag.boot { color: var(--warn); border-color: var(--warn); }
   .hidden { display: none; }
+  #preview { display: grid; grid-template-columns: auto 1fr; gap: 20px; padding: 16px; align-items: start; }
+  #screen {
+    width: 300px; height: 300px;
+    image-rendering: pixelated;
+    border: 1px solid var(--edge);
+    border-radius: 6px;
+    background: #000;
+    cursor: crosshair;
+    display: block;
+  }
+  #screen.idle { cursor: default; opacity: .35; }
+  .previewside { min-width: 0; }
+  .previewside p { margin: 0 0 12px; color: var(--dim); }
+  .picked {
+    border: 1px solid var(--edge); border-radius: 6px; padding: 12px; margin-bottom: 12px;
+  }
+  .picked .name { color: var(--pac); }
+  .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+  .choices button { padding: 5px 10px; font-size: 13px; }
+  .previewbar { display: flex; gap: 8px; margin-top: 10px; }
+  .row.flash { animation: flash 1.4s ease-out; }
+  @keyframes flash {
+    from { background: #2a2a12; }
+    to { background: transparent; }
+  }
+  @media (max-width: 720px) {
+    #preview { grid-template-columns: 1fr; }
+    #screen { width: 100%; height: auto; aspect-ratio: 1; }
+  }
   footer { color: var(--dim); font-size: 13px; padding: 8px 0 40px; }
   footer a { color: var(--pellet); }
 </style>
@@ -149,6 +178,25 @@
     and a browser with WebSerial (Chrome, Edge or Opera on desktop).
   </p>
 
+  <section id="previewpanel" class="hidden">
+    <h2>The screen</h2>
+    <div id="preview">
+      <canvas id="screen" width="240" height="240" class="idle"></canvas>
+      <div class="previewside">
+        <p>
+          This is the dongle's own renderer, compiled to WebAssembly — the same
+          code the firmware runs, so what you see is what the panel draws.
+          Click anything in it to jump to the colour that painted it.
+        </p>
+        <div id="picked"></div>
+        <div class="previewbar">
+          <button id="play">Play</button>
+          <button id="rewind">Rewind</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <div id="panels"></div>
 
   <footer>
@@ -160,6 +208,7 @@
   </footer>
 </main>
 
+<script src="preview.js"></script>
 <script>
 "use strict";
 
@@ -185,8 +234,25 @@ const GROUPS = [
   ["Frame and menu",  /^(frame|menu-)/],
 ];
 
+/*
+ * The thirteen game colours in the order tools/wasm/preview.c has them - the
+ * page writes them straight into the module's array, so the two orders have
+ * to stay together.
+ */
+const PREVIEW_COLORS = [
+  "game-bg", "game-wall", "game-wall-fill", "game-wall-flash", "game-house",
+  "game-door", "game-pellet", "game-pac", "game-ghost-0", "game-ghost-1",
+  "game-ghost-2", "game-ghost-3", "game-fright",
+];
+
+/* seed 1 reaches this frame with all four ghosts out of the house and Pac-Man
+ * in the open, which is the most of the palette anyone can click at once */
+const OPENING_FRAME = 354;
+const FRAME_MS = 66; /* about 15 fps, which is the speed the dongle plays it */
+
 let port = null, writer = null, incoming = "", prompt = PROMPT_FALLBACK;
 let settings = [];
+let wasm = null, playing = null;
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -273,6 +339,11 @@ async function loadSchema() {
   if (!rows.length) throw new Error("`pacman schema` said nothing - is this the right firmware?");
   settings = rows;
   render();
+  if (wasm) {
+    $("previewpanel").classList.remove("hidden");
+    rewind();
+    pushColors();
+  }
   say("Connected. " + rows.length + " settings.", "good");
 }
 
@@ -286,8 +357,8 @@ async function setValue(setting, word, control) {
     }
     setting.value = word;
     setting.stored = true;
-    control.closest(".row").querySelector(".tag.state").className = "tag state stored";
-    control.closest(".row").querySelector(".tag.state").textContent = "stored";
+    if (PREVIEW_COLORS.includes(setting.name)) pushColors();
+    syncControls(setting);
     say(reply || (setting.name + " set"), "good");
     return true;
   } catch (err) {
@@ -301,9 +372,28 @@ function groupOf(name) {
   return "Other";
 }
 
+/*
+ * The same setting can be on screen twice - once in its row, once in the box
+ * under the preview when it was clicked - so every control is tagged with the
+ * setting it drives and they are all brought back into line after a write.
+ * Without it, editing one leaves the other showing the old colour.
+ */
+function syncControls(setting) {
+  for (const control of document.querySelectorAll('[data-setting="' + setting.name + '"]')) {
+    for (const input of control.querySelectorAll("input, select")) {
+      input.value = input.type === "color" ? "#" + setting.value.padStart(6, "0") : setting.value;
+    }
+  }
+  for (const tag of document.querySelectorAll('[data-state="' + setting.name + '"]')) {
+    tag.className = "tag state stored";
+    tag.textContent = "stored";
+  }
+}
+
 function controlFor(setting) {
   const wrap = document.createElement("div");
   wrap.className = "control";
+  wrap.dataset.setting = setting.name;
 
   if (setting.kind === "color") {
     const swatch = document.createElement("input");
@@ -411,6 +501,7 @@ function render() {
       const state = document.createElement("span");
       state.className = "tag state" + (setting.stored ? " stored" : "");
       state.textContent = setting.stored ? "stored" : "built in";
+      state.dataset.state = setting.name;
       tags.append(state);
       if (!setting.live) {
         const boot = document.createElement("span");
@@ -428,6 +519,133 @@ function render() {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* the preview                                                         */
+/* ------------------------------------------------------------------ */
+
+function frameBuffer() {
+  const panel = wasm._preview_panel();
+  const base = wasm._preview_framebuffer() >> 1;
+  return wasm.HEAPU16.subarray(base, base + panel * panel);
+}
+
+function drawScreen() {
+  const canvas = $("screen");
+  const panel = wasm._preview_panel();
+  const ctx = canvas.getContext("2d");
+  const image = ctx.createImageData(panel, panel);
+  const fb = frameBuffer();
+
+  for (let i = 0; i < panel * panel; i++) {
+    const c = fb[i];
+    image.data[i * 4] = Math.round((((c >> 11) & 0x1f) * 255) / 31);
+    image.data[i * 4 + 1] = Math.round((((c >> 5) & 0x3f) * 255) / 63);
+    image.data[i * 4 + 2] = Math.round(((c & 0x1f) * 255) / 31);
+    image.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(image, 0, 0);
+}
+
+function pushColors() {
+  if (!wasm || !settings.length) return;
+  const base = wasm._preview_colors() >> 2;
+  PREVIEW_COLORS.forEach((name, i) => {
+    const setting = settings.find((s) => s.name === name);
+    wasm.HEAPU32[base + i] = setting ? parseInt(setting.value, 16) || 0 : 0;
+  });
+  wasm._preview_apply_colors();
+  wasm._preview_repaint();
+  drawScreen();
+}
+
+function rewind() {
+  wasm._preview_reset(1);
+  for (let i = 0; i < OPENING_FRAME; i++) wasm._preview_step();
+  drawScreen();
+}
+
+function setPlaying(on) {
+  if (playing) { clearInterval(playing); playing = null; }
+  if (on) {
+    playing = setInterval(() => { wasm._preview_step(); drawScreen(); }, FRAME_MS);
+  }
+  $("play").textContent = on ? "Pause" : "Play";
+  $("screen").classList.toggle("idle", !!on);
+}
+
+/* scroll the setting into view, flash its row and put its swatch under the canvas */
+function pickSetting(name) {
+  const setting = settings.find((s) => s.name === name);
+  const row = [...document.querySelectorAll(".row")]
+    .find((r) => r.querySelector("label").firstChild.textContent === name);
+
+  $("picked").textContent = "";
+  const box = document.createElement("div");
+  box.className = "picked";
+  const title = document.createElement("div");
+  const label = document.createElement("span");
+  label.className = "name";
+  label.textContent = name;
+  title.append(label);
+  box.append(title, controlFor(setting));
+  $("picked").append(box);
+
+  if (row) {
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    row.classList.remove("flash");
+    void row.offsetWidth;
+    row.classList.add("flash");
+  }
+}
+
+function offerChoices(names) {
+  $("picked").textContent = "";
+  const box = document.createElement("div");
+  box.className = "picked";
+  const title = document.createElement("div");
+  title.textContent = "That colour is shared by:";
+  const choices = document.createElement("div");
+  choices.className = "choices";
+  for (const name of names) {
+    const button = document.createElement("button");
+    button.textContent = name;
+    button.addEventListener("click", () => pickSetting(name));
+    choices.append(button);
+  }
+  box.append(title, choices);
+  $("picked").append(box);
+}
+
+/*
+ * Which setting painted a pixel is answered by asking the renderer to quantise
+ * each colour the way the panel does and comparing - no second copy of the
+ * artwork, and nothing to keep in step.  Two settings can hold the same colour
+ * (the door and a ghost are both ffb8ff out of the box), so the answer is a
+ * list rather than a name.
+ */
+function onScreenClick(event) {
+  if (!wasm || !settings.length || playing) return;
+  const canvas = $("screen");
+  const panel = wasm._preview_panel();
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor(((event.clientX - rect.left) / rect.width) * panel);
+  const y = Math.floor(((event.clientY - rect.top) / rect.height) * panel);
+  if (x < 0 || y < 0 || x >= panel || y >= panel) return;
+
+  const pixel = frameBuffer()[y * panel + x];
+  const matches = PREVIEW_COLORS.filter((name) => {
+    const setting = settings.find((s) => s.name === name);
+    return setting && wasm._preview_rgb565(parseInt(setting.value, 16) || 0) === pixel;
+  });
+
+  if (matches.length === 0) {
+    say("Nothing settable painted that pixel - try the maze, a ghost or a pellet.");
+    return;
+  }
+  if (matches.length === 1) { pickSetting(matches[0]); return; }
+  offerChoices(matches);
+}
+
 function setConnected(on) {
   $("connect").textContent = on ? "Disconnect" : "Connect";
   $("reload").disabled = !on;
@@ -435,6 +653,9 @@ function setConnected(on) {
   if (!on) {
     $("panels").textContent = "";
     $("count").textContent = "";
+    $("picked").textContent = "";
+    $("previewpanel").classList.add("hidden");
+    setPlaying(false);
   }
 }
 
@@ -482,6 +703,25 @@ async function disconnect() {
     say("Disconnected.");
   }
 }
+
+$("screen").addEventListener("click", onScreenClick);
+$("play").addEventListener("click", () => setPlaying(!playing));
+$("rewind").addEventListener("click", () => { setPlaying(false); rewind(); });
+
+/*
+ * The renderer is local, so it loads whether or not a dongle is plugged in -
+ * but it is only shown once one is, because the colours it would draw with
+ * have to come from the dongle rather than from a guess in this page.
+ */
+PacmanPreview().then((module) => {
+  wasm = module;
+  $("screen").classList.remove("idle");
+  if (settings.length) {
+    $("previewpanel").classList.remove("hidden");
+    rewind();
+    pushColors();
+  }
+}).catch((err) => say("The preview renderer would not load: " + err.message, "bad"));
 
 $("connect").addEventListener("click", () => (port ? disconnect() : connect()));
 $("reload").addEventListener("click", async () => {

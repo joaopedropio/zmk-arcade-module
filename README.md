@@ -210,7 +210,22 @@ file with a header comment saying so.
 It works out what to draw by asking the dongle — `pacman schema` answers with
 one tab-separated line per setting — so the page never needs updating when the
 firmware gains a setting, and it cannot show you a control for one that is not
-there. WebSerial needs a secure context, which HTTPS-served Pages is, and a
+there.
+
+It also shows the panel. `tools/wasm/build.sh` compiles the game core and
+renderer to WebAssembly — the same `pacman_core.c` and `pacman_render.c` the
+firmware runs — so the maze on the page is not a drawing of the maze, it is
+the maze, and it cannot drift when `PM_TILE` or a sprite changes. Click
+anything in it and the page jumps to the colour that painted it, worked out by
+asking the renderer to quantise each setting the way the panel does and
+comparing. Two settings can hold the same colour — the door and the pink ghost
+are both `ffb8ff` out of the box — so a click on those offers the pair.
+
+That covers the thirteen maze colours. The dashboard's forty-two are still
+edited from the list below: previewing them needs `tools/uisim` compiled the
+same way, and its widgets read ZMK state the host does not have. Rebuilding
+`preview.js` needs emscripten (`brew install emscripten`); opening the page
+does not. WebSerial needs a secure context, which HTTPS-served Pages is, and a
 browser that implements it: Chrome, Edge or Opera on desktop. Firefox and
 Safari have no WebSerial and the page says so rather than half-working.
 
