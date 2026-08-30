@@ -23,19 +23,13 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include "battery_status.h"
 #include "helpers/display.h"
 
-#ifdef CONFIG_USE_BUZZER
-#include "helpers/buzzer.h"
-#endif
 
-static bool battery_status_initialized = false;
 static bool battery_status_running = false;
 static struct peripheral_battery_state battery_state_0;
 static struct peripheral_battery_state battery_state_1;
 static struct peripheral_battery_state battery_state_2;
 static uint16_t *scaled_bitmap_1;
 
-static uint8_t previous_battery_level_0 = 0;
-static uint8_t previous_battery_level_1 = 0;
 
 // #ifdef CONFIG_SHOW_SINGLE_BATTERY
 // static const uint16_t font_offset = 6;
@@ -196,36 +190,8 @@ void set_battery_symbol() {
     }
 }
 
-#ifdef CONFIG_USE_BUZZER
-void alarm_peripheral_changed_status(struct peripheral_battery_state state) {
-    if (state.source == 0) {
-        if (previous_battery_level_0 == 0 && state.level != 0) {
-            play_disconnected_song();
-        }
-        if (previous_battery_level_0 != 0 && state.level == 0) {
-            play_error_song();
-        }
-        previous_battery_level_0 = state.level;
-    } else {
-        if (previous_battery_level_1 == 0 && state.level != 0) {
-            play_disconnected_song();
-        }
-        if (previous_battery_level_1 != 0 && state.level == 0) {
-            play_error_song();
-        }
-        previous_battery_level_1 = state.level;
-    }
-}
-#endif
 
 void battery_status_update_cb(struct peripheral_battery_state state) {
-    if (battery_status_initialized) {
-        #ifdef CONFIG_USE_BUZZER
-            #ifdef CONFIG_USE_STATUS_SOUND
-            alarm_peripheral_changed_status(state);
-            #endif
-        #endif
-    }
     if (state.source == 0) {
         battery_state_0 = state;
     } else if (state.source == 1) {
@@ -283,13 +249,9 @@ void zmk_widget_peripheral_battery_status_init() {
         battery_widget_slot_y += battery_widget_slot.y;
     }
     if (battery_widget_slot.number != SLOT_NUMBER_NONE) {
-        uint16_t battery_widget_font_size = (battery_widget_font_width * battery_widget_font_scale) * (battery_widget_font_height * battery_widget_font_scale);
-        scaled_bitmap_battery_widget_font = k_malloc(battery_widget_font_size * 2 * sizeof(uint16_t));
+        scaled_bitmap_battery_widget_font = k_malloc(SCALED_BITMAP_BYTES(
+            battery_widget_font_width, battery_widget_font_height, battery_widget_font_scale));
     }
-
-    uint16_t bitmap_size = (font_width * scale) * (font_height * scale);
-
-    scaled_bitmap_1 = k_malloc(bitmap_size * 2 * sizeof(uint16_t));
 
     if (get_battery_slots() == 1) {
         font_offset = 6;
@@ -324,11 +286,13 @@ void zmk_widget_peripheral_battery_status_init() {
         #endif
     }
 
+    /* after the slot count has had its say on the font and the scale */
+    scaled_bitmap_1 = k_malloc(SCALED_BITMAP_BYTES(font_width, font_height, scale));
+
     widget_battery_status_init();
 }
 
 void initialize_battery_status() {
-    battery_status_initialized = true;
 }
 
 void start_battery_status() {

@@ -120,8 +120,8 @@ void theme_init() {
         theme_y += theme_slot.y;
     }
     if (theme_slot.number != SLOT_NUMBER_NONE) {
-        uint16_t theme_font_size = (theme_font_width * theme_font_scale) * (theme_font_height * theme_font_scale);
-        scaled_bitmap_theme_font = k_malloc(theme_font_size * 2 * sizeof(uint16_t));
+        scaled_bitmap_theme_font =
+            k_malloc(SCALED_BITMAP_BYTES(theme_font_width, theme_font_height, theme_font_scale));
     }
 
     current_theme = pacman_settings_get_current_theme();

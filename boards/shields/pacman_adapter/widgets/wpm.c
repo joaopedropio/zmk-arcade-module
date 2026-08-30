@@ -113,8 +113,8 @@ void zmk_widget_wpm_init() {
     }
 
     if (wpm_slot.number != SLOT_NUMBER_NONE) {
-        uint16_t wpm_font_size = (wpm_font_width * wpm_font_scale) * (wpm_font_height * wpm_font_scale);
-        scaled_bitmap_wpm_font = k_malloc(wpm_font_size * 2 * sizeof(uint16_t));
+        scaled_bitmap_wpm_font =
+            k_malloc(SCALED_BITMAP_BYTES(wpm_font_width, wpm_font_height, wpm_font_scale));
     }
 
     widget_wpm_init();

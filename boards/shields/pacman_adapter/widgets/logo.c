@@ -232,9 +232,8 @@ void start_animation(void) {
 }
 
 void logo_animation_init(void) {
-    uint16_t text_size = (logo_text_font_width * logo_text_font_scale) *
-                         (logo_text_font_height * logo_text_font_scale);
-    logo_text_buf = k_malloc(text_size * 2 * sizeof(uint16_t));
+    logo_text_buf = k_malloc(
+        SCALED_BITMAP_BYTES(logo_text_font_width, logo_text_font_height, logo_text_font_scale));
 
     if (get_slot_mode() != SLOT_MODE_2) {
         logo_text_y = 20;
@@ -242,5 +241,5 @@ void logo_animation_init(void) {
         return;
     }
     animation_sections_total = (logo_animation_width * 2) + (logo_animation_height * 2);
-    animation_buf = k_malloc(36 * logo_animation_scale * logo_animation_scale * 2 * sizeof(uint16_t));
+    animation_buf = k_malloc(SCALED_BITMAP_BYTES(6, 6, logo_animation_scale));
 }

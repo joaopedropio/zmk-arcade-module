@@ -116,6 +116,15 @@ typedef enum {
     DISPLAY_ORIENTATION_270,
 } DisplayOrientation;
 
+/*
+ * How many bytes render_bitmap() fills for a width x height bitmap drawn at
+ * this scale - it writes one uint16_t per scaled pixel and nothing more.  Every
+ * widget's scratch buffer is one of these, so this is the only place the
+ * arithmetic lives.
+ */
+#define SCALED_BITMAP_BYTES(width, height, scale)                                                  \
+    ((size_t)(width) * (scale) * (height) * (scale) * sizeof(uint16_t))
+
 Character int_to_num_char(uint8_t i);
 
 void print_container(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t scale);
@@ -123,10 +132,10 @@ void fill_buffer_color(uint8_t *buf, size_t buf_size, uint32_t color);
 void init_display(void);
 void display_write_wrapper_game(uint16_t x, uint16_t y, struct display_buffer_descriptor *buf_desc, uint8_t *buf);
 void display_write_wrapper(uint16_t x, uint16_t y, struct display_buffer_descriptor *buf_desc, uint8_t *buf);
-void render_bitmap(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color);
-void render_bitmap_multicolor(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t colors[]);
+void render_bitmap(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color);
+void render_bitmap_multicolor(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, const uint16_t colors[]);
 void print_bitmap(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, uint16_t scale, uint16_t color, uint16_t bg_color, FontSize font_size);
-void print_bitmap_multicolor(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, uint16_t scale, uint16_t colors[], FontSize font_size);
+void print_bitmap_multicolor(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, uint16_t scale, const uint16_t colors[], FontSize font_size);
 void print_rectangle(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t color, uint16_t scale);
 void render_filled_rectangle(uint8_t *buf_area, uint8_t x, uint8_t y, uint8_t width, uint8_t height);
 
@@ -230,8 +239,8 @@ uint16_t get_wpm_font_bg_color(void);
 
 void clear_screen(uint16_t color);
 void set_colorscheme(uint32_t primary, uint32_t secondary, uint32_t background1, uint32_t background2);
-void print_string(uint16_t *scaled_bitmap, Character str[], uint16_t x, uint16_t y, uint16_t scale, uint16_t color, uint16_t bg_color, FontSize font_size, uint16_t gap_pixels, uint8_t str_len);
-void print_char_array(uint16_t *scaled_bitmap, char *str, uint16_t x, uint16_t y, uint16_t scale, uint16_t color, uint16_t bg_color, FontSize font_size, uint16_t gap_pixels, uint8_t str_len, uint8_t limit);
+void print_string(uint16_t *scaled_bitmap, const Character str[], uint16_t x, uint16_t y, uint16_t scale, uint16_t color, uint16_t bg_color, FontSize font_size, uint16_t gap_pixels, uint8_t str_len);
+void print_char_array(uint16_t *scaled_bitmap, const char *str, uint16_t x, uint16_t y, uint16_t scale, uint16_t color, uint16_t bg_color, FontSize font_size, uint16_t gap_pixels, uint8_t str_len, uint8_t limit);
 void print_repeat_char(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, uint16_t scale, uint16_t color, uint16_t bg_color, FontSize font_size, uint16_t gap_pixels, uint8_t str_len, uint8_t limit);
 
 uint8_t get_themes_colors_len(void);

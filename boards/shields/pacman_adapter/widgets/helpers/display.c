@@ -1004,7 +1004,7 @@ uint16_t swap_16_bit_color(uint16_t color) {
     return (color >> 8) | (color << 8);
 }
 
-void render_bitmap_270(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
+void render_bitmap_270(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
     struct display_buffer_descriptor buf;
 
     uint16_t src_w = width * scale;
@@ -1046,7 +1046,7 @@ void render_bitmap_270(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, u
     display_write(display_dev, dx0, dy0, &buf, scaled_bitmap);
 }
 
-void render_bitmap_270_multicolor(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t colors[]) {
+void render_bitmap_270_multicolor(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, const uint16_t colors[]) {
     struct display_buffer_descriptor buf;
 
     uint16_t src_w = width * scale;
@@ -1088,7 +1088,7 @@ void render_bitmap_270_multicolor(uint16_t *scaled_bitmap, uint16_t bitmap[], ui
     display_write(display_dev, dx0, dy0, &buf, scaled_bitmap);
 }
 
-void render_bitmap_180(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
+void render_bitmap_180(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
     struct display_buffer_descriptor buf_font_desc;
 
     uint16_t screen_width  = 240;
@@ -1134,7 +1134,7 @@ void render_bitmap_180(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, u
     display_write(display_dev, screen_width  - x - font_width_scaled, screen_height - y - font_height_scaled, &buf_font_desc, scaled_bitmap);
 }
 
-void render_bitmap_180_multicolor(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t colors[]) {
+void render_bitmap_180_multicolor(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, const uint16_t colors[]) {
     struct display_buffer_descriptor buf_font_desc;
 
     uint16_t screen_width  = 240;
@@ -1176,7 +1176,7 @@ void render_bitmap_180_multicolor(uint16_t *scaled_bitmap, uint16_t bitmap[], ui
     display_write(display_dev, screen_width  - x - font_width_scaled, screen_height - y - font_height_scaled, &buf_font_desc, scaled_bitmap);
 }
 
-void render_bitmap_90(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
+void render_bitmap_90(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
     struct display_buffer_descriptor buf;
 
     uint16_t src_w = width * scale;
@@ -1218,7 +1218,7 @@ void render_bitmap_90(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, ui
     display_write(display_dev, dx0, dy0, &buf, scaled_bitmap);
 }
 
-void render_bitmap_90_multicolor(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t colors[]) {
+void render_bitmap_90_multicolor(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, const uint16_t colors[]) {
     struct display_buffer_descriptor buf;
 
     uint16_t src_w = width * scale;
@@ -1260,7 +1260,7 @@ void render_bitmap_90_multicolor(uint16_t *scaled_bitmap, uint16_t bitmap[], uin
     display_write(display_dev, dx0, dy0, &buf, scaled_bitmap);
 }
 
-void render_bitmap_0(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
+void render_bitmap_0(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
 	struct display_buffer_descriptor buf_font_desc;
 
     uint16_t color;
@@ -1292,7 +1292,7 @@ void render_bitmap_0(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, uin
     display_write(display_dev, x, y, &buf_font_desc, scaled_bitmap);
 }
 
-void render_bitmap_0_multicolor(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t colors[]) {
+void render_bitmap_0_multicolor(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, const uint16_t colors[]) {
 	struct display_buffer_descriptor buf_font_desc;
 
     uint16_t color;
@@ -1320,7 +1320,7 @@ void render_bitmap_0_multicolor(uint16_t *scaled_bitmap, uint16_t bitmap[], uint
     display_write(display_dev, x, y, &buf_font_desc, scaled_bitmap);
 }
 
-void render_bitmap(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
+void render_bitmap(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
     if (scaled_bitmap == NULL) {
         return; /* the heap ran out at init: draw nothing rather than fault */
     }
@@ -1331,7 +1331,7 @@ void render_bitmap(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, uint1
         default: return render_bitmap_0(scaled_bitmap, bitmap, x, y, width, height, scale, num_color, bg_color);
     }
 }
-void render_bitmap_multicolor(uint16_t *scaled_bitmap, uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t colors[]) {
+void render_bitmap_multicolor(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, const uint16_t colors[]) {
     if (scaled_bitmap == NULL) {
         return;
     }
@@ -1443,7 +1443,7 @@ void print_bitmap_3x5(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t
     }
 }
 
-void print_bitmap_multicolor_10x13(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, uint16_t scale, uint16_t colors[]) {
+void print_bitmap_multicolor_10x13(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, uint16_t scale, const uint16_t colors[]) {
     // if (c >= 0 && c < 10) {
     //     render_bitmap(scaled_bitmap, num_bitmaps_3x6[c], x, y, 3, 6, scale, color, bg_color);
     //     return;
@@ -1485,12 +1485,14 @@ void print_bitmap(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, 
         case FONT_SIZE_3x5: print_bitmap_3x5(scaled_bitmap, c, x, y, scale, color, bg_color); break;
         case FONT_SIZE_5x8: print_bitmap_5x8(scaled_bitmap, c, x, y, scale, color, bg_color); break;
         case FONT_SIZE_5x7: print_bitmap_5x7(scaled_bitmap, c, x, y, scale, color, bg_color); break;
+        case FONT_SIZE_10x13: break; /* multicolour only - print_bitmap_multicolor() draws it */
     }
 }
 
-void print_bitmap_multicolor(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, uint16_t scale, uint16_t colors[], FontSize font_size) {
+void print_bitmap_multicolor(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, uint16_t scale, const uint16_t colors[], FontSize font_size) {
     switch (font_size) {
         case FONT_SIZE_10x13: print_bitmap_multicolor_10x13(scaled_bitmap, c, x, y, scale, colors); break;
+        default: break; /* the one-colour fonts go through print_bitmap() */
     }
 }
 
@@ -1886,7 +1888,7 @@ void set_colorscheme(uint32_t primary, uint32_t secondary, uint32_t background1,
     set_wpm_font_bg_color(background2);
 }
 
-void print_string(uint16_t *scaled_bitmap, Character str[], uint16_t x, uint16_t y, uint16_t scale, uint16_t color, uint16_t bg_color, FontSize font_size, uint16_t gap_pixels, uint8_t str_len) {
+void print_string(uint16_t *scaled_bitmap, const Character str[], uint16_t x, uint16_t y, uint16_t scale, uint16_t color, uint16_t bg_color, FontSize font_size, uint16_t gap_pixels, uint8_t str_len) {
     uint16_t string_font_width_scaled = 0;
     if (font_size == FONT_SIZE_3x6 || font_size == FONT_SIZE_3x5) {
         string_font_width_scaled = 3 * scale;
@@ -1926,7 +1928,7 @@ static Character char_to_enum(char ch) {
     }
 }
 
-void print_char_array(uint16_t *scaled_bitmap, char *str, uint16_t x, uint16_t y, uint16_t scale, uint16_t color, uint16_t bg_color, FontSize font_size, uint16_t gap_pixels, uint8_t str_len, uint8_t limit) {
+void print_char_array(uint16_t *scaled_bitmap, const char *str, uint16_t x, uint16_t y, uint16_t scale, uint16_t color, uint16_t bg_color, FontSize font_size, uint16_t gap_pixels, uint8_t str_len, uint8_t limit) {
     uint16_t string_font_width_scaled = 0;
     if (font_size == FONT_SIZE_3x6 || font_size == FONT_SIZE_3x5) {
         string_font_width_scaled = 3 * scale;

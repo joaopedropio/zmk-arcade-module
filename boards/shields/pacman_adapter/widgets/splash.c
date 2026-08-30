@@ -120,9 +120,8 @@ void print_splash(void) {
 }
 
 void zmk_widget_splash_init(void) {
-    buf_glyph = k_malloc((WORDMARK_FONT_W * wordmark_scale) * (WORDMARK_FONT_H * wordmark_scale) *
-                         2u * sizeof(uint16_t));
-    buf_sprite = k_malloc(splash_pac_width * 2u * sizeof(uint16_t));
+    buf_glyph = k_malloc(SCALED_BITMAP_BYTES(WORDMARK_FONT_W, WORDMARK_FONT_H, wordmark_scale));
+    buf_sprite = k_malloc(SCALED_BITMAP_BYTES(splash_pac_width, 1, 1));
     buf_pellet = k_malloc(pellet_size * pellet_size * 2u);
     if (buf_pellet != NULL) {
         fill_buffer_color(buf_pellet, pellet_size * pellet_size * 2u, get_splash_created_by_color());

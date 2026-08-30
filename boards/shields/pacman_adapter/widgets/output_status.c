@@ -238,6 +238,11 @@ void print_symbols(uint16_t usb_x, uint16_t ble_x, uint16_t y, struct output_sta
         print_bitmap_transport(scaled_bitmap_symbol, TRANSPORT_USB, state.usb_is_hid_ready, usb_x, y, symbol_scale, get_symbol_selected_color(), get_symbol_bg_color());
         print_bitmap_transport(scaled_bitmap_symbol, TRANSPORT_BLUETOOTH, true, ble_x, y, symbol_scale, get_symbol_unselected_color(), get_symbol_bg_color());
         break;
+    case ZMK_TRANSPORT_NONE:
+        /* nothing selected: neither symbol is lit */
+        print_bitmap_transport(scaled_bitmap_symbol, TRANSPORT_USB, state.usb_is_hid_ready, usb_x, y, symbol_scale, get_symbol_unselected_color(), get_symbol_bg_color());
+        print_bitmap_transport(scaled_bitmap_symbol, TRANSPORT_BLUETOOTH, true, ble_x, y, symbol_scale, get_symbol_unselected_color(), get_symbol_bg_color());
+        break;
     case ZMK_TRANSPORT_BLE:
         print_bitmap_transport(scaled_bitmap_symbol, TRANSPORT_USB, state.usb_is_hid_ready, usb_x, y, symbol_scale, get_symbol_unselected_color(), get_symbol_bg_color());
         print_bitmap_transport(scaled_bitmap_symbol, TRANSPORT_BLUETOOTH, true, ble_x, y, symbol_scale, get_symbol_selected_color(), get_symbol_bg_color());
@@ -293,14 +298,11 @@ void zmk_widget_output_status_init() {
         symbols_y += connectivity_slot.y;
     }
     if (connectivity_slot.number != SLOT_NUMBER_NONE) {
-        uint16_t bitmap_size_symbol = (symbol_width * symbol_scale) * (symbol_height * symbol_scale);
-        scaled_bitmap_symbol = k_malloc(bitmap_size_symbol * 2 * sizeof(uint16_t));
+        scaled_bitmap_symbol = k_malloc(SCALED_BITMAP_BYTES(symbol_width, symbol_height, symbol_scale));
 
-        uint16_t bitmap_size_bt_num = (bt_num_width * bt_num_scale) * (bt_num_height * bt_num_scale);
-        scaled_bitmap_bt_num = k_malloc(bitmap_size_bt_num * 2 * sizeof(uint16_t));
+        scaled_bitmap_bt_num = k_malloc(SCALED_BITMAP_BYTES(bt_num_width, bt_num_height, bt_num_scale));
 
-        uint16_t bitmap_size_status = (status_width * status_scale) * (status_height * status_scale);
-        scaled_bitmap_status = k_malloc(bitmap_size_status * 2 * sizeof(uint16_t));
+        scaled_bitmap_status = k_malloc(SCALED_BITMAP_BYTES(status_width, status_height, status_scale));
     }
 
     widget_output_status_init();

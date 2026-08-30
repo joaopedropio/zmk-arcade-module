@@ -538,7 +538,7 @@ static const uint16_t num_bitmaps_5x8[10][40] = {
     },
 };
 
-const uint16_t none_letter_4x5[] = {
+static const uint16_t none_letter_4x5[] = {
     0, 0, 0, 0,
     0, 0, 0, 0,
     0, 0, 0, 0,
@@ -546,7 +546,7 @@ const uint16_t none_letter_4x5[] = {
     0, 0, 0, 0,
 };
 
-const uint16_t e_letter_4x5[] = {
+static const uint16_t e_letter_4x5[] = {
     1, 1, 1, 1,
     1, 0, 0, 0,
     1, 1, 1, 0,
@@ -554,7 +554,7 @@ const uint16_t e_letter_4x5[] = {
     1, 1, 1, 1,
 };
 
-const uint16_t k_letter_4x5[] = {
+static const uint16_t k_letter_4x5[] = {
     1, 0, 0, 1,
     1, 0, 1, 0,
     1, 1, 0, 0,
@@ -562,7 +562,7 @@ const uint16_t k_letter_4x5[] = {
     1, 0, 0, 1,
 };
 
-const uint16_t a_letter_4x5[] = {
+static const uint16_t a_letter_4x5[] = {
     0, 1, 1, 0,
     1, 0, 0, 1,
     1, 1, 1, 1,
@@ -570,7 +570,7 @@ const uint16_t a_letter_4x5[] = {
     1, 0, 0, 1,
 };
 
-const uint16_t n_letter_4x5[] = {
+static const uint16_t n_letter_4x5[] = {
     1, 0, 0, 1,
     1, 1, 0, 1,
     1, 0, 1, 1,
@@ -578,7 +578,7 @@ const uint16_t n_letter_4x5[] = {
     1, 0, 0, 1,
 };
 
-const uint16_t s_letter_4x5[] = {
+static const uint16_t s_letter_4x5[] = {
     0, 1, 1, 1,
     1, 0, 0, 0,
     0, 1, 1, 0,
@@ -587,231 +587,231 @@ const uint16_t s_letter_4x5[] = {
 };
 
 
-const uint16_t none_letter_3x5[] = {
+static const uint16_t none_letter_3x5[] = {
     0, 0, 0,
     0, 0, 0,
     0, 0, 0,
     0, 0, 0,
     0, 0, 0,
 };
-const uint16_t percentage_letter_3x5[] = {
+static const uint16_t percentage_letter_3x5[] = {
     1, 0, 1,
     0, 0, 1,
     0, 1, 0,
     1, 0, 0,
     1, 0, 1,
 };
-const uint16_t colon_letter_3x5[] = {
+static const uint16_t colon_letter_3x5[] = {
     0, 0, 0,
     1, 0, 0,
     0, 0, 0,
     1, 0, 0,
     0, 0, 0,
 };
-const uint16_t dash_letter_3x5[] = {
+static const uint16_t dash_letter_3x5[] = {
     0, 0, 0,
     0, 0, 0,
     1, 1, 1,
     0, 0, 0,
     0, 0, 0,
 };
-const uint16_t underline_letter_3x5[] = {
+static const uint16_t underline_letter_3x5[] = {
     0, 0, 0,
     0, 0, 0,
     0, 0, 0,
     0, 0, 0,
     1, 1, 1,
 };
-const uint16_t pipe_letter_3x5[] = {
+static const uint16_t pipe_letter_3x5[] = {
     0, 1, 0,
     0, 1, 0,
     0, 1, 0,
     0, 1, 0,
     0, 1, 0,
 };
-const uint16_t plus_letter_3x5[] = {
+static const uint16_t plus_letter_3x5[] = {
     0, 0, 0,
     0, 1, 0,
     1, 1, 1,
     0, 1, 0,
     0, 0, 0,
 };
-const uint16_t a_letter_3x5[] = {
-    1, 1, 1,
-    1, 0, 1,
+static const uint16_t a_letter_3x5[] = {
     1, 1, 1,
     1, 0, 1,
+    1, 1, 1,
+    1, 0, 1,
     1, 0, 1,
 };
-const uint16_t b_letter_3x5[] = {
+static const uint16_t b_letter_3x5[] = {
     1, 1, 0,
     1, 0, 1,
     1, 1, 0,
     1, 0, 1,
     1, 1, 1,
 };
-const uint16_t c_letter_3x5[] = {
+static const uint16_t c_letter_3x5[] = {
     1, 1, 1,
     1, 0, 0,
     1, 0, 0,
     1, 0, 0,
     1, 1, 1,
 };
-const uint16_t d_letter_3x5[] = {
+static const uint16_t d_letter_3x5[] = {
     1, 1, 0,
     1, 0, 1,
     1, 0, 1,
     1, 0, 1,
     1, 1, 0,
 };
-const uint16_t e_letter_3x5[] = {
+static const uint16_t e_letter_3x5[] = {
     1, 1, 1,
     1, 0, 0,
     1, 1, 1,
     1, 0, 0,
     1, 1, 1,
 };
-const uint16_t f_letter_3x5[] = {
+static const uint16_t f_letter_3x5[] = {
     1, 1, 1,
     1, 0, 0,
     1, 1, 1,
     1, 0, 0,
     1, 0, 0,
 };
-const uint16_t g_letter_3x5[] = {
+static const uint16_t g_letter_3x5[] = {
     1, 1, 1,
     1, 0, 0,
     1, 0, 1,
     1, 0, 1,
     1, 1, 1,
 };
-const uint16_t h_letter_3x5[] = {
+static const uint16_t h_letter_3x5[] = {
     1, 0, 1,
     1, 0, 1,
     1, 1, 1,
     1, 0, 1,
     1, 0, 1,
 };
-const uint16_t i_letter_3x5[] = {
+static const uint16_t i_letter_3x5[] = {
     1, 1, 1,
     0, 1, 0,
     0, 1, 0,
     0, 1, 0,
     1, 1, 1,
 };
-const uint16_t j_letter_3x5[] = {
+static const uint16_t j_letter_3x5[] = {
     0, 1, 1,
     0, 0, 1,
     0, 0, 1,
     1, 0, 1,
     1, 1, 1,
 };
-const uint16_t k_letter_3x5[] = {
+static const uint16_t k_letter_3x5[] = {
     1, 0, 1,
     1, 0, 1,
     1, 1, 0,
     1, 0, 1,
     1, 0, 1,
 };
-const uint16_t l_letter_3x5[] = {
+static const uint16_t l_letter_3x5[] = {
     1, 0, 0,
     1, 0, 0,
     1, 0, 0,
     1, 0, 0,
     1, 1, 1,
 };
-const uint16_t m_letter_3x5[] = {
+static const uint16_t m_letter_3x5[] = {
     1, 0, 1,
     1, 1, 1,
     1, 0, 1,
     1, 0, 1,
     1, 0, 1,
 };
-const uint16_t n_letter_3x5[] = {
+static const uint16_t n_letter_3x5[] = {
     1, 1, 1,
     1, 0, 1,
     1, 0, 1,
     1, 0, 1,
     1, 0, 1,
 };
-const uint16_t o_letter_3x5[] = {
+static const uint16_t o_letter_3x5[] = {
     1, 1, 1,
     1, 0, 1,
     1, 0, 1,
     1, 0, 1,
     1, 1, 1,
 };
-const uint16_t p_letter_3x5[] = {
+static const uint16_t p_letter_3x5[] = {
     1, 1, 1,
     1, 0, 1,
     1, 1, 1,
     1, 0, 0,
     1, 0, 0,
 };
-const uint16_t q_letter_3x5[] = {
+static const uint16_t q_letter_3x5[] = {
     1, 1, 1,
     1, 0, 1,
     1, 0, 1,
     1, 1, 0,
     0, 0, 1,
 };
-const uint16_t r_letter_3x5[] = {
+static const uint16_t r_letter_3x5[] = {
     1, 1, 1,
     1, 0, 1,
     1, 1, 0,
     1, 0, 1,
     1, 0, 1,
 };
-const uint16_t s_letter_3x5[] = {
+static const uint16_t s_letter_3x5[] = {
     1, 1, 1,
     1, 0, 0,
     1, 1, 1,
     0, 0, 1,
     1, 1, 1,
 };
-const uint16_t t_letter_3x5[] = {
+static const uint16_t t_letter_3x5[] = {
     1, 1, 1,
     0, 1, 0,
     0, 1, 0,
     0, 1, 0,
     0, 1, 0,
 };
-const uint16_t u_letter_3x5[] = {
+static const uint16_t u_letter_3x5[] = {
     1, 0, 1,
     1, 0, 1,
     1, 0, 1,
     1, 0, 1,
     1, 1, 1,
 };
-const uint16_t v_letter_3x5[] = {
+static const uint16_t v_letter_3x5[] = {
     1, 0, 1,
     1, 0, 1,
     1, 0, 1,
     1, 0, 1,
     0, 1, 0,
 };
-const uint16_t w_letter_3x5[] = {
+static const uint16_t w_letter_3x5[] = {
     1, 0, 1,
     1, 0, 1,
     1, 1, 1,
     1, 1, 1,
     1, 0, 1,
 };
-const uint16_t x_letter_3x5[] = {
+static const uint16_t x_letter_3x5[] = {
     1, 0, 1,
     1, 0, 1,
     0, 1, 0,
     1, 0, 1,
     1, 0, 1,
 };
-const uint16_t y_letter_3x5[] = {
+static const uint16_t y_letter_3x5[] = {
     1, 0, 1,
     1, 0, 1,
     1, 1, 1,
     0, 0, 1,
     1, 1, 1,
 };
-const uint16_t z_letter_3x5[] = {
+static const uint16_t z_letter_3x5[] = {
     1, 1, 1,
     0, 0, 1,
     0, 1, 0,
@@ -821,7 +821,7 @@ const uint16_t z_letter_3x5[] = {
 
 // #######################################
 
-const uint16_t none_letter_10x13[] = {
+static const uint16_t none_letter_10x13[] = {
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -837,7 +837,7 @@ const uint16_t none_letter_10x13[] = {
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 };
 
-const uint16_t s_letter_10x13[] = {
+static const uint16_t s_letter_10x13[] = {
     0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
     0, 1, 2, 2, 2, 2, 2, 2, 1, 0,
     1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
@@ -853,7 +853,7 @@ const uint16_t s_letter_10x13[] = {
     0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
 };
 
-const uint16_t n_letter_10x13[] = {
+static const uint16_t n_letter_10x13[] = {
     0, 1, 1, 1, 0, 0, 1, 1, 1, 0,
     1, 2, 2, 2, 1, 1, 2, 2, 2, 1,
     1, 2, 2, 2, 1, 1, 2, 2, 2, 1,
@@ -869,7 +869,7 @@ const uint16_t n_letter_10x13[] = {
     0, 1, 1, 1, 0, 0, 1, 1, 1, 0,
 };
 
-const uint16_t a_letter_10x13[] = {
+static const uint16_t a_letter_10x13[] = {
     0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
     0, 1, 2, 2, 2, 2, 2, 2, 1, 0,
     1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
@@ -885,7 +885,7 @@ const uint16_t a_letter_10x13[] = {
     0, 1, 1, 1, 1, 1, 1, 1, 1, 0,
 };
 
-const uint16_t k_letter_10x13[] = {
+static const uint16_t k_letter_10x13[] = {
     0, 1, 1, 1, 0, 0, 0, 1, 1, 0,
     1, 2, 2, 2, 1, 0, 1, 2, 2, 1,
     1, 2, 2, 2, 1, 1, 2, 2, 2, 1,
@@ -901,7 +901,7 @@ const uint16_t k_letter_10x13[] = {
     0, 1, 1, 1, 0, 0, 1, 1, 1, 1,
 };
 
-const uint16_t e_letter_10x13[] = {
+static const uint16_t e_letter_10x13[] = {
     0, 1, 1, 1, 1, 1, 1, 1, 1, 0,
     1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
     1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
@@ -922,7 +922,7 @@ const uint16_t e_letter_10x13[] = {
  * outline, 2 the face of the letter and 3 the counters cut out of it.  The
  * font came with S, N, A, K and E; PAC-MAN needs the rest.
  */
-const uint16_t p_letter_10x13[] = {
+static const uint16_t p_letter_10x13[] = {
     0, 1, 1, 1, 1, 1, 1, 1, 1, 0,
     1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
     1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
@@ -938,7 +938,7 @@ const uint16_t p_letter_10x13[] = {
     0, 1, 1, 1, 0, 0, 0, 0, 0, 0,
 };
 
-const uint16_t c_letter_10x13[] = {
+static const uint16_t c_letter_10x13[] = {
     0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
     0, 1, 2, 2, 2, 2, 2, 2, 1, 0,
     1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
@@ -954,7 +954,7 @@ const uint16_t c_letter_10x13[] = {
     0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
 };
 
-const uint16_t m_letter_10x13[] = {
+static const uint16_t m_letter_10x13[] = {
     0, 1, 1, 1, 1, 1, 1, 1, 1, 0,
     1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
     1, 2, 2, 2, 2, 2, 2, 2, 2, 1,
@@ -970,7 +970,7 @@ const uint16_t m_letter_10x13[] = {
     0, 1, 1, 1, 0, 0, 1, 1, 1, 0,
 };
 
-const uint16_t dash_letter_10x13[] = {
+static const uint16_t dash_letter_10x13[] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -988,7 +988,7 @@ const uint16_t dash_letter_10x13[] = {
 
 // #######################################
 
-const uint16_t none_letter_3x6[] = {
+static const uint16_t none_letter_3x6[] = {
     1, 1, 1,
     1, 1, 1,
     1, 1, 1,
@@ -996,7 +996,7 @@ const uint16_t none_letter_3x6[] = {
     1, 1, 1,
     1, 1, 1,
 };
-const uint16_t s_letter_3x6[] = {
+static const uint16_t s_letter_3x6[] = {
     1, 1, 1,
     1, 0, 0,
     1, 1, 1,
@@ -1004,7 +1004,7 @@ const uint16_t s_letter_3x6[] = {
     0, 0, 1,
     1, 1, 1,
 };
-const uint16_t n_letter_3x6[] = {
+static const uint16_t n_letter_3x6[] = {
     1, 1, 1,
     1, 0, 1,
     1, 0, 1,
@@ -1012,7 +1012,7 @@ const uint16_t n_letter_3x6[] = {
     1, 0, 1,
     1, 0, 1,
 };
-const uint16_t a_letter_3x6[] = {
+static const uint16_t a_letter_3x6[] = {
     1, 1, 1,
     1, 0, 1,
     1, 1, 1,
@@ -1020,7 +1020,7 @@ const uint16_t a_letter_3x6[] = {
     1, 0, 1,
     1, 0, 1,
 };
-const uint16_t k_letter_3x6[] = {
+static const uint16_t k_letter_3x6[] = {
     1, 0, 1,
     1, 0, 1,
     1, 1, 0,
@@ -1028,7 +1028,7 @@ const uint16_t k_letter_3x6[] = {
     1, 0, 1,
     1, 0, 1,
 };
-const uint16_t e_letter_3x6[] = {
+static const uint16_t e_letter_3x6[] = {
     1, 1, 1,
     1, 0, 0,
     1, 1, 0,
@@ -1036,7 +1036,7 @@ const uint16_t e_letter_3x6[] = {
     1, 0, 0,
     1, 1, 1,
 };
-const uint16_t i_letter_3x6[] = {
+static const uint16_t i_letter_3x6[] = {
     1, 1, 1,
     0, 1, 0,
     0, 1, 0,

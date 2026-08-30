@@ -23,12 +23,12 @@ config ZMK_DISPLAY_DEDICATED_THREAD_STACK_SIZE
     default 4096
 
 # The splash, the dashboard's slots and its animated header all draw through
-# scaled bitmap buffers taken from the kernel heap - about 20 KB of them for
-# the default two-slot layout, and more if a slot is given one of the big
-# scale-9 fonts.  Zephyr's 8 KB heap is not enough for that: k_malloc() starts
+# scaled bitmap buffers taken from the kernel heap - 12.3 KB of them for the
+# default two-slot layout, and about 16 KB if slot 2 is given one of the big
+# scale-9 fonts.  Zephyr's 8 KB is not enough for that: k_malloc() starts
 # returning NULL and the widgets that got nothing simply do not draw.
 config HEAP_MEM_POOL_SIZE
-    default 24576
+    default 16384
 
 choice ST7789V_PIXEL_FORMAT
     default ST7789V_RGB565
