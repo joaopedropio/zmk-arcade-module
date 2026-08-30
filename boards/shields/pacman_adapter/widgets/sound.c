@@ -65,9 +65,14 @@ static void amp_power(bool on) {
     }
 }
 
-/* one block of the tune, in the frame layout the amplifier expects */
+/*
+ * One block of the tune, in the frame layout the amplifier expects.  The
+ * mono buffer is static rather than on the stack: it is half a kilobyte, only
+ * this thread ever touches it, and a thread stack is not the place for it.
+ */
+static int16_t mono[FRAMES_PER_BLOCK];
+
 static int write_block(void) {
-    int16_t mono[FRAMES_PER_BLOCK];
     void *block;
     int err = k_mem_slab_alloc(&sound_slab, &block, K_MSEC(200));
 
@@ -153,7 +158,7 @@ static void sound_thread(void *a, void *b, void *c) {
     }
 }
 
-K_THREAD_DEFINE(pacman_sound, 1024, sound_thread, NULL, NULL, NULL, K_PRIO_PREEMPT(10), 0, 0);
+K_THREAD_DEFINE(pacman_sound, 2048, sound_thread, NULL, NULL, NULL, K_PRIO_PREEMPT(10), 0, 0);
 
 static void request(pm_tune_id id) {
     if (!ready) {
@@ -193,6 +198,13 @@ void pacman_sound_init(void) {
 
     pm_sfx_init(SAMPLE_RATE, CONFIG_PACMAN_SOUND_VOLUME);
     ready = true;
+
+    /*
+     * The arcade sings when it is switched on, and so does this - which also
+     * means the speaker says whether it is wired up before the game has even
+     * started, without anyone having to lose a life to find out.
+     */
+    request(PM_TUNE_INTRO);
 }
 
 void pacman_sound_quiet(void) {

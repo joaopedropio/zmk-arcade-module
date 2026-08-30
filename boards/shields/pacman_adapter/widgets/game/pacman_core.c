@@ -709,6 +709,7 @@ static void new_game(pm_game *g) {
 void pm_init(pm_game *g, uint32_t seed) {
     g->rng = seed ? seed : 1u;
     g->frame = 0;
+    g->sfx = 0;
     g->pac_speed = 4;
     g->ghost_speed = 4;
     new_game(g);
