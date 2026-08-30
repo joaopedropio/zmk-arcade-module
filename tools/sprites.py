@@ -64,7 +64,7 @@ def emit(name, rows):
     h, w = len(rows), len(rows[0])
     out = f"const static uint16_t {name}_width = {w};\n"
     out += f"const static uint16_t {name}_height = {h};\n"
-    out += f"static uint16_t {name}[{h}][{w}] = {{\n"
+    out += f"static const uint16_t {name}[{h}][{w}] = {{\n"
     for row in rows:
         out += "    {" + ", ".join(str(v) for v in row) + "},\n"
     return out + "};\n"

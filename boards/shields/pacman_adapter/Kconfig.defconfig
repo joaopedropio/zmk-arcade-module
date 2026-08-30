@@ -34,11 +34,16 @@ choice ST7789V_PIXEL_FORMAT
     default ST7789V_RGB565
 endchoice
 
+# Nothing is drawn through LVGL - the status screen is an empty lv_obj and the
+# game, the splash and the dashboard all write straight to the panel - so its
+# rendering buffer only ever flushes that empty screen.  At 100 (percent of
+# the display) it was 112 KB of RAM doing nothing; 10 is Zephyr's own default
+# and still more than an empty screen needs.  The object pool is one object.
 config LV_Z_VDB_SIZE
-    default 100
+    default 10
 
 config LV_Z_MEM_POOL_SIZE
-    default 10000
+    default 4096
 
 config LV_DPI_DEF
     default 261
