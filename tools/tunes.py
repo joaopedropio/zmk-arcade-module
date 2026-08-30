@@ -41,13 +41,18 @@ INTRO = [
 ]
 
 # Eating a pellet: a chirp down, then the next one up, alternating, which is
-# what gives the arcade its waka-waka when he is running a corridor.
-MUNCH_A = [glide(1046, 440, 70, 40)]
-MUNCH_B = [glide(440, 1046, 70, 40)]
+# what gives the arcade its waka-waka when he is running a corridor.  This is
+# the sound you hear every few seconds all day, so it is the one that has to
+# stay out of the way: a triangle rather than a pulse, kept low and short, and
+# well under the sounds that mean something.
+MUNCH_A = [glide(660, 300, 55)]
+MUNCH_B = [glide(300, 660, 55)]
 
-# A power pellet, and then the siren that runs while the ghosts are blue
-POWER = [glide(392, 784, 90, 25), glide(784, 1568, 90, 25)]
-SIREN = [glide(330, 660, 160, 25), glide(660, 330, 160, 25)]
+# A power pellet, and then the siren that runs while the ghosts are blue.  The
+# siren goes on for as long as the fright does, so it is slower, lower and
+# quieter than it was - present rather than nagging.
+POWER = [glide(392, 784, 90, 33), glide(784, 1245, 110, 33)]
+SIREN = [glide(260, 400, 260), glide(400, 260, 260)]
 
 # Catching one of them: a rising swoop.  Losing to one: four falling ones.
 GHOST = [glide(220, 1760, 380, 25)]
@@ -64,15 +69,21 @@ CLEAR = [
     tone("C6", 100), tone("E6", 100), tone("G6", 300),
 ]
 
+# name, tones, loops, priority, waveform, gain as a percentage of the volume.
+# The two that play constantly are triangles and sit well down; the ones that
+# mark something are pulses at full level, so they are heard over the maze
+# without any of it having to be loud.
+PULSE, TRIANGLE = "PM_WAVE_PULSE", "PM_WAVE_TRIANGLE"
+
 TUNES = [
-    ("PM_TUNE_INTRO", INTRO, False, 3),
-    ("PM_TUNE_MUNCH_A", MUNCH_A, False, 1),
-    ("PM_TUNE_MUNCH_B", MUNCH_B, False, 1),
-    ("PM_TUNE_POWER", POWER, False, 2),
-    ("PM_TUNE_SIREN", SIREN, True, 0),
-    ("PM_TUNE_GHOST", GHOST, False, 2),
-    ("PM_TUNE_DEATH", DEATH, False, 4),
-    ("PM_TUNE_CLEAR", CLEAR, False, 3),
+    ("PM_TUNE_INTRO", INTRO, False, 3, PULSE, 100),
+    ("PM_TUNE_MUNCH_A", MUNCH_A, False, 1, TRIANGLE, 45),
+    ("PM_TUNE_MUNCH_B", MUNCH_B, False, 1, TRIANGLE, 45),
+    ("PM_TUNE_POWER", POWER, False, 2, PULSE, 80),
+    ("PM_TUNE_SIREN", SIREN, True, 0, TRIANGLE, 35),
+    ("PM_TUNE_GHOST", GHOST, False, 2, PULSE, 85),
+    ("PM_TUNE_DEATH", DEATH, False, 4, PULSE, 100),
+    ("PM_TUNE_CLEAR", CLEAR, False, 3, PULSE, 90),
 ]
 
 HEADER = '''/*
@@ -95,14 +106,14 @@ HEADER = '''/*
 
 def main():
     out = [HEADER]
-    for name, tones, _loop, _prio in TUNES:
+    for name, tones, *_ in TUNES:
         rows = ",\n".join(
             f"    {{{f}, {t}, {ms}, {duty}}}" for f, t, ms, duty in tones)
         out.append(f"static const pm_tone {name.lower()}_tones[] = {{\n{rows},\n}};\n")
     rows = []
-    for name, tones, loop, prio in TUNES:
+    for name, tones, loop, prio, wave, gain in TUNES:
         rows.append(f"    [{name}] = {{{name.lower()}_tones, {len(tones)}, "
-                    f"{'true' if loop else 'false'}, {prio}}}")
+                    f"{'true' if loop else 'false'}, {prio}, {wave}, {gain}}}")
     out.append("static const pm_tune PM_TUNES[PM_TUNE_COUNT] = {\n" + ",\n".join(rows) + ",\n};\n")
     print("\n".join(out), end="")
 

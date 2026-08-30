@@ -26,11 +26,25 @@ typedef struct {
     uint8_t duty; /* percent of the period the wave is high; 0 is a rest */
 } pm_tone;
 
+/*
+ * How a tune is voiced.  A pulse wave has every odd harmonic in it and cuts
+ * through a small speaker, which is right for the fanfare and for dying; a
+ * triangle falls away as 1/n^2 and is much gentler on the ear, which is what
+ * the sounds you hear every few seconds want.
+ */
+typedef enum {
+    PM_WAVE_PULSE,
+    PM_WAVE_TRIANGLE,
+} pm_wave;
+
 typedef struct {
     const pm_tone *tones;
     uint8_t count;
     bool loop;
     uint8_t priority; /* a tune only interrupts one no louder than itself */
+    pm_wave wave;
+    uint8_t gain; /* percent of the configured volume, so the incidental
+                   * sounds can sit under the ones that matter */
 } pm_tune;
 
 typedef enum {

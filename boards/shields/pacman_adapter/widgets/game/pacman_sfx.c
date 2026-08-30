@@ -109,6 +109,7 @@ size_t pm_sfx_render(int16_t *out, size_t count) {
         if (t->duty > 0 && t->from_hz > 0) {
             uint32_t fade = FADE_MS * rate / 1000u;
             uint32_t high = PHASE_ONE * t->duty / 100u;
+            int32_t peak = (int32_t)amplitude * tune->gain / 100;
 
             for (uint32_t n = 0; n < take; n++) {
                 uint32_t at = tone_elapsed + n;
@@ -116,7 +117,20 @@ size_t pm_sfx_render(int16_t *out, size_t count) {
                 uint32_t hz = t->from_hz +
                               (((int32_t)t->to_hz - (int32_t)t->from_hz) * (int32_t)at) /
                                   (int32_t)(tone_samples ? tone_samples : 1);
-                int32_t sample = ((phase % PHASE_ONE) < high) ? amplitude : -amplitude;
+                uint32_t at_phase = phase % PHASE_ONE;
+                int32_t sample;
+
+                if (tune->wave == PM_WAVE_TRIANGLE) {
+                    /* up for the first half of the period and back down the
+                     * second, which is the same walk with a fold in it */
+                    int32_t up = (int32_t)(at_phase * 2u);
+                    if (at_phase >= PHASE_ONE / 2u) {
+                        up = (int32_t)(2 * PHASE_ONE) - up;
+                    }
+                    sample = ((up - (int32_t)PHASE_ONE) * peak) / (int32_t)PHASE_ONE;
+                } else {
+                    sample = (at_phase < high) ? peak : -peak;
+                }
 
                 /* in over the first millisecond, out over the last */
                 if (at < fade) {
