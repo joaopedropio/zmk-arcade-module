@@ -275,12 +275,24 @@ const SCREENS = [
   { name: "Dashboard", match: null },
 ];
 
+/*
+ * `panel` is which screen the preview shows beside the list: "pick" for the
+ * one the strip chose, a fixed screen where the section is about one of them -
+ * Layout is the dashboard, since the slots are the only thing laid out - and
+ * null where a picture would say nothing.
+ */
 const SECTIONS = [
-  { name: "Screen", match: null },
-  { name: "Layout", match: (n) => /^(screen|slot-mode|slot[1-6]|battery-slots|rotate)$/.test(n) },
-  { name: "Sound",  match: (n) => /^(mute|volume|bass-floor|sample-rate|mute-threshold)$/.test(n) },
-  { name: "Timing", match: (n) => /^(frame-interval|splash-frames|splash-interval|logo-interval|wpm-slow|wpm-fast|theme-threshold)$/.test(n) },
+  { name: "Screen", match: null, panel: "pick" },
+  { name: "Layout", match: (n) => /^(screen|slot-mode|slot[1-6]|battery-slots|rotate)$/.test(n), panel: 2 },
+  { name: "Sound",  match: (n) => /^(mute|volume|bass-floor|sample-rate|mute-threshold)$/.test(n), panel: null },
+  { name: "Timing", match: (n) => /^(frame-interval|splash-frames|splash-interval|logo-interval|wpm-slow|wpm-fast|theme-threshold)$/.test(n), panel: null },
 ];
+
+/* the screen the panel is showing, or null where it is not showing one */
+function previewScreen() {
+  const panel = SECTIONS[navIndex].panel;
+  return panel === "pick" ? screenIndex : panel;
+}
 
 function sectionOf(name) {
   for (const section of SECTIONS) if (section.match && section.match(name)) return section;
@@ -403,10 +415,7 @@ async function loadSchema() {
   render();
   buildNav();
   buildScreens();
-  guardPreview("drawing the screen", () => {
-    setScreen(screenIndex);
-    pushAll();
-  });
+  await guardPreviewAsync("drawing the screen", rebootPreview);
   showChrome();
   say("Connected. " + rows.length + " settings.", "good");
 }
@@ -421,11 +430,15 @@ async function setValue(setting, word, control) {
     }
     setting.value = word;
     setting.stored = true;
-    guardPreview("redrawing after a change", () => {
-      pushSetting(setting);
-      wasm._preview_apply_all();
-      renderScreen();
-    });
+    if (setting.live) {
+      guardPreview("redrawing after a change", () => {
+        pushSetting(setting);
+        wasm._preview_apply_all();
+        renderScreen();
+      });
+    } else {
+      await guardPreviewAsync("showing the new layout", rebootPreview);
+    }
     syncControls(setting);
     say(reply || (setting.name + " set"), "good");
     return true;
@@ -609,14 +622,52 @@ function guardPreview(what, fn) {
   try {
     return fn();
   } catch (err) {
-    wasm = null;
-    $("previewpanel").classList.add("hidden");
-    $("work").classList.add("solo");
-    setPlaying(false);
-    say("The preview is switched off - " + what + " failed (" + err.message +
-        "). The settings below still work. A hard reload (shift-refresh) usually " +
-        "fixes it, since preview.js may be a cached older version.", "bad");
+    previewOff(what, err);
   }
+}
+
+async function guardPreviewAsync(what, fn) {
+  if (!wasm) return;
+  try {
+    return await fn();
+  } catch (err) {
+    previewOff(what, err);
+  }
+}
+
+function previewOff(what, err) {
+  wasm = null;
+  $("previewpanel").classList.add("hidden");
+  $("work").classList.add("solo");
+  setPlaying(false);
+  say("The preview is switched off - " + what + " failed (" + err.message +
+      "). The settings below still work. A hard reload (shift-refresh) usually " +
+      "fixes it, since preview.js may be a cached older version.", "bad");
+}
+
+/*
+ * Every widget sizes and allocates its scratch bitmap from the slot it was
+ * handed at init, which is why the dongle only takes a layout on its next
+ * boot.  The preview says the same thing the honest way: it boots again.  A
+ * fresh module is a fresh set of statics, so what comes back is the layout as
+ * the dongle will draw it, not this one with the numbers moved.
+ */
+async function rebootPreview() {
+  wasm = await PacmanPreview();
+  bootPreview();
+}
+
+/*
+ * Every value goes in before the first render, because that render is what
+ * builds the widgets - hand them the dongle's layout after they have sized
+ * themselves and the picture is the layout this page was built with.
+ */
+function bootPreview() {
+  const want = previewScreen();
+  wasm._preview_set_screen(want === null ? screenIndex : want);
+  for (const setting of settings) pushSetting(setting);
+  wasm._preview_apply_all();
+  if (want === 0) rewind(); else renderScreen();
 }
 
 function frameBuffer() {
@@ -654,13 +705,6 @@ function pushSetting(setting) {
   const ptr = wasm.stringToNewUTF8(setting.name);
   wasm._preview_set(ptr, asNumber(setting));
   wasm._free(ptr);
-}
-
-function pushAll() {
-  if (!wasm || !settings.length) return;
-  for (const setting of settings) pushSetting(setting);
-  wasm._preview_apply_all();
-  renderScreen();
 }
 
 function renderScreen() {
@@ -703,17 +747,17 @@ function buildScreens() {
 }
 
 /*
- * The panel only means anything on the Screen section, and only the game runs
- * on by itself - the splash is a fixed picture and the dashboard's only motion
- * is its header - so the transport hides everywhere else rather than offering
- * a Play that does nothing.
+ * Only Screen lets you choose which screen, and only the game runs on by
+ * itself - the splash is a fixed picture and the dashboard's only motion is
+ * its header - so the strip and the transport hide wherever they would offer
+ * a choice that does nothing.
  */
 function showChrome() {
-  const onScreen = navIndex === 0;
-  const shown = onScreen && !!wasm;
+  const shown = previewScreen() !== null && !!wasm;
   $("previewpanel").classList.toggle("hidden", !shown);
   $("work").classList.toggle("solo", !shown);
-  $("playbar").classList.toggle("hidden", !(onScreen && screenIndex === 0));
+  $("screens").classList.toggle("hidden", SECTIONS[navIndex].panel !== "pick");
+  $("playbar").classList.toggle("hidden", !(SECTIONS[navIndex].panel === "pick" && screenIndex === 0));
 }
 
 function setNav(index) {
@@ -722,7 +766,12 @@ function setNav(index) {
   buildNav();
   render();
   showChrome();
-  if (navIndex === 0) guardPreview("switching screen", () => setScreen(screenIndex));
+  const want = previewScreen();
+  if (want === null) return;
+  guardPreview("switching screen", () => {
+    wasm._preview_set_screen(want);
+    if (want === 0) rewind(); else renderScreen();
+  });
 }
 
 function rewind() {
@@ -954,10 +1003,7 @@ PacmanPreview().then((module) => {
   wasm = module;
   $("screen").classList.remove("idle");
   if (settings.length) {
-    guardPreview("drawing the screen", () => {
-      setScreen(screenIndex);
-      pushAll();
-    });
+    guardPreview("drawing the screen", bootPreview);
     showChrome();
   }
 }).catch((err) => say("The preview renderer would not load: " + err.message, "bad"));

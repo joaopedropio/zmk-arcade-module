@@ -161,6 +161,12 @@ may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
   setting, so the page drives it by the same words the shell takes and there is
   no third list to keep in step; `reload_game_palette()` there does mirror
   `pacman_reload_palette()` by hand, house fill included.
+- **A setting the schema calls `boot` needs the preview built again**, not
+  pushed at the one that is running - the widgets sized their buffers from the
+  slots at init, and `build_once()` has already happened. The page instantiates
+  a fresh module and replays every value into it, which is why the values go in
+  before the first render rather than after. `tools/pagetest` checks the result
+  against a module built from nothing, so pushing instead of rebooting fails.
 - **Both harnesses supply their own platform.** `tools/uisim/uisim.c` and
   `tools/wasm/preview.c` each define the sound and game entry points as no-ops,
   because the dashboard widgets call them and neither a laptop nor a browser

@@ -142,26 +142,26 @@ try {
     for (let i = 0; i < rep; i++) { setNav(to[0]); if (to[1] !== null) setScreen(to[1]); }
     const where = JSON.stringify(from) + " -> " + JSON.stringify(to) + " x" + rep;
 
-    /* Play and Rewind belong to the game and nowhere else */
-    const playShown = !document.getElementById("playbar").classList.contains("hidden");
-    const wantPlay = to[0] === 0 && to[1] === 0;
-    if (playShown !== wantPlay) wrong.push(where + (wantPlay ? " hid" : " showed") + " the transport");
+    /* Play, Rewind and the screen strip belong to Screen, and Play to the game */
+    const shown = (id) => !document.getElementById(id).classList.contains("hidden");
+    const pick = SECTIONS[to[0]].panel === "pick";
+    if (shown("playbar") !== (pick && to[1] === 0)) wrong.push(where + " got the transport wrong");
+    if (shown("screens") !== pick) wrong.push(where + " got the screen strip wrong");
 
     /* the two-column frame collapses when there is no panel beside the list */
-    const panelUp = !document.getElementById("previewpanel").classList.contains("hidden");
-    const solo = document.getElementById("work").classList.contains("solo");
-    if (panelUp === solo) wrong.push(where + " left the layout and the panel disagreeing");
-
-    if (to[1] === null) {
-      if (panelUp) wrong.push(where + " left the panel up off the Screen section");
-      continue;
+    const want = pick ? to[1] : SECTIONS[to[0]].panel;
+    if (shown("previewpanel") !== (want !== null)) wrong.push(where + " got the panel wrong");
+    if (shown("previewpanel") === document.getElementById("work").classList.contains("solo")) {
+      wrong.push(where + " left the layout and the panel disagreeing");
     }
+    if (want === null) continue;
+
     const got = frame();
     for (const other of Object.keys(ref)) {
-      if (Number(other) !== to[1] && same(got, ref[other])) wrong.push(where + " showed another screen");
+      if (Number(other) !== want && same(got, ref[other])) wrong.push(where + " showed another screen");
     }
     if (new Set(got).size < 3) wrong.push(where + " drew a blank frame");
-    if (to[1] === 1 && !same(got, ref[1])) wrong.push(where + " drew the splash differently");
+    if (want === 1 && !same(got, ref[1])) wrong.push(where + " drew the splash differently");
   }
   return { wrong, tried: states.length * states.length * 3 };
 })()`, ctx);
@@ -171,6 +171,43 @@ try {
 check(switching.wrong.length === 0,
       `${switching.tried} navigations drew the right thing` +
       (switching.wrong.length ? ": " + [...new Set(switching.wrong)].slice(0, 3).join("; ") : ""));
+
+/*
+ * A layout setting is one the widgets only read as they size themselves, so
+ * the page has to build the module again to show it.  Pushing the value at the
+ * module it already has changes nothing on screen, which looks exactly like a
+ * page that ignored the click.
+ */
+let layout;
+try {
+  layout = await vm.runInContext(`(async () => {
+  const snap = (m) => { const b = m._preview_framebuffer() >> 1, n = m._preview_panel() ** 2;
+    return Array.from(m.HEAPU16.subarray(b, b + n)).join(","); };
+
+  setNav(1);
+  const mode = settings.find((s) => s.name === "slot-mode");
+  const other = mode.labels.find((l) => l !== mode.value);
+  await setValue(mode, other);
+  const got = snap(wasm);
+
+  /* what a dongle booting into this layout draws, built with no history */
+  const fresh = await PacmanPreview();
+  fresh._preview_set_screen(2);
+  for (const s of settings) {
+    const ptr = fresh.stringToNewUTF8(s.name);
+    fresh._preview_set(ptr, asNumber(s));
+    fresh._free(ptr);
+  }
+  fresh._preview_apply_all();
+  fresh._preview_render();
+  return { to: other, same: got === snap(fresh), blank: new Set(got.split(",")).size < 3 };
+})()`, ctx);
+} catch (err) {
+  layout = { same: false, blank: true, to: "?", err: err.message };
+}
+check(layout.same && !layout.blank,
+      `slot-mode ${layout.to} drew what a dongle booted into it would` +
+      (layout.err ? ": " + layout.err : ""));
 
 console.log(failures ? `\n${failures} failed` : "\nall checks passed");
 process.exit(failures ? 1 : 0);

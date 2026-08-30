@@ -226,7 +226,15 @@ the left while the list scrolls beside it — the dashboard alone is forty
 settings, and a preview that scrolls away is one you cannot see your change in.
 A strip under it picks Game, Splash or Dashboard, and the colours listed are
 that screen's. Play and rewind only appear on Game, because it is the only
-screen that moves.
+screen that moves. Layout keeps the panel too, showing the dashboard, so
+picking a slot is a thing you watch rather than a thing you guess at.
+
+The settings the dongle only reads as it boots - the slots, the splash - are
+shown the same way it will show them: the preview boots again. Each widget
+sizes its scratch buffer from the slot it was handed at init, so handing it a
+new slot afterwards would move some of the drawing and not the rest. Building
+the module from nothing and replaying every value into it costs about ten
+milliseconds and cannot be half right.
 
 Click anything and the page jumps to the colour that painted it, changing
 section and screen if that colour lives on another one. It narrows
