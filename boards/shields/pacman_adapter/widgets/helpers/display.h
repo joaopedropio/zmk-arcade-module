@@ -244,6 +244,9 @@ void print_repeat_char(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_
 uint8_t get_themes_colors_len(void);
 void set_custom_theme_colors(uint32_t primary, uint32_t secondary, uint32_t background1, uint32_t background2);
 void apply_current_theme(uint8_t current_theme);
+
+/* what to re-apply after a theme change; see display.c */
+void set_color_override_cb(void (*cb)(void));
 void set_complete_colors_theme();
 uint32_t hex_string_to_uint(const char *hex_str);
 

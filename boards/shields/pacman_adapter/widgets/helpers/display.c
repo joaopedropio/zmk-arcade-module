@@ -433,6 +433,16 @@ void set_custom_theme_colors(uint32_t primary, uint32_t secondary, uint32_t back
     themes_colors[0][3] = background2;
 }
 
+/*
+ * Colours somebody stored have to go back on top of whatever a theme change
+ * just derived, or changing theme would throw them away.  It arrives as a hook
+ * rather than a direct call because tools/uisim builds this file against the
+ * Zephyr stubs, where there is no flash to read them out of.
+ */
+static void (*color_override_cb)(void);
+
+void set_color_override_cb(void (*cb)(void)) { color_override_cb = cb; }
+
 void apply_current_theme(uint8_t current_theme) {
     #ifdef CONFIG_PACMAN_USE_COMPLETE_CUSTOM_THEME
     if (current_theme == 0) {
@@ -453,6 +463,10 @@ void apply_current_theme(uint8_t current_theme) {
         themes_colors[current_theme][3]
     );
     #endif
+
+    if (color_override_cb != NULL) {
+        color_override_cb();
+    }
 }
 
 uint16_t rgb888_to_rgb565(uint32_t color) {

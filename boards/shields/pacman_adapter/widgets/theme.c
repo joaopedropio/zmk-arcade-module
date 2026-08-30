@@ -92,19 +92,32 @@ void set_next_theme_number() {
 }
 
 void set_previous_theme_number() {
-    current_theme--;
-    if (current_theme < 0) {
+    if (current_theme == 0) {
         current_theme = get_themes_colors_len() - 1;
+        return;
     }
+    current_theme--;
 }
 
 void set_next_theme() {
     set_next_theme_number();
-    int rc = pacman_settings_save_current_theme(current_theme);
-    if (rc) {
+    /* the store applies what it accepts, so there is nothing to do but undo */
+    if (pacman_settings_save_current_theme(current_theme)) {
         set_previous_theme_number();
+    }
+}
+
+/*
+ * The theme somebody named, rather than the next one along.  This does not
+ * write flash the way set_next_theme() does: the shell has already stored it
+ * on its own thread, and a flash write does not belong on the display queue
+ * that has to repaint straight afterwards.
+ */
+void set_theme_number(uint8_t theme) {
+    if (theme >= get_themes_colors_len()) {
         return;
     }
+    current_theme = theme;
     apply_current_theme(current_theme);
 }
 

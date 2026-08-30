@@ -142,6 +142,83 @@ ones worth knowing about; the rest colour the dashboard and are listed in
 Colours are plain `rrggbb` strings (a leading `#` or `0x` is fine) and are
 converted to RGB565 once at boot.
 
+### Changing settings without reflashing
+
+Kconfig is only the default. Every option in the table above — and every
+colour, interval and threshold besides — can be stored on the dongle instead,
+and what it stores wins on every boot after that. The action button already
+does this for the theme and the mute; turning on the Zephyr shell adds a
+`pacman` command for the other eighty-odd:
+
+```
+CONFIG_SHELL=y
+```
+
+The shell needs somewhere to talk. On a dongle that is the USB it is already
+plugged into, which means a CDC ACM endpoint — build with `-S cdc-acm-console`,
+or add the `zephyr,shell-uart` chosen node yourself. That snippet also renames
+the USB device to "Zephyr USB console sample" and changes its product id, so
+put yours back:
+
+```
+CONFIG_USB_DEVICE_PRODUCT="Cygnus"
+CONFIG_USB_DEVICE_PID=0x615E
+```
+
+Then a serial terminal on `/dev/tty.usbmodem*` (macOS) or `/dev/ttyACM*`
+(Linux):
+
+```
+uart:~$ pacman get
+* theme                    3              live
+  mute                     off            live
+  screen                   game           next boot
+  slot-mode                5-slot         next boot
+  ...
+  game-pac                 ffee00         live
+  game-ghost-0             ff0000         live
+  volume                   80             live
+  frame-interval           33             live
+
+uart:~$ pacman set game-ghost-0 39ff14
+game-ghost-0 is now 39ff14
+uart:~$ pacman set slot3 modifiers
+slot3 will be modifiers from the next boot
+uart:~$ pacman reset all
+forgotten; the next boot takes what the firmware was built with
+```
+
+Colours, the volume, the frame interval and the typing thresholds change as
+you type. The slot layout, the rotation and the splash cannot: every slot
+widget sizes and allocates its scratch bitmap from the slot it was handed at
+startup, and the splash is over before you can reach a prompt — so those are
+stored and drawn on the next boot, which the shell tells you.
+
+One wrinkle worth knowing: `theme-primary` and its three companions only reach
+the dashboard when `CONFIG_PACMAN_USE_COMPLETE_CUSTOM_THEME=n`. With it on
+(the default) theme 0 is painted from the individual dashboard colours
+instead, and those are all settable in their own right.
+
+### The configurator
+
+`docs/configurator/index.html` is the same thing with colour pickers, and it
+is live at **https://joaopedropio.github.io/configurator.html**. It is a single
+static file with no build step and no server, so hosting it anywhere is a
+copy: this repo keeps the canonical version, and the deployed copy is that
+file with a header comment saying so.
+
+It works out what to draw by asking the dongle — `pacman schema` answers with
+one tab-separated line per setting — so the page never needs updating when the
+firmware gains a setting, and it cannot show you a control for one that is not
+there. WebSerial needs a secure context, which HTTPS-served Pages is, and a
+browser that implements it: Chrome, Edge or Opera on desktop. Firefox and
+Safari have no WebSerial and the page says so rather than half-working.
+
+The shell and its USB backend cost about 28 KB of flash and 9 KB of RAM on
+top of the same build without them; the settings table itself is another 3.5 KB
+of flash whether the shell is compiled in or not. Leave `CONFIG_SHELL` off and
+everything but that table goes away.
+
 ## How it plays itself
 
 Pac-Man decides at every tile centre, with a breadth-first search over the

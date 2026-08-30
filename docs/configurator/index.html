@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pac-Man Dongle Configurator</title>
+<style>
+  :root {
+    --bg: #0b0b12;
+    --panel: #14141f;
+    --edge: #262637;
+    --ink: #e8e8f0;
+    --dim: #8a8aa0;
+    --wall: #2121de;
+    --pac: #ffee00;
+    --pellet: #ffb897;
+    --warn: #ffb852;
+    --bad: #ff5555;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  header {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--edge);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+  }
+  h1 {
+    margin: 0;
+    font-size: 20px;
+    letter-spacing: .04em;
+    color: var(--pac);
+    flex: 1 1 auto;
+  }
+  h1 span { color: var(--dim); font-weight: normal; }
+  button {
+    font: inherit;
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--edge);
+    background: var(--panel);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--pac); color: var(--pac); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--wall); border-color: var(--wall); }
+  button.primary:hover:not(:disabled) { background: #2f2ff0; color: #fff; border-color: #2f2ff0; }
+  main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+  #status {
+    padding: 10px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--edge);
+    background: var(--panel);
+    color: var(--dim);
+    margin-bottom: 24px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  #status.bad { color: var(--bad); border-color: var(--bad); }
+  #status.good { color: var(--pellet); }
+  .intro { color: var(--dim); max-width: 70ch; margin-bottom: 24px; }
+  .intro a { color: var(--pellet); }
+  section {
+    border: 1px solid var(--edge);
+    border-radius: 8px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  section > h2 {
+    margin: 0;
+    padding: 12px 16px;
+    font-size: 13px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--pellet);
+    background: var(--panel);
+    border-bottom: 1px solid var(--edge);
+  }
+  .rows { display: grid; grid-template-columns: 1fr; }
+  .row {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.2fr) minmax(200px, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid #1c1c29;
+  }
+  .row:last-child { border-bottom: none; }
+  .row label { color: var(--ink); }
+  .row .note { display: block; font-size: 12px; color: var(--dim); }
+  .control { display: flex; gap: 8px; align-items: center; }
+  input[type=color] {
+    width: 46px; height: 30px; padding: 0;
+    border: 1px solid var(--edge); border-radius: 4px; background: none; cursor: pointer;
+  }
+  input[type=text], input[type=number], select {
+    font: inherit;
+    background: #0e0e17;
+    color: var(--ink);
+    border: 1px solid var(--edge);
+    border-radius: 4px;
+    padding: 6px 8px;
+    min-width: 0;
+    width: 100%;
+  }
+  input[type=range] { width: 100%; accent-color: var(--wall); }
+  .tag {
+    font-size: 11px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 99px;
+    border: 1px solid var(--edge);
+    color: var(--dim);
+    white-space: nowrap;
+  }
+  .tag.stored { color: var(--pac); border-color: var(--pac); }
+  .tag.boot { color: var(--warn); border-color: var(--warn); }
+  .hidden { display: none; }
+  footer { color: var(--dim); font-size: 13px; padding: 8px 0 40px; }
+  footer a { color: var(--pellet); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pac-Man dongle <span>configurator</span></h1>
+  <button id="connect" class="primary">Connect</button>
+  <button id="reload" disabled>Reload</button>
+  <button id="resetall" disabled>Reset all</button>
+</header>
+
+<main>
+  <div id="status">Not connected.</div>
+
+  <p class="intro" id="intro">
+    Plug the dongle in over USB and press Connect. The page asks the firmware
+    what settings it has, so it always matches whatever is flashed — nothing
+    here is hard-coded. Changes are written to the dongle's flash as you make
+    them and survive a power cycle.
+    Needs firmware built with <code>CONFIG_SHELL=y</code> and a CDC ACM console,
+    and a browser with WebSerial (Chrome, Edge or Opera on desktop).
+  </p>
+
+  <div id="panels"></div>
+
+  <footer>
+    <span id="count"></span>
+    Settings marked <span class="tag boot">next boot</span> are stored right
+    away but only drawn after the dongle restarts.
+    <span class="tag stored">stored</span> means flash has a value; anything
+    else is what the firmware was built with.
+  </footer>
+</main>
+
+<script>
+"use strict";
+
+/*
+ * The dongle speaks Zephyr's shell over a CDC ACM endpoint.  `pacman schema`
+ * answers with one tab-separated line per setting and a bare `end`, so this
+ * page never needs to know what settings exist - it asks.
+ */
+
+const PROMPT_FALLBACK = "uart:~$";
+const GROUPS = [
+  ["The maze",        /^game-/],
+  ["Layout",          /^(screen$|slot|battery-slots$|rotate$)/],
+  ["Sound",           /^(mute$|volume$|bass-floor$|sample-rate$)/],
+  ["Speed and timing", /^(frame-interval$|splash-frames$|splash-interval$|logo-interval$|wpm-slow$|wpm-fast$|theme-threshold$|mute-threshold$)/],
+  ["Theme",           /^theme($|-)/],
+  ["Splash",          /^splash-/],
+  ["Battery",         /^battery-/],
+  ["Bluetooth",       /^bt-/],
+  ["Logo",            /^logo-/],
+  ["Modifiers",       /^(modifier-|symbol-)/],
+  ["Layer and WPM",   /^(layer-|wpm-font)/],
+  ["Frame and menu",  /^(frame|menu-)/],
+];
+
+let port = null, writer = null, incoming = "", prompt = PROMPT_FALLBACK;
+let settings = [];
+
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function say(text, kind) {
+  const el = $("status");
+  el.textContent = text;
+  el.className = kind || "";
+}
+
+/* Zephyr paints errors with VT100 escapes; strip them rather than parse them. */
+function clean(text) {
+  return text.replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "").replace(/\r/g, "");
+}
+
+async function pump(reader) {
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      incoming += value;
+    }
+  } catch (err) {
+    say("Connection lost: " + err.message, "bad");
+    setConnected(false);
+  }
+}
+
+/*
+ * Wait for `until` if the reply has a sentinel of its own, and for the prompt
+ * otherwise.  The buffer is cleared first, so the only prompt that can appear
+ * is the one closing this command.
+ */
+async function exec(command, until) {
+  if (!writer) throw new Error("not connected");
+  incoming = "";
+  await writer.write(command + "\r\n");
+
+  const deadline = Date.now() + 5000;
+  for (;;) {
+    const text = clean(incoming);
+    if (until ? new RegExp("^" + until + "$", "m").test(text) : text.includes(prompt)) {
+      return text;
+    }
+    if (Date.now() > deadline) throw new Error("the dongle did not answer `" + command + "`");
+    await sleep(15);
+  }
+}
+
+/* The prompt is whatever the shell prints on a bare newline. */
+async function learnPrompt() {
+  incoming = "";
+  await writer.write("\r\n");
+  await sleep(400);
+  const lines = clean(incoming).split("\n").filter((l) => l.trim() !== "");
+  if (lines.length) prompt = lines[lines.length - 1].trim();
+}
+
+function replyLines(text, command) {
+  return text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l !== "" && l !== command && !l.startsWith(prompt));
+}
+
+async function loadSchema() {
+  const text = await exec("pacman schema", "end");
+  const rows = [];
+  for (const line of text.split("\n")) {
+    const parts = line.replace(/\r/g, "").split("\t");
+    if (parts.length !== 8) continue;
+    const [name, kind, value, storedWord, liveWord, min, max, labels] = parts;
+    rows.push({
+      name,
+      kind,
+      value,
+      stored: storedWord.trim() === "stored",
+      live: liveWord.trim() === "live",
+      min: Number(min),
+      max: Number(max),
+      labels: labels.trim() === "-" ? null : labels.trim().split(","),
+    });
+  }
+  if (!rows.length) throw new Error("`pacman schema` said nothing - is this the right firmware?");
+  settings = rows;
+  render();
+  say("Connected. " + rows.length + " settings.", "good");
+}
+
+async function setValue(setting, word, control) {
+  try {
+    const text = await exec("pacman set " + setting.name + " " + word);
+    const reply = replyLines(text, "pacman set " + setting.name + " " + word).join(" ");
+    if (/^(no setting|.*is not a value|.*out of range|could not)/i.test(reply)) {
+      say(reply, "bad");
+      return false;
+    }
+    setting.value = word;
+    setting.stored = true;
+    control.closest(".row").querySelector(".tag.state").className = "tag state stored";
+    control.closest(".row").querySelector(".tag.state").textContent = "stored";
+    say(reply || (setting.name + " set"), "good");
+    return true;
+  } catch (err) {
+    say(err.message, "bad");
+    return false;
+  }
+}
+
+function groupOf(name) {
+  for (const [title, match] of GROUPS) if (match.test(name)) return title;
+  return "Other";
+}
+
+function controlFor(setting) {
+  const wrap = document.createElement("div");
+  wrap.className = "control";
+
+  if (setting.kind === "color") {
+    const swatch = document.createElement("input");
+    swatch.type = "color";
+    swatch.value = "#" + setting.value.padStart(6, "0");
+    const text = document.createElement("input");
+    text.type = "text";
+    text.value = setting.value;
+    text.spellcheck = false;
+
+    const commit = async (word, from) => {
+      if (!/^[0-9a-fA-F]{6}$/.test(word)) return;
+      if (await setValue(setting, word.toLowerCase(), from)) {
+        swatch.value = "#" + word;
+        text.value = word.toLowerCase();
+      }
+    };
+    swatch.addEventListener("change", () => commit(swatch.value.slice(1), swatch));
+    text.addEventListener("change", () => commit(text.value.replace(/^[#]|^0x/i, ""), text));
+    wrap.append(swatch, text);
+    return wrap;
+  }
+
+  if (setting.kind === "enum") {
+    const select = document.createElement("select");
+    for (const label of setting.labels) {
+      const option = document.createElement("option");
+      option.value = option.textContent = label;
+      select.append(option);
+    }
+    select.value = setting.value;
+    select.addEventListener("change", () => setValue(setting, select.value, select));
+    wrap.append(select);
+    return wrap;
+  }
+
+  const span = setting.max - setting.min;
+  const number = document.createElement("input");
+  number.type = "number";
+  number.min = setting.min;
+  number.max = setting.max;
+  number.value = setting.value;
+  number.style.maxWidth = "9ch";
+
+  if (span > 1 && span <= 4000) {
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = setting.min;
+    slider.max = setting.max;
+    slider.value = setting.value;
+    slider.addEventListener("change", async () => {
+      if (await setValue(setting, slider.value, slider)) number.value = slider.value;
+    });
+    number.addEventListener("change", async () => {
+      if (await setValue(setting, number.value, number)) slider.value = number.value;
+    });
+    wrap.append(slider, number);
+    return wrap;
+  }
+
+  number.addEventListener("change", () => setValue(setting, number.value, number));
+  wrap.append(number);
+  return wrap;
+}
+
+function render() {
+  const panels = $("panels");
+  panels.textContent = "";
+  $("count").textContent = settings.length + " settings. ";
+
+  const order = GROUPS.map(([title]) => title).concat("Other");
+  const byGroup = new Map();
+  for (const setting of settings) {
+    const group = groupOf(setting.name);
+    if (!byGroup.has(group)) byGroup.set(group, []);
+    byGroup.get(group).push(setting);
+  }
+
+  for (const title of order) {
+    const rows = byGroup.get(title);
+    if (!rows) continue;
+
+    const section = document.createElement("section");
+    const heading = document.createElement("h2");
+    heading.textContent = title;
+    const body = document.createElement("div");
+    body.className = "rows";
+
+    for (const setting of rows) {
+      const row = document.createElement("div");
+      row.className = "row";
+
+      const label = document.createElement("label");
+      label.textContent = setting.name;
+      if (!setting.live) {
+        const note = document.createElement("span");
+        note.className = "note";
+        note.textContent = "takes effect on the next boot";
+        label.append(note);
+      }
+
+      const tags = document.createElement("div");
+      tags.style.display = "flex";
+      tags.style.gap = "6px";
+      const state = document.createElement("span");
+      state.className = "tag state" + (setting.stored ? " stored" : "");
+      state.textContent = setting.stored ? "stored" : "built in";
+      tags.append(state);
+      if (!setting.live) {
+        const boot = document.createElement("span");
+        boot.className = "tag boot";
+        boot.textContent = "next boot";
+        tags.append(boot);
+      }
+
+      row.append(label, controlFor(setting), tags);
+      body.append(row);
+    }
+
+    section.append(heading, body);
+    panels.append(section);
+  }
+}
+
+function setConnected(on) {
+  $("connect").textContent = on ? "Disconnect" : "Connect";
+  $("reload").disabled = !on;
+  $("resetall").disabled = !on;
+  if (!on) {
+    $("panels").textContent = "";
+    $("count").textContent = "";
+  }
+}
+
+async function connect() {
+  if (!("serial" in navigator)) {
+    say("This browser has no WebSerial. Chrome, Edge or Opera on desktop can talk to the dongle; " +
+        "Firefox and Safari cannot.", "bad");
+    return;
+  }
+  try {
+    say("Pick the dongle's serial port...");
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+
+    const decoder = new TextDecoderStream();
+    port.readable.pipeTo(decoder.writable).catch(() => {});
+    pump(decoder.readable.getReader());
+
+    const encoder = new TextEncoderStream();
+    encoder.readable.pipeTo(port.writable).catch(() => {});
+    writer = encoder.writable.getWriter();
+
+    await sleep(200);
+    await learnPrompt();
+    /* echo and colour both only make the reply harder to read back */
+    await exec("shell echo off").catch(() => {});
+    await exec("shell colors off").catch(() => {});
+
+    setConnected(true);
+    await loadSchema();
+  } catch (err) {
+    say(err.message || String(err), "bad");
+    setConnected(false);
+  }
+}
+
+async function disconnect() {
+  try {
+    if (writer) await writer.close().catch(() => {});
+    if (port) await port.close().catch(() => {});
+  } finally {
+    writer = null;
+    port = null;
+    setConnected(false);
+    say("Disconnected.");
+  }
+}
+
+$("connect").addEventListener("click", () => (port ? disconnect() : connect()));
+$("reload").addEventListener("click", async () => {
+  try {
+    await loadSchema();
+  } catch (err) {
+    say(err.message, "bad");
+  }
+});
+$("resetall").addEventListener("click", async () => {
+  if (!confirm("Forget every stored setting? The dongle goes back to what it was built with " +
+               "on its next boot.")) return;
+  try {
+    await exec("pacman reset all");
+    await loadSchema();
+    say("Everything forgotten. Restart the dongle to see it.", "good");
+  } catch (err) {
+    say(err.message, "bad");
+  }
+});
+
+if (!("serial" in navigator)) {
+  say("This browser has no WebSerial. Chrome, Edge or Opera on desktop can talk to the dongle; " +
+      "Firefox and Safari cannot.", "bad");
+}
+</script>
+</body>
+</html>

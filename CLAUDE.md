@@ -71,12 +71,14 @@ boards/shields/pacman_adapter/
     ├── pacman.c             display device, palette, LVGL timer, WPM speed
     ├── sound.c              the I2S driver side of the synth
     ├── action_button.c      screens, themes, mute
-    ├── splash.c logo.c frames.c theme.c configuration.c
+    ├── splash.c logo.c frames.c theme.c configuration.c shell.c
     ├── battery_status.c output_status.c layer_status.c wpm.c modifier.c
     ├── helpers/display.c    the drawing engine: bitmaps, text, rects, slots
+    ├── helpers/settings.c   flash-backed settings; settings_list.h is the list
     └── game/                pacman_core.c, pacman_render.c, pacman_sfx.c
 src/ include/ dts/           the zmk,behavior-dongle-action behaviour
 tools/                       the three host harnesses and two generators
+docs/configurator/           the WebSerial settings page, served by GitHub Pages
 ```
 
 `widgets/game/*.c` is strictly portable C — no Zephyr, no LVGL, no libc beyond
@@ -113,6 +115,33 @@ may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
   at every pellet is a dongle you unplug.
 - **Disconnects are inferred from a peripheral battery level of 0**, because the
   central never sees the split connection event.
+- **Kconfig is a default, not the value.** `configure()` is two calls:
+  `pacman_settings_load_defaults()` fills in whatever flash had nothing to say,
+  then `pacman_settings_apply_all()` pushes the result at everything that draws
+  or sounds it. Nothing else should read `CONFIG_PACMAN_*` at its point of use —
+  if it does, the shell cannot reach it.
+- **A setting is one line in `helpers/settings_list.h`** and nothing else. That
+  line is its flash key, its shell word, the values it takes, how it reaches
+  whatever uses it, and what the build set it to; `settings.h` makes the enum
+  from it and `settings.c` makes the table. Order in the list is load-bearing
+  in one place: the four custom-theme colours come before the theme that derives
+  the dashboard from them. Storage is one flash key per setting on purpose —
+  the old single-blob format checked its own length on load, so growing it
+  silently reset every dongle.
+- **`apply` only runs for settings that moved.** `apply_all()` walks all of them
+  every time the shell writes one, and the mute's apply makes a sound to prove
+  it worked — so without the `applied[]` check, changing a colour would chirp
+  the speaker and repaint the maze. A theme change is the one case that forces
+  the colours through, because there the stored value has not moved but what is
+  on the panel has.
+- **Anything that draws belongs on the display queue.** The shell runs on its
+  own thread, so `pacman set` submits the repaint to `zmk_display_work_q()`
+  rather than painting where it stands; two threads on the same SPI bus is a
+  corrupt panel. Flash writes go the other way — they stay on the calling
+  thread, off the queue that has to repaint next.
+- **`pacman schema` is a wire format.** The configurator page parses those
+  tab-separated columns, so adding a setting is free but adding or reordering a
+  column breaks the page.
 
 ## Style
 

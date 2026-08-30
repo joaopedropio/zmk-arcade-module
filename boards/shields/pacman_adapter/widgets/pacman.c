@@ -2,9 +2,11 @@
  * Pac-Man dongle widget - ZMK/LVGL glue.
  *
  * The game itself lives in widgets/game/ and knows nothing about Zephyr.
- * This file owns the display device, turns the Kconfig colours into a
+ * This file owns the display device, turns the stored colours into a
  * palette, ticks the game from an LVGL timer and (optionally) speeds it
- * up while you type.
+ * up while you type.  The colours, the tick and the typing thresholds all
+ * come from helpers/settings.h rather than straight from Kconfig, so the
+ * shell can change them without a rebuild.
  *
  * SPDX-License-Identifier: MIT
  */
@@ -20,6 +22,7 @@
 #include <zmk/event_manager.h>
 #include <zmk/events/wpm_state_changed.h>
 
+#include "helpers/settings.h"
 #include "pacman.h"
 #include "sound.h"
 #include "game/pacman_render.h"
@@ -99,57 +102,32 @@ void pm_blit(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t *pixe
 
 /* ------------------------------------------------------------------ */
 /* colours                                                             */
-/* ------------------------------------------------------------------ */
-
-static uint32_t parse_hex(const char *s, uint32_t fallback) {
-    if (!s) {
-        return fallback;
-    }
-    if (s[0] == '#') {
-        s++;
-    } else if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
-        s += 2;
-    }
-
-    uint32_t value = 0;
-    int digits = 0;
-    for (; *s; s++, digits++) {
-        uint32_t d;
-        char c = *s;
-        if (c >= '0' && c <= '9') {
-            d = (uint32_t)(c - '0');
-        } else if (c >= 'a' && c <= 'f') {
-            d = (uint32_t)(10 + c - 'a');
-        } else if (c >= 'A' && c <= 'F') {
-            d = (uint32_t)(10 + c - 'A');
-        } else {
-            return fallback;
-        }
-        value = (value << 4) | d;
-    }
-    return digits == 6 ? value : fallback;
-}
-
-static void load_palette(void) {
+/*
+ * The palette is rebuilt rather than patched: every colour is one settings
+ * entry, and reading all thirteen back costs less than tracking which one
+ * moved.  Called again whenever the shell changes any of them.
+ */
+void pacman_reload_palette(void) {
     pm_palette p;
     pm_render_default_palette(&p);
 
-    p.bg = pm_rgb565(parse_hex(CONFIG_PACMAN_BG_COLOR, 0x000000));
-    p.wall_fill = pm_rgb565(parse_hex(CONFIG_PACMAN_WALL_FILL_COLOR, 0x00003c));
-    p.wall_edge = pm_rgb565(parse_hex(CONFIG_PACMAN_WALL_COLOR, 0x2121de));
-    p.wall_flash = pm_rgb565(parse_hex(CONFIG_PACMAN_WALL_FLASH_COLOR, 0xf8f8f8));
+    p.bg = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_BG));
+    p.wall_fill = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_WALL_FILL));
+    p.wall_edge = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_WALL));
+    p.wall_flash = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_WALL_FLASH));
     p.house_fill = p.wall_fill;
-    p.house_edge = pm_rgb565(parse_hex(CONFIG_PACMAN_HOUSE_COLOR, 0x6d6dff));
-    p.door = pm_rgb565(parse_hex(CONFIG_PACMAN_DOOR_COLOR, 0xffb8ff));
-    p.pellet = pm_rgb565(parse_hex(CONFIG_PACMAN_PELLET_COLOR, 0xffb897));
-    p.pac = pm_rgb565(parse_hex(CONFIG_PACMAN_PACMAN_COLOR, 0xffee00));
-    p.ghost[0] = pm_rgb565(parse_hex(CONFIG_PACMAN_GHOST_0_COLOR, 0xff0000));
-    p.ghost[1] = pm_rgb565(parse_hex(CONFIG_PACMAN_GHOST_1_COLOR, 0xffb8ff));
-    p.ghost[2] = pm_rgb565(parse_hex(CONFIG_PACMAN_GHOST_2_COLOR, 0x00ffff));
-    p.ghost[3] = pm_rgb565(parse_hex(CONFIG_PACMAN_GHOST_3_COLOR, 0xffb852));
-    p.fright_body = pm_rgb565(parse_hex(CONFIG_PACMAN_FRIGHT_COLOR, 0x2121de));
+    p.house_edge = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HOUSE));
+    p.door = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_DOOR));
+    p.pellet = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_PELLET));
+    p.pac = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_PAC));
+    p.ghost[0] = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_GHOST_0));
+    p.ghost[1] = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_GHOST_1));
+    p.ghost[2] = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_GHOST_2));
+    p.ghost[3] = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_GHOST_3));
+    p.fright_body = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FRIGHT));
 
     pm_render_set_palette(&p);
+    game.redraw = true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -169,9 +147,9 @@ struct pacman_wpm_state {
 static void apply_wpm(uint8_t wpm) {
 #if IS_ENABLED(CONFIG_PACMAN_WPM_SPEED)
     uint8_t speed = 4;
-    if (wpm > CONFIG_PACMAN_WPM_FAST) {
+    if (wpm > pacman_settings_get(PACMAN_SETTING_WPM_FAST)) {
         speed = 5;
-    } else if (wpm < CONFIG_PACMAN_WPM_SLOW) {
+    } else if (wpm < pacman_settings_get(PACMAN_SETTING_WPM_SLOW)) {
         speed = 3;
     }
     pm_set_speed(&game, speed, speed);
@@ -194,6 +172,20 @@ ZMK_SUBSCRIPTION(pacman_wpm, zmk_wpm_state_changed);
 /* ------------------------------------------------------------------ */
 /* the loop                                                            */
 /* ------------------------------------------------------------------ */
+
+static lv_timer_t *frame_timer;
+
+/*
+ * Nothing before zmk_widget_pacman_init() has a timer to retime, and
+ * configure() runs first - so a period arriving early is stored and picked up
+ * when the timer is made.
+ */
+void pacman_set_frame_interval(uint32_t ms) {
+    if (frame_timer == NULL) {
+        return;
+    }
+    lv_timer_set_period(frame_timer, ms);
+}
 
 static void pacman_timer_cb(lv_timer_t *timer) {
     ARG_UNUSED(timer);
@@ -219,14 +211,15 @@ void zmk_widget_pacman_init(void) {
         return;
     }
 
-    load_palette();
+    pacman_reload_palette();
     pacman_sound_init();
     pm_init(&game, (uint32_t)k_uptime_get_32() | 1u);
     pm_set_speed(&game, 4, 4);
 
     pacman_wpm_init();
 
-    lv_timer_create(pacman_timer_cb, CONFIG_PACMAN_FRAME_INTERVAL, NULL);
+    frame_timer = lv_timer_create(pacman_timer_cb,
+                                  pacman_settings_get(PACMAN_SETTING_FRAME_INTERVAL), NULL);
 }
 
 void pacman_start(void) {

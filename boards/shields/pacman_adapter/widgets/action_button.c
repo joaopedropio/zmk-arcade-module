@@ -62,6 +62,22 @@ void set_theme_threshold(uint16_t term_ms) { theme_threshold = term_ms; }
 
 void set_mute_threshold(uint16_t term_ms) { mute_threshold = term_ms; }
 
+/*
+ * Repaint whatever is up, for a setting that changed underneath it.  Only ever
+ * from the display queue, because it draws - and only once the splash has
+ * handed the panel over, which is what start_action_button() marks.
+ */
+void refresh_screen(void) {
+    if (!action_button_initialized) {
+        return;
+    }
+    if (menu_on) {
+        print_menu();
+        return;
+    }
+    pacman_start(); /* the maze is repainted from the top on the next frame */
+}
+
 void print_menu(void) {
     clear_screen(get_menu_bg_color());
     start_animation();
@@ -99,17 +115,10 @@ static void toggle_menu(void) {
 
 static void change_theme(void) {
     set_next_theme();
-    if (menu_on) {
-        print_menu();
-        return;
-    }
-    pacman_start(); /* the maze is repainted from the top on the next frame */
+    refresh_screen();
 }
 
-static void toggle_mute(void) {
-    pacman_settings_toggle_mute();
-    pacman_sound_set_mute(pacman_settings_get_mute());
-}
+static void toggle_mute(void) { pacman_settings_toggle_mute(); }
 
 static void run_action(void) {
     if (dongle_lock) {

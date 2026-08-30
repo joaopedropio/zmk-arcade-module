@@ -33,7 +33,6 @@ LOG_MODULE_DECLARE(pacman, LOG_LEVEL_INF);
 
 #if IS_ENABLED(CONFIG_PACMAN_SOUND) && DT_NODE_HAS_STATUS(AMP_NODE, okay)
 
-#define SAMPLE_RATE CONFIG_PACMAN_SOUND_SAMPLE_RATE
 #define FRAMES_PER_BLOCK 256
 #define CHANNELS 2 /* the amplifier sums the two, so both carry the same */
 #define BLOCK_BYTES (FRAMES_PER_BLOCK * CHANNELS * sizeof(int16_t))
@@ -218,7 +217,7 @@ void pacman_sound_init(void) {
         .channels = CHANNELS,
         .format = I2S_FMT_DATA_FORMAT_I2S,
         .options = I2S_OPT_FRAME_CLK_MASTER | I2S_OPT_BIT_CLK_MASTER,
-        .frame_clk_freq = SAMPLE_RATE,
+        .frame_clk_freq = pacman_settings_get(PACMAN_SETTING_SAMPLE_RATE),
         .mem_slab = &sound_slab,
         .block_size = BLOCK_BYTES,
         .timeout = 200,
@@ -230,8 +229,9 @@ void pacman_sound_init(void) {
         return;
     }
 
-    pm_sfx_init(SAMPLE_RATE, CONFIG_PACMAN_SOUND_VOLUME,
-                CONFIG_PACMAN_SOUND_BASS_FLOOR_HZ);
+    pm_sfx_init(pacman_settings_get(PACMAN_SETTING_SAMPLE_RATE),
+                (uint8_t)pacman_settings_get(PACMAN_SETTING_VOLUME),
+                (uint16_t)pacman_settings_get(PACMAN_SETTING_BASS_FLOOR));
     ready = true;
 
     /*
@@ -255,6 +255,10 @@ void pacman_sound_connected(bool connected) {
     request(connected ? PM_TUNE_CONNECT : PM_TUNE_DISCONNECT);
 }
 
+void pacman_sound_set_volume(uint8_t volume) { pm_sfx_set_volume(volume); }
+
+void pacman_sound_set_bass_floor(uint16_t floor_hz) { pm_sfx_set_bass_floor(floor_hz); }
+
 void pacman_sound_set_mute(bool muted) {
     if (muted) {
         pacman_sound_quiet(); /* mid-tune */
@@ -273,5 +277,7 @@ void pacman_sound_init(void) {}
 void pacman_sound_quiet(void) {}
 void pacman_sound_connected(bool connected) { ARG_UNUSED(connected); }
 void pacman_sound_set_mute(bool muted) { ARG_UNUSED(muted); }
+void pacman_sound_set_volume(uint8_t volume) { ARG_UNUSED(volume); }
+void pacman_sound_set_bass_floor(uint16_t floor_hz) { ARG_UNUSED(floor_hz); }
 
 #endif

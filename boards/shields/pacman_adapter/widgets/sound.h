@@ -7,6 +7,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 void pacman_sound_init(void);
 
@@ -27,3 +28,7 @@ void pacman_sound_connected(bool connected);
  * helpers/settings.h and survives a power cycle.
  */
 void pacman_sound_set_mute(bool muted);
+
+/* 0 to 100, and the lowest pitch worth sending to the speaker; both live */
+void pacman_sound_set_volume(uint8_t volume);
+void pacman_sound_set_bass_floor(uint16_t floor_hz);

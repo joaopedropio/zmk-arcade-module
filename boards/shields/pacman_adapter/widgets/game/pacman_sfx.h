@@ -70,6 +70,10 @@ typedef enum {
  */
 void pm_sfx_init(uint32_t sample_rate, uint8_t volume, uint16_t floor_hz);
 
+/* both settable while it plays; see the note in pacman_sfx.c */
+void pm_sfx_set_volume(uint8_t volume);
+void pm_sfx_set_bass_floor(uint16_t floor_hz);
+
 /* starts a tune if the voice is free or busy with something less important */
 void pm_sfx_play(pm_tune_id id);
 void pm_sfx_stop(void);

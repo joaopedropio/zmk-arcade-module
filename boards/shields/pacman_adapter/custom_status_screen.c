@@ -25,6 +25,7 @@
 #include "widgets/battery_status.h"
 #include "widgets/configuration.h"
 #include "widgets/helpers/display.h"
+#include "widgets/helpers/settings.h"
 #include "widgets/layer_status.h"
 #include "widgets/logo.h"
 #include "widgets/modifier.h"
@@ -43,7 +44,7 @@ static void timer_splash(lv_timer_t *timer) {
     if (splash_finished) {
         return;
     }
-    if (splash_count >= CONFIG_PACMAN_SPLASH_FRAMES) {
+    if (splash_count >= pacman_settings_get(PACMAN_SETTING_SPLASH_FRAMES)) {
         clean_up_splash();
         initialize_battery_status();
 
@@ -78,9 +79,11 @@ lv_obj_t *zmk_display_status_screen(void) {
     zmk_widget_wpm_init();
     zmk_widget_modifier_init();
 
-    lv_timer_create(timer_splash, CONFIG_PACMAN_SPLASH_INTERVAL, NULL);
+    lv_timer_create(timer_splash, pacman_settings_get(PACMAN_SETTING_SPLASH_INTERVAL),
+                    NULL);
     if (get_slot_mode() == SLOT_MODE_2) {
-        lv_timer_create(logo_animation_timer, CONFIG_PACMAN_LOGO_WALK_INTERVAL, NULL);
+        lv_timer_create(logo_animation_timer,
+                        pacman_settings_get(PACMAN_SETTING_LOGO_INTERVAL), NULL);
     }
 
     return lv_obj_create(NULL);

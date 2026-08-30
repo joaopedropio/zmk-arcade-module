@@ -3,6 +3,22 @@
 # Every symbol is prefixed with PACMAN_ so this module can live next to
 # other dongle modules without fighting over Kconfig names.
 
+config PACMAN_SHELL
+    bool "A `pacman` command on the shell"
+    depends on SHELL
+    default y
+    help
+      Reads and writes the settings the dongle remembers - the theme, the
+      mute, which widget is in which slot - so they can be changed over a
+      serial connection instead of by rebuilding.  The theme and the mute
+      take effect as you type; the rest are stored and drawn on the next
+      boot, because every slot widget allocates its scratch bitmap from the
+      slot it was given at init.
+
+      Only the shell backend costs anything: turn CONFIG_SHELL on and this
+      comes with it.  On a dongle that means a CDC ACM endpoint over the USB
+      it is already plugged into.
+
 config PACMAN_ROTATE_DISPLAY
     int "Rotate the display (0, 90, 180 or 270)"
     default 0

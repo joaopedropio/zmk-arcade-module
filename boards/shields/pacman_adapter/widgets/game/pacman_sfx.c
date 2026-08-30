@@ -268,15 +268,27 @@ static void start_note(const pm_note *n) {
 
 void pm_sfx_init(uint32_t sample_rate, uint8_t vol, uint16_t low_hz) {
     rate = sample_rate ? sample_rate : 16000;
+    pm_sfx_set_volume(vol);
+    pm_sfx_set_bass_floor(low_hz);
+    pm_sfx_stop();
+}
+
+/*
+ * Both of these are read by the mixer on the sound thread while whoever is
+ * turning the knob writes them from another.  A single aligned word either
+ * way is all that changes, so the worst a race costs is one block rendered at
+ * the old setting - not worth a lock between a human and a 16 kHz loop.
+ */
+void pm_sfx_set_volume(uint8_t vol) {
     if (vol > 100) {
         vol = 100;
     }
     /* 100 is unity: one voice at full tilt reaches full scale on its own, and
      * soft_limit() is what holds the chords that stack on top of it */
     volume = ENV_ONE * vol / 100;
-    floor_hz = low_hz;
-    pm_sfx_stop();
 }
+
+void pm_sfx_set_bass_floor(uint16_t low_hz) { floor_hz = low_hz; }
 
 void pm_sfx_play(pm_tune_id id) {
     const pm_tune *tune = tune_of(id);
