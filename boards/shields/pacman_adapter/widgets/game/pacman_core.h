@@ -102,6 +102,21 @@ typedef struct {
     uint8_t bob;        /* idle bobbing phase */
 } pm_ghost;
 
+/*
+ * What the last pm_step() would have made a noise about.  The core only says
+ * that it happened - what it sounds like, and whether anything is listening,
+ * is the caller's business.  The fright siren is not here because it is a
+ * state rather than a moment: watch g->fright for that one.
+ */
+enum {
+    PM_SFX_PELLET = 1u << 0, /* a pellet went */
+    PM_SFX_POWER = 1u << 1,  /* and a power pellet, so the ghosts turned blue */
+    PM_SFX_GHOST = 1u << 2,  /* one of them was caught */
+    PM_SFX_DEATH = 1u << 3,  /* and one of them caught Pac-Man */
+    PM_SFX_START = 1u << 4,  /* a round is about to begin */
+    PM_SFX_CLEAR = 1u << 5,  /* the maze is empty */
+};
+
 typedef struct {
     uint8_t tiles[PM_ROWS][PM_COLS];
 
@@ -129,6 +144,8 @@ typedef struct {
 
     bool scatter;
     uint16_t mode_timer;
+
+    uint8_t sfx;            /* PM_SFX_* from the last step, for whoever plays them */
 
     bool redraw;            /* renderer must repaint the whole maze */
     bool flash;             /* level-cleared flash state */

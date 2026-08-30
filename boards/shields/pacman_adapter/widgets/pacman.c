@@ -21,6 +21,7 @@
 #include <zmk/events/wpm_state_changed.h>
 
 #include "pacman.h"
+#include "sound.h"
 #include "game/pacman_render.h"
 
 LOG_MODULE_REGISTER(pacman, LOG_LEVEL_INF);
@@ -208,6 +209,7 @@ static void pacman_timer_cb(lv_timer_t *timer) {
 
     pm_step(&game);
     pm_render_frame(&game);
+    pacman_sound_step(&game);
 }
 
 void zmk_widget_pacman_init(void) {
@@ -219,6 +221,7 @@ void zmk_widget_pacman_init(void) {
     }
 
     load_palette();
+    pacman_sound_init();
     pm_init(&game, (uint32_t)k_uptime_get_32() | 1u);
     pm_set_speed(&game, 4, 4);
 
@@ -233,7 +236,10 @@ void pacman_start(void) {
     game.redraw = true;
 }
 
-void pacman_stop(void) { running = false; }
+void pacman_stop(void) {
+    running = false;
+    pacman_sound_quiet(); /* the dashboard is a quiet place */
+}
 
 void pacman_toggle_pause(void) {
     paused = !paused;

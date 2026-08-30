@@ -440,11 +440,13 @@ static void pac_eat(pm_game *g) {
 
     if (t == PM_T_PELLET) {
         g->tiles[y][x] = PM_T_PATH;
+        g->sfx |= PM_SFX_PELLET;
         g->score += 10;
         g->pellets_left--;
         g->hungry = 0;
     } else if (t == PM_T_POWER) {
         g->tiles[y][x] = PM_T_PATH;
+        g->sfx |= PM_SFX_POWER;
         g->score += 50;
         g->pellets_left--;
         g->hungry = 0;
@@ -688,6 +690,7 @@ static void reset_round(pm_game *g) {
     g->flash = false;
     g->phase = PM_READY;
     g->phase_timer = READY_FRAMES;
+    g->sfx |= PM_SFX_START;
     g->redraw = true;
 }
 
@@ -803,10 +806,12 @@ static void play_step(pm_game *g) {
 
         if (g->fright > 0) {
             gh->state = PM_G_EYES;
+            g->sfx |= PM_SFX_GHOST;
             g->fright_eaten++;
             g->score += 200u << (g->fright_eaten > 4 ? 3 : g->fright_eaten - 1);
         } else {
             g->phase = PM_DYING;
+            g->sfx |= PM_SFX_DEATH;
             g->phase_timer = DYING_FRAMES;
             g->death = 0;
             g->hide_ghosts = true;
@@ -816,6 +821,7 @@ static void play_step(pm_game *g) {
     }
 
     if (g->pellets_left == 0) {
+        g->sfx |= PM_SFX_CLEAR;
         g->phase = PM_CLEARED;
         g->phase_timer = CLEARED_FRAMES;
         g->hide_ghosts = true;
@@ -825,6 +831,7 @@ static void play_step(pm_game *g) {
 
 void pm_step(pm_game *g) {
     g->frame++;
+    g->sfx = 0;
 
     switch (g->phase) {
     case PM_READY:

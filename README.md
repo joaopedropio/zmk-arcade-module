@@ -221,6 +221,9 @@ your `config/<shield>.conf` (or the shield's `pacman_adapter.conf`):
 |---|---|---|
 | `CONFIG_PACMAN_ROTATE_DISPLAY` | `0` | Panel rotation: 0, 90, 180 or 270. Only the rotation you pick is compiled in. |
 | `CONFIG_PACMAN_FRAME_INTERVAL` | `33` | Milliseconds per frame (33 ≈ 30 fps). |
+| `CONFIG_PACMAN_SOUND` | `y` | Play the game's sounds through the I2S amplifier. |
+| `CONFIG_PACMAN_SOUND_VOLUME` | `60` | How loud, 0 to 100. |
+| `CONFIG_PACMAN_SOUND_SAMPLE_RATE` | `16000` | Samples per second; the nRF I2S clock picks the closest it can hit. |
 | `CONFIG_PACMAN_WPM_SPEED` | `y` | Speed the game up while you type. |
 | `CONFIG_PACMAN_WPM_SLOW` / `_FAST` | `20` / `60` | WPM thresholds for the 3px and 5px gears, either side of the 4px default. |
 | `CONFIG_PACMAN_BG_COLOR` | `000000` | Background. |
@@ -273,6 +276,49 @@ used to clear one every 75 seconds and die every 55; the speed is most of the
 difference, and the rest is the power pellets, which now clear the board of
 ghosts long enough to matter.
 
+## Sound
+
+The dongle had a piezo buzzer on P0.29 that this module never used.  It is
+gone, and a MAX98357A takes its place: an I2S amplifier with no registers to
+set up, so three pins carry the sound and a fourth shuts it up.
+
+| MAX98357A | nRF52840 | |
+|---|---|---|
+| BCLK | P1.06 | bit clock |
+| LRC | P1.00 | word select |
+| DIN | P0.29 | the pad the buzzer used to sit on |
+| SD | P1.02 | held high while something is playing, low the rest of the time |
+| GAIN | — | leave it floating for 9 dB, or tie it as the datasheet says |
+
+Those pins are `i2s0_default` and the `pacman_amp` node in
+`pacman_adapter.overlay`, which is the only place to change them if your
+wiring differs.
+
+What it plays is one square wave, which is roughly what the arcade's three
+wavetable voices come to on a dongle: the opening fanfare, waka-waka as
+pellets go (two chirps, alternating, which is where the sound comes from), a
+rising swoop for a caught ghost, the siren while the ghosts are blue, four
+falling swoops for a death, and a flourish for a cleared maze.  A tune has a
+priority, so dying interrupts munching and nothing interrupts dying.
+
+The synth is portable C in `widgets/game/pacman_sfx.c` and the tunes are
+written as notes in `tools/tunes.py`.  Nothing about it is Zephyr, so the same
+code renders the sounds to .wav files to listen to before flashing:
+
+```sh
+tools/sfxsim/build.sh /tmp/sfxsim
+/tmp/sfxsim /tmp/sounds        # intro.wav, munch_a.wav, siren.wav, ...
+```
+
+`widgets/sound.c` is the part that has to know about Zephyr: it keeps blocks
+of samples going to the I2S driver while a tune is sounding and stops the
+clock when it is not, which is what keeps the amplifier from hissing between
+sounds.  Only that thread touches the synth; the game's timer asks for a tune
+and reads back what the voice is doing, both through atomics.
+
+`CONFIG_PACMAN_SOUND=n` compiles all of it out, and so does leaving the
+amplifier out of the devicetree.
+
 ## Trying it without flashing
 
 The game core and the renderer are plain C with no Zephyr or LVGL
@@ -314,6 +360,7 @@ boards/shields/pacman_adapter/
     ├── layer_status.c           | drawn into whichever slot holds it
     ├── wpm.c                    |
     ├── modifier.c              /
+    ├── sound.c                 the I2S amplifier, and what to play when
     ├── pacman_art.h            splash sprites (generated, see tools/sprites.py)
     ├── helpers/
     │   ├── display.c           the drawing engine: bitmaps, text, rectangles, themes, slots
@@ -321,11 +368,15 @@ boards/shields/pacman_adapter/
     │   └── settings.c          the theme, remembered across reboots
     └── game/
         ├── pacman_core.c       maze, Pac-Man's pathfinding, ghost AI, rounds
-        └── pacman_render.c     sprites, tiles and dirty-rectangle blitting
+        ├── pacman_render.c     sprites, tiles and dirty-rectangle blitting
+        ├── pacman_sfx.c        one square wave and a list of tones
+        └── pacman_tunes.h      the tunes (generated, see tools/tunes.py)
 src/, include/, dts/            the zmk,behavior-dongle-action behaviour
 tools/sim/                      host simulator for the game
 tools/uisim/                    host preview for the splash and the dashboard
+tools/sfxsim/                   renders the sounds to .wav on the host
 tools/sprites.py                regenerates the splash artwork
+tools/tunes.py                  regenerates the tunes
 ```
 
 ## Credits

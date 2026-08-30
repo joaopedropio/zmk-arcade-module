@@ -14,6 +14,31 @@ config PACMAN_FRAME_INTERVAL
       33 ms is roughly 30 frames per second.  Raise it for a calmer,
       cheaper animation, lower it for a snappier one.
 
+config PACMAN_SOUND
+    bool "Play the game's sounds through the I2S amplifier"
+    default y
+    select I2S
+    help
+      Needs a MAX98357A (or anything else that takes I2S straight in) on the
+      pins the shield's pacman_amp node names.  With no amplifier in the
+      devicetree this does nothing either way.
+
+config PACMAN_SOUND_VOLUME
+    int "How loud, 0 to 100"
+    default 60
+    range 0 100
+    help
+      A square wave at full scale is louder than it looks, so the synth keeps
+      a third of the range in hand before this is applied.
+
+config PACMAN_SOUND_SAMPLE_RATE
+    int "Samples per second"
+    default 16000
+    help
+      The nRF I2S clock cannot hit every rate exactly and the driver picks the
+      closest it can.  16 kHz is plenty for square waves and keeps the blocks
+      small.
+
 config PACMAN_WPM_SPEED
     bool "Speed the game up while you type"
     default y
