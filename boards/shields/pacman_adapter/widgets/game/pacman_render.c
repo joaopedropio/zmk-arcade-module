@@ -11,7 +11,6 @@
 /* tile-relative sizes, so the grid can be rescaled without retuning them */
 #define PM_PELLET    (PM_TILE / 4)                      /* pellet side, 2px at 10px tiles */
 #define PM_PELLET_AT ((PM_TILE - PM_PELLET) / 2)
-#define PM_DOOR_AT   ((PM_TILE - PM_WALL_LINE) / 2)
 #define PM_POWER_R2  ((PM_TILE * PM_TILE * 40) / 100)   /* power pellet radius^2 */
 
 static uint8_t scratch[BAND_BYTES];
@@ -88,6 +87,38 @@ static bool solid_tile(const pm_game *g, int tx, int ty) {
  */
 enum { PM_WPX_OUT = 0, PM_WPX_LINE, PM_WPX_FILL };
 
+/* the house box in playfield pixels, and the middle of its top line */
+#define PM_HOUSE_L (PM_HOUSE_X0 * PM_TILE + PM_WALL_INSET)
+#define PM_HOUSE_R ((PM_HOUSE_X1 + 1) * PM_TILE - 1 - PM_WALL_INSET)
+#define PM_HOUSE_T (PM_HOUSE_Y0 * PM_TILE + PM_WALL_INSET + PM_HOUSE_SQUAT)
+#define PM_HOUSE_B ((PM_HOUSE_Y1 + 1) * PM_TILE - 1 - PM_WALL_INSET - PM_HOUSE_SQUAT)
+#define PM_HOUSE_MID ((PM_HOUSE_L + PM_HOUSE_R + 1) / 2)
+_Static_assert(PM_HOUSE_B - PM_HOUSE_T > PM_SPRITE, "the house is too squat for a ghost");
+_Static_assert(PM_DOOR_W < PM_HOUSE_R - PM_HOUSE_L, "the door is wider than the house");
+
+/*
+ * Every pixel of the nine house tiles comes from here rather than from
+ * wall_px(): one rectangle, its outline in the house colour, the middle of its
+ * top line in the door colour, and everything the box does not reach back to
+ * the background.  The tiles themselves are untouched, so what a ghost may
+ * walk through is exactly what it was - this only changes what is drawn.
+ */
+static uint16_t house_pixel(const pm_game *g, int px, int py) {
+    if (px < PM_HOUSE_L || px > PM_HOUSE_R || py < PM_HOUSE_T || py > PM_HOUSE_B) {
+        return pal.bg;
+    }
+    bool line = px < PM_HOUSE_L + PM_WALL_LINE || px > PM_HOUSE_R - PM_WALL_LINE ||
+                py < PM_HOUSE_T + PM_WALL_LINE || py > PM_HOUSE_B - PM_WALL_LINE;
+    if (!line) {
+        return g->flash ? pal.wall_fill : pal.house_fill;
+    }
+    if (py < PM_HOUSE_T + PM_WALL_LINE && px >= PM_HOUSE_MID - PM_DOOR_W / 2 &&
+        px < PM_HOUSE_MID + PM_DOOR_W / 2) {
+        return pal.door;
+    }
+    return g->flash ? pal.wall_flash : pal.house_edge;
+}
+
 /*
  * The widest a corner box gets, when neither side faces a door.  The four
  * boxes of a tile have to stay apart, or a pixel would fall in two of them and
@@ -99,7 +130,8 @@ _Static_assert(2 * PM_CORNER <= PM_TILE, "PM_WALL_INSET + PM_WALL_R too big for 
 /*
  * An outside corner, where two open sides meet: a quarter circle tangent to
  * both drawn faces.  cx, cy are where those faces put the centre - one radius
- * in from each - which lets the two sides carry different insets.
+ * in from each - which is PM_CORNER for a wall, and PM_WALL_R for the border,
+ * whose line stands off the playfield rather than off a tile of its own.
  */
 static int corner_px(int dx, int dy, int cx, int cy) {
     int a = cx - dx;
@@ -134,57 +166,39 @@ static int diagonal_px(int dx, int dy) {
     return d2 < line * line ? PM_WPX_LINE : PM_WPX_FILL;
 }
 
-/*
- * The ghost house door is not solid - ghosts pass through it - but it is part
- * of the wall that closes the house, and it is drawn as a line spanning its
- * own tile.  A wall standing back from it would leave the two ends of that
- * line hanging in the gap, so a face looking at a door keeps its outline but
- * takes no inset.
- */
-static bool door_face(const pm_game *g, int tx, int ty) {
-    if (tx < 0 || tx >= PM_COLS || ty < 0 || ty >= PM_ROWS) {
-        return false;
-    }
-    return g->tiles[ty][tx] == PM_T_DOOR;
-}
-
 static int wall_px(const pm_game *g, int tx, int ty, int ix, int iy) {
     bool open_l = !solid_tile(g, tx - 1, ty);
     bool open_r = !solid_tile(g, tx + 1, ty);
     bool open_u = !solid_tile(g, tx, ty - 1);
     bool open_d = !solid_tile(g, tx, ty + 1);
 
-    /* how far the wall stands back from each side it faces */
-    int il = door_face(g, tx - 1, ty) ? 0 : PM_WALL_INSET;
-    int ir = door_face(g, tx + 1, ty) ? 0 : PM_WALL_INSET;
-    int iu = door_face(g, tx, ty - 1) ? 0 : PM_WALL_INSET;
-    int id = door_face(g, tx, ty + 1) ? 0 : PM_WALL_INSET;
-
     /* distances in from each of the four sides */
     int dl = ix, dr = PM_TILE - 1 - ix;
     int du = iy, dd = PM_TILE - 1 - iy;
 
-    if ((open_l && dl < il) || (open_r && dr < ir) ||
-        (open_u && du < iu) || (open_d && dd < id)) {
+    if ((open_l && dl < PM_WALL_INSET) || (open_r && dr < PM_WALL_INSET) ||
+        (open_u && du < PM_WALL_INSET) || (open_d && dd < PM_WALL_INSET)) {
         return PM_WPX_OUT;
     }
 
     /* corner boxes are at most PM_CORNER, so only one can hold the pixel */
-    if (open_l && open_u && dl < il + PM_WALL_R && du < iu + PM_WALL_R) {
-        return corner_px(dl, du, il + PM_WALL_R, iu + PM_WALL_R);
+    if (open_l && open_u && dl < PM_CORNER && du < PM_CORNER) {
+        return corner_px(dl, du, PM_CORNER, PM_CORNER);
     }
-    if (open_r && open_u && dr < ir + PM_WALL_R && du < iu + PM_WALL_R) {
-        return corner_px(dr, du, ir + PM_WALL_R, iu + PM_WALL_R);
+    if (open_r && open_u && dr < PM_CORNER && du < PM_CORNER) {
+        return corner_px(dr, du, PM_CORNER, PM_CORNER);
     }
-    if (open_l && open_d && dl < il + PM_WALL_R && dd < id + PM_WALL_R) {
-        return corner_px(dl, dd, il + PM_WALL_R, id + PM_WALL_R);
+    if (open_l && open_d && dl < PM_CORNER && dd < PM_CORNER) {
+        return corner_px(dl, dd, PM_CORNER, PM_CORNER);
     }
-    if (open_r && open_d && dr < ir + PM_WALL_R && dd < id + PM_WALL_R) {
-        return corner_px(dr, dd, ir + PM_WALL_R, id + PM_WALL_R);
+    if (open_r && open_d && dr < PM_CORNER && dd < PM_CORNER) {
+        return corner_px(dr, dd, PM_CORNER, PM_CORNER);
     }
 
-    if ((open_l && dl < il + PM_WALL_LINE) || (open_r && dr < ir + PM_WALL_LINE) ||
-        (open_u && du < iu + PM_WALL_LINE) || (open_d && dd < id + PM_WALL_LINE)) {
+    if ((open_l && dl < PM_WALL_INSET + PM_WALL_LINE) ||
+        (open_r && dr < PM_WALL_INSET + PM_WALL_LINE) ||
+        (open_u && du < PM_WALL_INSET + PM_WALL_LINE) ||
+        (open_d && dd < PM_WALL_INSET + PM_WALL_LINE)) {
         return PM_WPX_LINE;
     }
 
@@ -208,12 +222,9 @@ static int wall_px(const pm_game *g, int tx, int ty, int ix, int iy) {
     return px;
 }
 
-static uint16_t wall_colour(const pm_game *g, bool house, bool line) {
+static uint16_t wall_colour(const pm_game *g, bool line) {
     if (g->flash) {
         return line ? pal.wall_flash : pal.wall_fill;
-    }
-    if (house) {
-        return line ? pal.house_edge : pal.house_fill;
     }
     return line ? pal.wall_edge : pal.wall_fill;
 }
@@ -229,16 +240,17 @@ static uint16_t bg_pixel(const pm_game *g, int px, int py) {
     int iy = py - ty * PM_TILE;
 
     switch (t) {
-    case PM_T_WALL:
-    case PM_T_HWALL: {
+    case PM_T_WALL: {
         int w = wall_px(g, tx, ty, ix, iy);
         if (w == PM_WPX_OUT) {
             return pal.bg;
         }
-        return wall_colour(g, t == PM_T_HWALL, w == PM_WPX_LINE);
+        return wall_colour(g, w == PM_WPX_LINE);
     }
+    case PM_T_HWALL:
     case PM_T_DOOR:
-        return (iy >= PM_DOOR_AT && iy < PM_DOOR_AT + PM_WALL_LINE) ? pal.door : pal.bg;
+    case PM_T_HOUSE:
+        return house_pixel(g, px, py);
     case PM_T_PELLET:
         return (ix >= PM_PELLET_AT && ix < PM_PELLET_AT + PM_PELLET &&
                 iy >= PM_PELLET_AT && iy < PM_PELLET_AT + PM_PELLET) ? pal.pellet : pal.bg;
@@ -520,7 +532,7 @@ static void paint(pm_game *g, int x0, int y0, int w, int h) {
             /* the border rounds its corners into the canvas; sprites win */
             int b = border_px(g, x + PM_MARGIN, y + PM_MARGIN);
             if (b != PM_WPX_OUT) {
-                c = wall_colour(g, false, b == PM_WPX_LINE);
+                c = wall_colour(g, b == PM_WPX_LINE);
             }
 
             for (int idx = PM_ACTORS - 1; idx >= 0; idx--) {
@@ -559,7 +571,7 @@ static void paint_band(const pm_game *g, int x0, int y0, int w, int h) {
     for (int y = y0; y < y0 + h; y++) {
         for (int x = x0; x < x0 + w; x++) {
             int b = border_px(g, x, y);
-            uint16_t c = b == PM_WPX_OUT ? pal.bg : wall_colour(g, false, b == PM_WPX_LINE);
+            uint16_t c = b == PM_WPX_OUT ? pal.bg : wall_colour(g, b == PM_WPX_LINE);
             *out++ = (uint8_t)(c >> 8);
             *out++ = (uint8_t)(c & 0xFF);
         }

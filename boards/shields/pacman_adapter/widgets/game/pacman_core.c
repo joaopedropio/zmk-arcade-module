@@ -1,8 +1,8 @@
 /*
  * Pac-Man dongle - game core (portable, no Zephyr/LVGL dependencies).
  *
- * The maze is a 12x12 tile grid of 20x20 pixel tiles, so it fills the
- * 240x240 dongle display exactly.  Nobody is holding a joystick: Pac-Man
+ * The maze is a 9x9 grid of 24 pixel tiles, centred on the 240x240 dongle
+ * display with the border drawn in the margin.  Nobody is holding a joystick: Pac-Man
  * picks his own way with a breadth first search towards the closest pellet
  * (avoiding tiles near the hunting ghosts, running for a power pellet when
  * he is cornered, hunting the ghosts while they are blue), and the ghosts
@@ -41,7 +41,23 @@
  * four sprites never pile onto one tile.
  *
  * Row 4 is the tunnel: it leaves the maze at both ends (' ', no pellet) and
- * wraps round. */
+ * wraps round.
+ *
+ * The bottom is deliberately not the top upside down.  Up there the side bars
+ * and the middle one stand apart; down here each side bar turns a corner into
+ * an L, and what is left of the middle bar is a single tile standing on its
+ * own between them.  A maze this small is symmetric in every direction it is
+ * allowed to be, and it reads as wallpaper when it is - breaking one axis is
+ * enough to stop that, and the bottom is where there is room to do it without
+ * moving the tunnel or the house.
+ *
+ * Row 7 is the one place the lattice above does not describe: the walls sit at
+ * columns 1, 2, 4, 6 and 7 rather than on the odd columns, so the L's legs are
+ * one tile long and the tile in the middle is isolated.  The lattice is only a
+ * way of guaranteeing what actually matters - no 2x2 all wall (a wall
+ * thickening), no 2x2 all corridor (a corridor widening) and no dead ends -
+ * and this row holds all three on its own.  Check it by hand if you move a
+ * tile here; everywhere else the lattice does the checking for you. */
 static const char *const MAZE_ART[PM_ROWS] = {
     "o.......o",
     ".#.###.#.",
@@ -50,7 +66,7 @@ static const char *const MAZE_ART[PM_ROWS] = {
     " ..HhH.. ",
     ".#.HHH.#.",
     ".#.....#.",
-    ".#.###.#.",
+    ".##.#.##.",
     "o.......o",
 };
 

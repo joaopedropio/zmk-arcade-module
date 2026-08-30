@@ -56,6 +56,18 @@
 #define PM_GHOSTS 4
 #define PM_ACTORS (PM_GHOSTS + 1)        /* ghosts + pac-man */
 
+/*
+ * The ghost house: the centre tile, the ring of eight around it, and the top
+ * link of that ring left open as the door.  The renderer wants the block as a
+ * whole rather than tile by tile - it draws one box across all nine, the way
+ * the arcade's house is one chamber rather than a wall per tile - so the
+ * extent lives here with the maze rather than with the drawing.
+ */
+#define PM_HOUSE_X0 (PM_COLS / 2 - 1)
+#define PM_HOUSE_X1 (PM_COLS / 2 + 1)
+#define PM_HOUSE_Y0 (PM_ROWS / 2 - 1)
+#define PM_HOUSE_Y1 (PM_ROWS / 2 + 1)
+
 /* tile contents */
 enum {
     PM_T_WALL = 0,

@@ -48,6 +48,18 @@
  * sprites that hang over its edge.
  */
 #define PM_BORDER_GAP 2                                 /* clear pixels round the playfield */
+/*
+ * The ghost house is drawn as one box across its nine tiles, not as nine wall
+ * tiles: a ring of tubes reads as a fat blob at this size, where the arcade's
+ * house is a wide chamber with a door in the top of it.  The box stands
+ * PM_WALL_INSET off the block on the left and right, like any other wall, and
+ * PM_HOUSE_SQUAT further in at the top and bottom - which is what makes it
+ * wider than it is tall, and leaves the corridor round it that much deeper.
+ * The door is PM_DOOR_W of the top line, drawn in the door colour rather than
+ * left as a gap, since a gap in a one pixel line is just a hole.
+ */
+#define PM_HOUSE_SQUAT 12                               /* pulls the top and bottom in */
+#define PM_DOOR_W      16                               /* about a quarter of the box */
 #define PM_SPRITE     28                                /* sprite box, any size */
 #define PM_SPRITE_OFF ((PM_TILE - PM_SPRITE) / 2)       /* centres it on the tile */
 
