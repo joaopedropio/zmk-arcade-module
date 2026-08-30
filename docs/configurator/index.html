@@ -216,7 +216,7 @@
   </footer>
 </main>
 
-<script src="preview.js"></script>
+<script src="preview.js?v=ea343456e7ee"></script>
 <script>
 "use strict";
 
@@ -354,7 +354,11 @@ async function setValue(setting, word, control) {
     }
     setting.value = word;
     setting.stored = true;
-    if (wasm) { pushSetting(setting); wasm._preview_apply_all(); renderScreen(); }
+    guardPreview("redrawing after a change", () => {
+      pushSetting(setting);
+      wasm._preview_apply_all();
+      renderScreen();
+    });
     syncControls(setting);
     say(reply || (setting.name + " set"), "good");
     return true;
@@ -519,6 +523,27 @@ function render() {
 /* ------------------------------------------------------------------ */
 /* the preview                                                         */
 /* ------------------------------------------------------------------ */
+
+/*
+ * Every call into the renderer goes through here.  The page and preview.js are
+ * two files that cache separately, so a browser can hold a new page and an old
+ * module - and then a missing export would throw from inside loadSchema() and
+ * take the whole connection down with it.  The dongle is the point; the
+ * preview is a nicety, and it fails on its own.
+ */
+function guardPreview(what, fn) {
+  if (!wasm) return;
+  try {
+    return fn();
+  } catch (err) {
+    wasm = null;
+    $("previewpanel").classList.add("hidden");
+    setPlaying(false);
+    say("The preview is switched off - " + what + " failed (" + err.message +
+        "). The settings below still work. A hard reload (shift-refresh) usually " +
+        "fixes it, since preview.js may be a cached older version.", "bad");
+  }
+}
 
 function frameBuffer() {
   const panel = wasm._preview_panel();
@@ -747,7 +772,7 @@ async function connect() {
     setConnected(true);
     await loadSchema();
   } catch (err) {
-    say(err.message || String(err), "bad");
+    say("Connecting failed: " + (err.message || String(err)), "bad");
     setConnected(false);
   }
 }
@@ -776,13 +801,25 @@ for (let i = 0; i < 3; i++) {
  * but it is only shown once one is, because the colours it would draw with
  * have to come from the dongle rather than from a guess in this page.
  */
+const PREVIEW_NEEDS = ["_preview_panel", "_preview_framebuffer", "_preview_rgb565",
+                       "_preview_set", "_preview_apply_all", "_preview_set_screen",
+                       "_preview_render", "_preview_reset", "_preview_step"];
+
 PacmanPreview().then((module) => {
+  const missing = PREVIEW_NEEDS.filter((name) => typeof module[name] !== "function");
+  if (missing.length) {
+    say("preview.js is an older version than this page (no " + missing[0] +
+        "). The settings still work; a hard reload should pick up the right one.", "bad");
+    return;
+  }
   wasm = module;
   $("screen").classList.remove("idle");
   if (settings.length) {
-    $("previewpanel").classList.remove("hidden");
-    setScreen(screenIndex);
-    pushAll();
+    guardPreview("drawing the screen", () => {
+      $("previewpanel").classList.remove("hidden");
+      setScreen(screenIndex);
+      pushAll();
+    });
   }
 }).catch((err) => say("The preview renderer would not load: " + err.message, "bad"));
 

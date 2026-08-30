@@ -67,4 +67,18 @@ emcc -O2 -std=c11 -Wall \
     -sALLOW_MEMORY_GROWTH=1
 
 rm -f "$defs"
+
+# The page and the module are two files that a browser caches separately, so a
+# stale one of either is a page calling exports that are not there.  Stamping
+# the tag with a hash of what was just built means the pair can only ever be
+# fetched together.
+page=$(dirname "$out")/index.html
+if [ -f "$page" ]; then
+    hash=$(shasum -a 256 "$out" | cut -c1-12)
+    tmp=$(mktemp)
+    sed -E "s|(<script src=\"preview\.js)(\?v=[0-9a-f]+)?(\")|\1?v=$hash\3|" "$page" > "$tmp"
+    mv "$tmp" "$page"
+    echo "stamped $page with preview.js?v=$hash"
+fi
+
 echo "$out"
