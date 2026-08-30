@@ -336,11 +336,11 @@ async function loadSchema() {
   if (!rows.length) throw new Error("`pacman schema` said nothing - is this the right firmware?");
   settings = rows;
   render();
-  if (wasm) {
+  guardPreview("drawing the screen", () => {
     $("previewpanel").classList.remove("hidden");
-    rewind();
-    pushColors();
-  }
+    setScreen(screenIndex);
+    pushAll();
+  });
   say("Connected. " + rows.length + " settings.", "good");
 }
 
@@ -801,12 +801,15 @@ for (let i = 0; i < 3; i++) {
  * but it is only shown once one is, because the colours it would draw with
  * have to come from the dongle rather than from a guess in this page.
  */
+/* everything this page reaches for on the module, so a mismatch is named */
 const PREVIEW_NEEDS = ["_preview_panel", "_preview_framebuffer", "_preview_rgb565",
                        "_preview_set", "_preview_apply_all", "_preview_set_screen",
-                       "_preview_render", "_preview_reset", "_preview_step"];
+                       "_preview_render", "_preview_reset", "_preview_step", "_free",
+                       "stringToNewUTF8"];
 
 PacmanPreview().then((module) => {
-  const missing = PREVIEW_NEEDS.filter((name) => typeof module[name] !== "function");
+  const missing = PREVIEW_NEEDS.filter((name) => typeof module[name] !== "function")
+    .concat(module.HEAPU16 ? [] : ["HEAPU16"]);
   if (missing.length) {
     say("preview.js is an older version than this page (no " + missing[0] +
         "). The settings still work; a hard reload should pick up the right one.", "bad");

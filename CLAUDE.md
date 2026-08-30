@@ -8,7 +8,7 @@ over SPI, so the usual LVGL advice does not apply here.
 
 ## Check it on the host first
 
-Three harnesses build the firmware's own C on a laptop. Run whichever one covers
+Four harnesses build the firmware's own C - and its page - on a laptop. Run whichever one covers
 the change before claiming it works; flashing is the slow path.
 
 ```sh
@@ -35,6 +35,16 @@ The splash and the dashboard, drawn against the Zephyr/LVGL stubs in
 `tools/uisim/stub/`. The widgets that ask ZMK for a layer name or a battery
 level get their answers from `stub/uisim_state.h`, so the dashboard comes out
 filled in - plausible, not live. Change those values to see a different one.
+
+```sh
+node tools/pagetest/pagetest.mjs
+```
+The configurator page, run against a stub DOM and `tools/pagetest/schema.txt` -
+bytes a real dongle sent. The page is the one part of this a compiler never
+sees, so a stale call left by an edit parses fine and only fails when somebody
+plugs a dongle in; this catches that, a broken parse, and a preview that takes
+the connection down with it. Run it after touching
+`docs/configurator/index.html`.
 
 ```sh
 tools/sfxsim/build.sh /tmp/sfxsim && /tmp/sfxsim /tmp/sounds 16000
@@ -78,7 +88,7 @@ boards/shields/pacman_adapter/
     ├── helpers/settings.c   flash-backed settings; settings_list.h is the list
     └── game/                pacman_core.c, pacman_render.c, pacman_sfx.c
 src/ include/ dts/           the zmk,behavior-dongle-action behaviour
-tools/                       the three host harnesses and two generators
+tools/                       the four host harnesses and two generators
 tools/wasm/                  the renderer built for the browser, by emscripten
 docs/configurator/           the WebSerial settings page, served by GitHub Pages
 ```
