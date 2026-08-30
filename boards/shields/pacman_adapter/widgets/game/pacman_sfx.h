@@ -1,14 +1,16 @@
 /*
  * Pac-Man dongle - the voice (portable).
  *
- * One square wave, a list of tones to play through it, and nothing that knows
- * about Zephyr: the same code renders samples for the dongle's amplifier and
- * for the .wav files tools/sfxsim writes, so a tune can be listened to before
- * it is flashed.
+ * A buzzer can only be on or off at one pitch.  What is wired to the dongle
+ * now is a DAC and an amplifier, which can put any shape it likes into the
+ * speaker, so this is a small polyphonic synth rather than a tone generator:
+ * four voices, each an instrument with its own timbre and envelope, playing a
+ * score.  Chords, a melody over a held pad, a bell that rings and decays -
+ * none of which a buzzer can do at all.
  *
- * The caller pulls samples rather than the synth pushing them - pm_sfx_render()
- * fills whatever buffer the I2S driver wants next - and a tune plays until it
- * runs out, unless something with a higher priority takes the voice off it.
+ * Nothing here knows about Zephyr: the same code fills the amplifier's buffers
+ * on the dongle and writes the .wav files tools/sfxsim renders, so a sound can
+ * be listened to before it is flashed.
  *
  * SPDX-License-Identifier: MIT
  */
@@ -19,32 +21,32 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef struct {
-    uint16_t from_hz; /* the frequency it starts at */
-    uint16_t to_hz;   /* and glides to across the tone; the same for a plain note */
-    uint16_t ms;
-    uint8_t duty; /* percent of the period the wave is high; 0 is a rest */
-} pm_tone;
-
 /*
- * How a tune is voiced.  A pulse wave has every odd harmonic in it and cuts
- * through a small speaker, which is right for the fanfare and for dying; a
- * triangle falls away as 1/n^2 and is much gentler on the ear, which is what
- * the sounds you hear every few seconds want.
+ * The instruments.  Each is a pair of oscillators and an envelope: what
+ * separates a bell from a marimba is mostly how fast it dies away and how far
+ * out of tune its second partial is.
  */
 typedef enum {
-    PM_WAVE_PULSE,
-    PM_WAVE_TRIANGLE,
-} pm_wave;
+    PM_INST_BELL,   /* sine plus an inharmonic partner, long ringing decay */
+    PM_INST_PLUCK,  /* triangle plus an octave, short decay - a marimba */
+    PM_INST_PAD,    /* two triangles a breath apart, slow in and slow out */
+    PM_INST_NOISE,  /* filtered noise with a fast decay, for a soft tick */
+} pm_inst;
 
 typedef struct {
-    const pm_tone *tones;
+    uint16_t at_ms; /* when it starts, from the top of the tune */
+    uint16_t hz;    /* what pitch, ignored by the noise instrument */
+    uint16_t ms;    /* how long the key is held - the release runs on past it */
+    uint8_t inst;
+    uint8_t level; /* how hard it is struck, percent */
+} pm_note;
+
+typedef struct {
+    const pm_note *notes;
     uint8_t count;
+    uint16_t ms; /* the whole tune, release included */
     bool loop;
-    uint8_t priority; /* a tune only interrupts one no louder than itself */
-    pm_wave wave;
-    uint8_t gain; /* percent of the configured volume, so the incidental
-                   * sounds can sit under the ones that matter */
+    uint8_t priority; /* a tune only interrupts one no more important */
 } pm_tune;
 
 typedef enum {
@@ -63,19 +65,23 @@ typedef enum {
 /* sample_rate in Hz, volume 0-100 */
 void pm_sfx_init(uint32_t sample_rate, uint8_t volume);
 
-/* starts a tune if the voice is free or busy with something quieter */
+/* starts a tune if the voice is free or busy with something less important */
 void pm_sfx_play(pm_tune_id id);
 void pm_sfx_stop(void);
 
-/* which tune has the voice, PM_TUNE_NONE when it is silent */
+/* which tune is sounding, PM_TUNE_NONE when nothing is */
 pm_tune_id pm_sfx_playing(void);
 
-/* whether a tune runs until something stops it, which the siren does */
+/* true while anything is still sounding, including notes ringing on after
+ * the tune itself has finished */
+bool pm_sfx_sounding(void);
+
+/* whether a tune runs until something stops it, which the fright pad does */
 bool pm_sfx_loops(pm_tune_id id);
 
 /*
- * Fills count mono 16-bit samples and returns how many of them are sound: 0
- * when nothing is playing (the buffer is silence either way, so it can be
- * handed to the amplifier regardless).
+ * Fills count mono 16-bit samples and returns how many carry sound: 0 when
+ * nothing is playing (the buffer is silence either way, so it can go to the
+ * amplifier regardless).
  */
 size_t pm_sfx_render(int16_t *out, size_t count);

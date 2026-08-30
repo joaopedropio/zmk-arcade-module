@@ -1,16 +1,20 @@
 """
-Generates widgets/game/pacman_tunes.h - what the dongle plays.
+Generates widgets/game/pacman_tunes.h - the sine table and what the dongle plays.
 
-The arcade's sound hardware was three wavetable voices; this is one square
-wave, so the tunes are written for it: a note is a frequency, a glide between
-two, or a rest, and a tune is a list of them.  Written here in notation rather
-than in Hz so the melodies stay readable.
+The speaker is a DAC and an amplifier, not a buzzer, so these are scores rather
+than beeps: notes with a pitch, a length and an instrument, several of them
+sounding at once.  Written here in notation, and turned into the note lists the
+synth reads.
 
     python3 tools/tunes.py > boards/shields/pacman_adapter/widgets/game/pacman_tunes.h
 """
 
+import math
+
 NOTES = {"C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5, "F#": 6,
          "G": 7, "G#": 8, "A": 9, "A#": 10, "B": 11}
+
+BELL, PLUCK, PAD, NOISE = "PM_INST_BELL", "PM_INST_PLUCK", "PM_INST_PAD", "PM_INST_NOISE"
 
 
 def hz(note):
@@ -20,79 +24,83 @@ def hz(note):
     return int(round(440.0 * (2.0 ** ((midi - 69) / 12.0))))
 
 
-def tone(note, ms, duty=50):
-    return (hz(note), hz(note), ms, duty)
+def n(at, note, ms, inst=BELL, level=100):
+    """one note: when it starts, what pitch, how long the key is held"""
+    return (at, hz(note) if note else 0, ms, inst, level)
 
 
-def glide(from_hz, to_hz, ms, duty=50):
-    return (from_hz, to_hz, ms, duty)
+def chord(at, notes, ms, inst=PAD, level=100, spread=0):
+    """several at once, or rolled if spread is given"""
+    return [n(at + i * spread, note, ms - i * spread, inst, level)
+            for i, note in enumerate(notes)]
 
 
-def rest(ms):
-    return (0, 0, ms, 0)
+# ---------------------------------------------------------------- the tunes
 
+# Switching on: a major ninth rolled upwards on bells, over a pad that swells
+# under it.  Two things a buzzer cannot do at all - several notes at once, and
+# a note that rings on after the next has started.
+INTRO = (
+    chord(0, ["C3", "G3"], 1900, PAD, 55)
+    + [n(0, "C5", 900, BELL, 90), n(150, "E5", 900, BELL, 85),
+       n(300, "G5", 900, BELL, 80), n(450, "B5", 1100, BELL, 75),
+       n(700, "D6", 1300, BELL, 70)]
+)
 
-# The opening fanfare, first phrase.  Everyone knows this one.
-INTRO = [
-    tone("B4", 120), tone("B5", 120), tone("F#5", 120), tone("D#5", 120),
-    tone("B5", 60), tone("F#5", 60), tone("D#5", 240),
-    tone("C5", 120), tone("C6", 120), tone("G5", 120), tone("E5", 120),
-    tone("C6", 60), tone("G5", 60), tone("E5", 240),
-]
+# A pellet: a marimba tap, two pitches alternating so a run of them has a lilt
+# rather than a stutter.
+MUNCH_A = [n(0, "C5", 40, PLUCK, 55)]
+MUNCH_B = [n(0, "G4", 40, PLUCK, 55)]
 
-# Eating a pellet: a chirp down, then the next one up, alternating, which is
-# what gives the arcade its waka-waka when he is running a corridor.  This is
-# the sound you hear every few seconds all day, so it is the one that has to
-# stay out of the way: a triangle rather than a pulse, kept low and short, and
-# well under the sounds that mean something.
-MUNCH_A = [glide(660, 300, 55)]
-MUNCH_B = [glide(300, 660, 55)]
+# A power pellet: the chord opens up.
+POWER = (
+    chord(0, ["F3", "C4"], 900, PAD, 60)
+    + [n(0, "F5", 400, BELL, 80), n(120, "A5", 400, BELL, 75), n(240, "C6", 600, BELL, 70)]
+)
 
-# A power pellet, and then the siren that runs while the ghosts are blue.  The
-# siren goes on for as long as the fright does, so it is slower, lower and
-# quieter than it was - present rather than nagging.
-POWER = [glide(392, 784, 90, 33), glide(784, 1245, 110, 33)]
-SIREN = [glide(260, 400, 260), glide(400, 260, 260)]
+# And the fright itself: two chords breathing in and out, quiet, while the
+# ghosts are blue.  It loops for as long as that lasts, so it has to be
+# something you could listen to for ten seconds without minding.
+SIREN = (
+    chord(0, ["A3", "C4", "E4"], 1500, PAD, 42)
+    + chord(1600, ["G3", "B3", "D4"], 1500, PAD, 42)
+)
 
-# Catching one of them: a rising swoop.  It happens every couple of seconds
-# while a power pellet lasts, so it is voiced closer to the munch than to the
-# death - and it stops climbing well below where the ear is sharpest.
-GHOST = [glide(220, 880, 300)]
-DEATH = [
-    glide(620, 200, 300, 50), rest(40),
-    glide(580, 180, 300, 50), rest(40),
-    glide(540, 160, 300, 50), rest(40),
-    glide(500, 120, 360, 50),
-]
+# Catching one: a bright little third, and gone.
+GHOST = [n(0, "E5", 220, BELL, 70), n(60, "G#5", 260, BELL, 65)]
 
-# And clearing the maze
-CLEAR = [
-    tone("C5", 100), tone("E5", 100), tone("G5", 100),
-    tone("C6", 100), tone("E6", 100), tone("G6", 300),
-]
+# Losing one: a minor chord falling away under a slow melody.  The pad holds
+# through it, so it sounds like an ending rather than an error.
+DEATH = (
+    chord(0, ["A2", "E3"], 2000, PAD, 55)
+    + [n(0, "A4", 500, BELL, 75), n(320, "F4", 500, BELL, 70),
+       n(640, "D4", 600, BELL, 65), n(960, "A3", 1200, BELL, 60)]
+)
 
-# name, tones, loops, priority, waveform, gain as a percentage of the volume.
-# The two that play constantly are triangles and sit well down; the ones that
-# mark something are pulses at full level, so they are heard over the maze
-# without any of it having to be loud.
-PULSE, TRIANGLE = "PM_WAVE_PULSE", "PM_WAVE_TRIANGLE"
+# Clearing the maze: a cadence that lands.
+CLEAR = (
+    chord(0, ["G3", "D4"], 700, PAD, 55)
+    + [n(0, "G4", 200, PLUCK, 80), n(150, "B4", 200, PLUCK, 80),
+       n(300, "D5", 200, PLUCK, 80)]
+    + chord(500, ["C4", "E4", "G4"], 1200, PAD, 60)
+    + [n(500, "C6", 900, BELL, 70)]
+)
 
+# name, notes, loops, priority, and how long the tune runs before it is over
+# or goes round again (None works it out from the last note and its tail)
 TUNES = [
-    ("PM_TUNE_INTRO", INTRO, False, 3, PULSE, 100),
-    ("PM_TUNE_MUNCH_A", MUNCH_A, False, 1, TRIANGLE, 45),
-    ("PM_TUNE_MUNCH_B", MUNCH_B, False, 1, TRIANGLE, 45),
-    ("PM_TUNE_POWER", POWER, False, 2, PULSE, 80),
-    ("PM_TUNE_SIREN", SIREN, True, 0, TRIANGLE, 35),
-    ("PM_TUNE_GHOST", GHOST, False, 2, TRIANGLE, 55),
-    ("PM_TUNE_DEATH", DEATH, False, 4, PULSE, 100),
-    ("PM_TUNE_CLEAR", CLEAR, False, 3, PULSE, 90),
+    ("PM_TUNE_INTRO", INTRO, False, 3, None),
+    ("PM_TUNE_MUNCH_A", MUNCH_A, False, 1, None),
+    ("PM_TUNE_MUNCH_B", MUNCH_B, False, 1, None),
+    ("PM_TUNE_POWER", POWER, False, 2, None),
+    ("PM_TUNE_SIREN", SIREN, True, 0, 3100),  # the two chords run into each other
+    ("PM_TUNE_GHOST", GHOST, False, 2, None),
+    ("PM_TUNE_DEATH", DEATH, False, 4, None),
+    ("PM_TUNE_CLEAR", CLEAR, False, 3, None),
 ]
 
 HEADER = '''/*
- * What the dongle plays - one square-wave voice, the way the arcade's three
- * sounded.  A tone is a frequency, a glide from one to another, or a rest;
- * a tune is a list of them, and the priority decides which one wins when two
- * want the voice at once.
+ * The sine table the oscillators read, and the scores they play.
  *
  * Generated by tools/tunes.py; edit that, not this.
  *
@@ -106,16 +114,25 @@ HEADER = '''/*
 '''
 
 
+def sine_table():
+    values = [int(round(16383 * math.sin(2 * math.pi * i / 256))) for i in range(256)]
+    rows = [", ".join(f"{v:6}" for v in values[i:i + 8]) for i in range(0, 256, 8)]
+    return "#define PM_SINE_TABLE { \\\n" + ", \\\n".join("    " + r for r in rows) + " \\\n}\n"
+
+
 def main():
-    out = [HEADER]
-    for name, tones, *_ in TUNES:
-        rows = ",\n".join(
-            f"    {{{f}, {t}, {ms}, {duty}}}" for f, t, ms, duty in tones)
-        out.append(f"static const pm_tone {name.lower()}_tones[] = {{\n{rows},\n}};\n")
+    out = [HEADER, sine_table()]
+    for name, notes, *_ in TUNES:
+        rows = ",\n".join(f"    {{{at}, {f}, {ms}, {inst}, {lvl}}}"
+                          for at, f, ms, inst, lvl in sorted(notes))
+        out.append(f"static const pm_note {name.lower()}_notes[] = {{\n{rows},\n}};\n")
     rows = []
-    for name, tones, loop, prio, wave, gain in TUNES:
-        rows.append(f"    [{name}] = {{{name.lower()}_tones, {len(tones)}, "
-                    f"{'true' if loop else 'false'}, {prio}, {wave}, {gain}}}")
+    for name, notes, loop, prio, length in TUNES:
+        # the tune is over when its last note has finished ringing
+        tail = {BELL: 1200, PLUCK: 360, PAD: 700, NOISE: 200}
+        end = length or max(at + ms + tail[inst] for at, _f, ms, inst, _l in notes)
+        rows.append(f"    [{name}] = {{{name.lower()}_notes, {len(notes)}, {end}, "
+                    f"{'true' if loop else 'false'}, {prio}}}")
     out.append("static const pm_tune PM_TUNES[PM_TUNE_COUNT] = {\n" + ",\n".join(rows) + ",\n};\n")
     print("\n".join(out), end="")
 

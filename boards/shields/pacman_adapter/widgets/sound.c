@@ -128,7 +128,7 @@ static void sound_thread(void *a, void *b, void *c) {
         k_sem_take(&wake, K_FOREVER);
         take_request();
 
-        while (pm_sfx_playing() != PM_TUNE_NONE) {
+        while (pm_sfx_sounding()) {
             if (!streaming) {
                 amp_power(true);
                 for (int i = 0; i < QUEUED_BEFORE_START; i++) {

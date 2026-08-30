@@ -300,21 +300,27 @@ Those pins are `i2s0_default` and the `pacman_amp` node in
 `pacman_adapter.overlay`, which is the only place to change them if your
 wiring differs.
 
-What it plays is one voice: the opening fanfare, waka-waka as pellets go (two
-chirps, alternating, which is where the sound comes from), a rising swoop for a
-caught ghost, the siren while the ghosts are blue, four falling swoops for a
-death, and a flourish for a cleared maze.  A tune has a priority, so dying
-interrupts munching and nothing interrupts dying.
+What it plays is a small polyphonic synth, because a DAC can do things a
+buzzer cannot: six voices, each an instrument with its own timbre and
+envelope, playing a score.  Switching on rolls a major ninth upwards on bells
+over a pad that swells underneath; a pellet is a marimba tap, two pitches
+alternating so a run of them has a lilt; a power pellet opens the chord up;
+the fright is two chords breathing in and out, quietly, for as long as it
+lasts; catching a ghost is a bright third; dying is a minor chord falling away
+under a slow melody; and clearing the maze is a cadence that lands.
 
-The two you hear constantly - the munch every few seconds, the siren for as
-long as a power pellet lasts - are the ones that would wear you down, so they
-are voiced differently from the rest.  A pulse wave carries every odd harmonic
-and cuts through a small speaker, which is what the fanfare and the death want;
-a triangle falls away as 1/n^2 and is much gentler.  The munch and the siren
-are triangles pitched low and mixed well down (45% and 35% of the volume), and
-everything that marks an event stays a pulse near full level.  Measured on the
-rendered .wav files that is 12 dB off the munch and 14 off the siren, and their
-brightness down from ~2.7 kHz to ~800 and ~500 Hz.
+An instrument is two oscillators and an envelope, and what separates a bell
+from a marimba is mostly how fast it dies away and how far out of tune its
+second partial is - 2.76 for the bell, an octave for the marimba, six cents
+for the pad, whose two oscillators drift in and out of phase and give it its
+warmth.  All integer: 16.16 phases, Q15 envelopes, one 256-entry sine table,
+about 5% of the CPU at six voices.
+
+A tune has a priority, so dying interrupts munching and nothing interrupts
+dying.  When a seventh note arrives the quietest voice gives way, not the
+oldest - what is least missed is whatever is contributing least, and stealing
+the oldest would take the pad holding a chord underneath everything and spare
+the bell that has already rung out.
 
 The synth is portable C in `widgets/game/pacman_sfx.c` and the tunes are
 written as notes in `tools/tunes.py`.  Nothing about it is Zephyr, so the same

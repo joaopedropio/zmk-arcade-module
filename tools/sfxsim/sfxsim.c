@@ -72,7 +72,8 @@ int main(int argc, char **argv) {
             pm_sfx_render(buf + total, block);
             total += block;
             /* a looping tune never ends: give it a couple of times round */
-            if (pm_sfx_playing() == PM_TUNE_NONE || (pm_sfx_loops((pm_tune_id)id) && total > rate)) {
+            bool looping = pm_sfx_loops((pm_tune_id)id);
+            if ((!looping && !pm_sfx_sounding()) || (looping && total > rate * 4)) {
                 break;
             }
         }
