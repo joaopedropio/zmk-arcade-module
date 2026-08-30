@@ -53,7 +53,24 @@
   button:disabled { opacity: .4; cursor: default; }
   button.primary { background: var(--wall); border-color: var(--wall); }
   button.primary:hover:not(:disabled) { background: #2f2ff0; color: #fff; border-color: #2f2ff0; }
-  main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+  main { padding: 24px; max-width: 1240px; margin: 0 auto; }
+  /*
+   * The panel stays put while the list moves.  The dashboard alone is forty
+   * settings, far more than a screenful, and a preview that scrolls away is a
+   * preview you cannot see the effect of your change in.
+   */
+  #work {
+    display: grid;
+    grid-template-columns: 340px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+  #work.solo { grid-template-columns: minmax(0, 1fr); }
+  #previewpanel {
+    position: sticky;
+    top: 16px;
+    margin-bottom: 0;
+  }
   #status {
     padding: 10px 14px;
     border-radius: 6px;
@@ -124,10 +141,10 @@
   }
   .tag.stored { color: var(--pac); border-color: var(--pac); }
   .tag.boot { color: var(--warn); border-color: var(--warn); }
-  .hidden { display: none; }
-  #preview { display: grid; grid-template-columns: auto 1fr; gap: 20px; padding: 16px; align-items: start; }
+  .hidden { display: none !important; }
+  #preview { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 16px; align-items: start; }
   #screen {
-    width: 300px; height: 300px;
+    width: 100%; height: auto; aspect-ratio: 1;
     image-rendering: pixelated;
     border: 1px solid var(--edge);
     border-radius: 6px;
@@ -137,14 +154,15 @@
   }
   #screen.idle { cursor: default; opacity: .35; }
   .previewside { min-width: 0; }
-  .previewside p { margin: 0 0 12px; color: var(--dim); }
+  .previewside p { margin: 12px 0 0; color: var(--dim); font-size: 12.5px; line-height: 1.45; }
   .picked {
-    border: 1px solid var(--edge); border-radius: 6px; padding: 12px; margin-bottom: 12px;
+    border: 1px solid var(--edge); border-radius: 6px; padding: 12px; margin-top: 12px;
   }
   .picked .name { color: var(--pac); }
   .choices { display: flex; flex-wrap: wrap; gap: 8px; }
   .choices button { padding: 5px 10px; font-size: 13px; }
-  .previewbar { display: flex; gap: 8px; margin-top: 10px; }
+  .previewbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .previewbar button { flex: 1 1 auto; }
   .screenpick.on { border-color: var(--pac); color: var(--pac); }
   nav {
     display: flex;
@@ -170,9 +188,9 @@
     from { background: #2a2a12; }
     to { background: transparent; }
   }
-  @media (max-width: 720px) {
-    #preview { grid-template-columns: 1fr; }
-    #screen { width: 100%; height: auto; aspect-ratio: 1; }
+  @media (max-width: 900px) {
+    #work { grid-template-columns: minmax(0, 1fr); }
+    #previewpanel { position: static; margin-bottom: 20px; }
   }
   footer { color: var(--dim); font-size: 13px; padding: 8px 0 40px; }
   footer a { color: var(--pellet); }
@@ -200,29 +218,29 @@
     and a browser with WebSerial (Chrome, Edge or Opera on desktop).
   </p>
 
-  <section id="previewpanel" class="hidden">
-    <h2>The screen</h2>
-    <div id="preview">
-      <canvas id="screen" width="240" height="240" class="idle"></canvas>
-      <div class="previewside">
-        <p>
-          This is the dongle's own renderer, compiled to WebAssembly — the same
-          code the firmware runs, so what you see is what the panel draws.
-          Click anything in it to jump to the colour that painted it. The
-          dashboard's slot contents are made up — a browser has no keyboard to
-          ask — but its layout and every colour are the real thing.
-        </p>
-        <div id="picked"></div>
-        <div class="previewbar" id="screens"></div>
-        <div class="previewbar" id="playbar">
-          <button id="play">Play</button>
-          <button id="rewind">Rewind</button>
+  <div id="work">
+    <section id="previewpanel" class="hidden">
+      <h2>The screen</h2>
+      <div id="preview">
+        <canvas id="screen" width="240" height="240" class="idle"></canvas>
+        <div class="previewside">
+          <div class="previewbar" id="screens"></div>
+          <div class="previewbar" id="playbar">
+            <button id="play">Play</button>
+            <button id="rewind">Rewind</button>
+          </div>
+          <div id="picked"></div>
+          <p>
+            The dongle's own renderer, compiled to WebAssembly — the same code
+            the firmware runs. Click anything in it to jump to the colour that
+            painted it.
+          </p>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <div id="panels"></div>
+    <div id="panels"></div>
+  </div>
 
   <footer>
     <span id="count"></span>
@@ -593,6 +611,7 @@ function guardPreview(what, fn) {
   } catch (err) {
     wasm = null;
     $("previewpanel").classList.add("hidden");
+    $("work").classList.add("solo");
     setPlaying(false);
     say("The preview is switched off - " + what + " failed (" + err.message +
         "). The settings below still work. A hard reload (shift-refresh) usually " +
@@ -691,7 +710,9 @@ function buildScreens() {
  */
 function showChrome() {
   const onScreen = navIndex === 0;
-  $("previewpanel").classList.toggle("hidden", !onScreen || !wasm);
+  const shown = onScreen && !!wasm;
+  $("previewpanel").classList.toggle("hidden", !shown);
+  $("work").classList.toggle("solo", !shown);
   $("playbar").classList.toggle("hidden", !(onScreen && screenIndex === 0));
 }
 
@@ -850,11 +871,13 @@ function setConnected(on) {
   $("connect").textContent = on ? "Disconnect" : "Connect";
   $("reload").disabled = !on;
   $("resetall").disabled = !on;
+  $("intro").classList.toggle("hidden", on);
   if (!on) {
     $("panels").textContent = "";
     $("count").textContent = "";
     $("picked").textContent = "";
     $("previewpanel").classList.add("hidden");
+    $("work").classList.add("solo");
     setPlaying(false);
   }
 }

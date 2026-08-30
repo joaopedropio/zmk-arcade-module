@@ -221,10 +221,12 @@ has no keyboard to ask for a layer name or a battery level, so those come from
 `tools/uisim/stub/uisim_state.h` — but its layout and every colour are real.
 
 A navbar splits the settings into Screen, Layout, Sound and Timing, so you
-configure one thing at a time. Screen is the panel itself: a second strip picks
-Game, Splash or Dashboard, the preview switches with it, and the colours listed
-below are that screen's. Play and rewind only appear on Game, because it is the
-only screen that moves.
+configure one thing at a time. Screen is the panel itself: it sits pinned down
+the left while the list scrolls beside it — the dashboard alone is forty
+settings, and a preview that scrolls away is one you cannot see your change in.
+A strip under it picks Game, Splash or Dashboard, and the colours listed are
+that screen's. Play and rewind only appear on Game, because it is the only
+screen that moves.
 
 Click anything and the page jumps to the colour that painted it, changing
 section and screen if that colour lives on another one. It narrows

@@ -73,6 +73,14 @@ vm.runInContext(`
 let failures = 0;
 const check = (ok, what) => { console.log(`${ok ? "ok  " : "FAIL"}  ${what}`); if (!ok) failures++; };
 
+/*
+ * The stub has no CSS, so it cannot see the one way hiding silently fails: a
+ * later rule of the same weight setting display on the same element.  That is
+ * what let the transport show on every screen once .previewbar was flexed.
+ */
+check(/\.hidden\s*\{[^}]*display:\s*none\s*!important/.test(html),
+      ".hidden outranks the display rules around it");
+
 try {
   await vm.runInContext("loadSchema()", ctx);
 } catch (err) {
@@ -139,10 +147,13 @@ try {
     const wantPlay = to[0] === 0 && to[1] === 0;
     if (playShown !== wantPlay) wrong.push(where + (wantPlay ? " hid" : " showed") + " the transport");
 
+    /* the two-column frame collapses when there is no panel beside the list */
+    const panelUp = !document.getElementById("previewpanel").classList.contains("hidden");
+    const solo = document.getElementById("work").classList.contains("solo");
+    if (panelUp === solo) wrong.push(where + " left the layout and the panel disagreeing");
+
     if (to[1] === null) {
-      if (!document.getElementById("previewpanel").classList.contains("hidden")) {
-        wrong.push(where + " left the panel up off the Screen section");
-      }
+      if (panelUp) wrong.push(where + " left the panel up off the Screen section");
       continue;
     }
     const got = frame();
