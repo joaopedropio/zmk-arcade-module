@@ -878,60 +878,160 @@ uint32_t darken_color(uint32_t rgb, float percentage) {
     return (r << 16) | (g << 8) | b;
 }
 
-void display_write_wrapper_270(uint16_t x, uint16_t y, struct display_buffer_descriptor *buf_desc, uint8_t *buf) {
-    struct display_buffer_descriptor rot = *buf_desc;
-
-    rot.width  = buf_desc->height;
-    rot.height = buf_desc->width;
-    rot.pitch  = rot.width;
-    rot.buf_size = rot.width * rot.height;
-
-    uint16_t new_x = y;
-    uint16_t new_y = SCREEN_HEIGHT - x - buf_desc->width;
-
-    display_write(display_dev, new_x, new_y, &rot, buf);
+/* the panel takes its pixels the other way round */
+static uint16_t swap_16_bit_color(uint16_t color) {
+    return (color >> 8) | (color << 8);
 }
 
-void display_write_wrapper_180(uint16_t x, uint16_t y, struct display_buffer_descriptor *buf_desc, uint8_t *buf) {
-    struct display_buffer_descriptor rot = *buf_desc;
+/* ------------------------------------------------------------------ */
+/* the panel can be mounted any way up                                 */
+/* ------------------------------------------------------------------ */
 
-    uint16_t new_x = SCREEN_WIDTH - x - buf_desc->width;
-    uint16_t new_y = SCREEN_HEIGHT - y - buf_desc->height;
+/*
+ * Everything in this file draws in screen coordinates and is turned on its way
+ * out.  A rectangle's position moves, and at 90 and 270 its width and height
+ * swap: that is all a rectangle of one colour needs.  A bitmap also has to have
+ * its pixels handed over in the panel's order rather than the screen's, which
+ * is what panel_offset() works out - the same walk of the source either way, so
+ * only where each pixel lands changes.
+ */
+typedef struct {
+    uint16_t x, y; /* where the rectangle starts on the panel */
+    uint16_t w, h; /* and how big it is there */
+    DisplayOrientation orientation;
+} PanelRect;
 
-    display_write(display_dev, new_x, new_y, &rot, buf);
+static PanelRect to_panel(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+    PanelRect r = {.x = x, .y = y, .w = w, .h = h, .orientation = get_display_orientation()};
+
+    switch (r.orientation) {
+    case DISPLAY_ORIENTATION_90:
+        r.x = SCREEN_WIDTH - y - h;
+        r.y = x;
+        r.w = h;
+        r.h = w;
+        break;
+    case DISPLAY_ORIENTATION_180:
+        r.x = SCREEN_WIDTH - x - w;
+        r.y = SCREEN_HEIGHT - y - h;
+        break;
+    case DISPLAY_ORIENTATION_270:
+        r.x = y;
+        r.y = SCREEN_HEIGHT - x - w;
+        r.w = h;
+        r.h = w;
+        break;
+    default:
+        break;
+    }
+    return r;
 }
 
-void display_write_wrapper_90(uint16_t x, uint16_t y, struct display_buffer_descriptor *buf_desc, uint8_t *buf) {
-    struct display_buffer_descriptor rot = *buf_desc;
-
-    rot.width  = buf_desc->height;
-    rot.height = buf_desc->width;
-    rot.pitch  = rot.width;
-    rot.buf_size = rot.width * rot.height;
-
-    uint16_t new_x = SCREEN_WIDTH - y - buf_desc->height;
-    uint16_t new_y = x;
-
-    display_write(display_dev, new_x, new_y, &rot, buf);
-}
-
-void display_write_wrapper_0(uint16_t x, uint16_t y, struct display_buffer_descriptor *buf_desc, uint8_t *buf) {
-    display_write(display_dev, x, y, buf_desc, buf);
-}
-
-void display_write_wrapper_game(uint16_t x, uint16_t y, struct display_buffer_descriptor *buf_desc, uint8_t *buf) {
-    display_write(display_dev, x, y, buf_desc, buf);
-}
-
-void display_write_wrapper(uint16_t x, uint16_t y, struct display_buffer_descriptor *buf_desc, uint8_t *buf) {
-    switch(get_display_orientation()) {
-        case DISPLAY_ORIENTATION_90: display_write_wrapper_90(x, y, buf_desc, buf); return;
-        case DISPLAY_ORIENTATION_180: display_write_wrapper_180(x, y, buf_desc, buf); return;
-        case DISPLAY_ORIENTATION_270: display_write_wrapper_270(x, y, buf_desc, buf); return;
-        default: display_write_wrapper_0(x, y, buf_desc, buf); return;
+/* where screen pixel (sx, sy) of that rectangle sits in the panel's buffer */
+static uint32_t panel_offset(const PanelRect *r, uint16_t sx, uint16_t sy) {
+    switch (r->orientation) {
+    case DISPLAY_ORIENTATION_90:
+        return ((uint32_t)sx * r->w) + (r->w - 1 - sy);
+    case DISPLAY_ORIENTATION_180:
+        return ((uint32_t)(r->h - 1 - sy) * r->w) + (r->w - 1 - sx);
+    case DISPLAY_ORIENTATION_270:
+        return ((uint32_t)(r->h - 1 - sx) * r->w) + sy;
+    default:
+        return ((uint32_t)sy * r->w) + sx;
     }
 }
 
+static void write_panel_rect(const PanelRect *r, uint8_t *buf) {
+    struct display_buffer_descriptor desc;
+
+    desc.buf_size = (uint32_t)r->w * r->h * 2u; /* bytes, which is what the driver checks */
+    desc.pitch = r->w;
+    desc.width = r->w;
+    desc.height = r->h;
+
+    display_write(display_dev, r->x, r->y, &desc, buf);
+}
+
+/*
+ * One bitmap, scaled up and drawn.  Either as a mask - colors[1] where the
+ * bitmap is 1 and colors[0] everywhere else - or with the bitmap's own values
+ * as indices into colors[], which is how the 10x13 font carries its outline,
+ * face and counters.
+ */
+static void render_scaled(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y,
+                          uint16_t width, uint16_t height, uint16_t scale, const uint16_t colors[],
+                          bool indexed) {
+    if (scaled_bitmap == NULL) {
+        return; /* the heap ran out at init: draw nothing rather than fault */
+    }
+
+    PanelRect r = to_panel(x, y, width * scale, height * scale);
+
+    for (uint16_t row = 0; row < height; row++) {
+        for (uint16_t col = 0; col < width; col++) {
+            uint16_t pixel = bitmap[(row * width) + col];
+            uint16_t color = indexed ? colors[pixel] : (pixel == 1 ? colors[1] : colors[0]);
+
+            color = swap_16_bit_color(color);
+            for (uint16_t i = 0; i < scale; i++) {
+                for (uint16_t j = 0; j < scale; j++) {
+                    scaled_bitmap[panel_offset(&r, (col * scale) + j, (row * scale) + i)] = color;
+                }
+            }
+        }
+    }
+
+    write_panel_rect(&r, (uint8_t *)scaled_bitmap);
+}
+
+void render_bitmap(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y,
+                   uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color,
+                   uint16_t bg_color) {
+    const uint16_t colors[2] = {bg_color, num_color};
+
+    render_scaled(scaled_bitmap, bitmap, x, y, width, height, scale, colors, false);
+}
+
+void render_bitmap_multicolor(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x,
+                              uint16_t y, uint16_t width, uint16_t height, uint16_t scale,
+                              const uint16_t colors[]) {
+    render_scaled(scaled_bitmap, bitmap, x, y, width, height, scale, colors, true);
+}
+
+/* a rectangle of one colour, painted from a buffer the caller owns */
+static void fill_rect(uint8_t *buf, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+                      uint16_t color) {
+    if (buf == NULL || w == 0 || h == 0) {
+        return;
+    }
+
+    PanelRect r = to_panel(x, y, w, h);
+    fill_buffer_color(buf, (size_t)r.w * r.h * 2u, color);
+    write_panel_rect(&r, buf);
+}
+
+/* the same, from a buffer that already holds the colour - clear_screen()
+ * fills one square and then walks it over the panel */
+void render_filled_rectangle(uint8_t *buf_area, uint8_t x, uint8_t y, uint8_t width,
+                             uint8_t height) {
+    if (buf_area == NULL) {
+        return;
+    }
+
+    PanelRect r = to_panel(x, y, width, height);
+    write_panel_rect(&r, buf_area);
+}
+
+void print_rectangle(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y,
+                     uint16_t end_y, uint16_t color, uint16_t scale) {
+    uint16_t across = end_x - start_x + scale;
+    uint16_t down = end_y - start_y + scale;
+
+    fill_rect(buf_frame, start_x, start_y, across, scale, color);
+    fill_rect(buf_frame, start_x, end_y, across, scale, color);
+    fill_rect(buf_frame, start_x, start_y, scale, down, color);
+    fill_rect(buf_frame, end_x, start_y, scale, down, color);
+}
 void init_display(void) {
 	display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 	if (!device_is_ready(display_dev)) {
@@ -998,349 +1098,6 @@ void fill_buffer_color(uint8_t *buf, size_t buf_size, uint32_t color) {
 		*(buf + idx + 0) = (color >> 8) & 0xFFu;
 		*(buf + idx + 1) = (color >> 0) & 0xFFu;
 	}
-}
-
-uint16_t swap_16_bit_color(uint16_t color) {
-    return (color >> 8) | (color << 8);
-}
-
-void render_bitmap_270(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
-    struct display_buffer_descriptor buf;
-
-    uint16_t src_w = width * scale;
-    uint16_t src_h = height * scale;
-
-    uint16_t dst_w = src_h;
-    uint16_t dst_h = src_w;
-
-    uint16_t dx0 = y;
-    uint16_t dy0 = 240 - x - src_w;
-
-    uint16_t color, pixel;
-
-    for (uint16_t line = 0; line < height; line++) {
-        for (uint16_t i = 0; i < scale; i++) {
-            for (uint16_t col = 0; col < width; col++) {
-                for (uint16_t j = 0; j < scale; j++) {
-
-                    uint16_t sx = col * scale + j;
-                    uint16_t sy = line * scale + i;
-
-                    uint16_t dx = sy;
-                    uint16_t dy = dst_h - 1 - sx;
-
-                    pixel = bitmap[line * width + col];
-                    color = (pixel == 1) ? num_color : bg_color;
-
-                    scaled_bitmap[dy * dst_w + dx] = swap_16_bit_color(color);
-                }
-            }
-        }
-    }
-
-    buf.buf_size = dst_w * dst_h;
-    buf.pitch    = dst_w;
-    buf.width    = dst_w;
-    buf.height   = dst_h;
-
-    display_write(display_dev, dx0, dy0, &buf, scaled_bitmap);
-}
-
-void render_bitmap_270_multicolor(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, const uint16_t colors[]) {
-    struct display_buffer_descriptor buf;
-
-    uint16_t src_w = width * scale;
-    uint16_t src_h = height * scale;
-
-    uint16_t dst_w = src_h;
-    uint16_t dst_h = src_w;
-
-    uint16_t dx0 = y;
-    uint16_t dy0 = 240 - x - src_w;
-
-    uint16_t color, pixel;
-
-    for (uint16_t line = 0; line < height; line++) {
-        for (uint16_t i = 0; i < scale; i++) {
-            for (uint16_t col = 0; col < width; col++) {
-                for (uint16_t j = 0; j < scale; j++) {
-
-                    uint16_t sx = col * scale + j;
-                    uint16_t sy = line * scale + i;
-
-                    uint16_t dx = sy;
-                    uint16_t dy = dst_h - 1 - sx;
-
-                    pixel = bitmap[line * width + col];
-                    color = colors[pixel];
-
-                    scaled_bitmap[dy * dst_w + dx] = swap_16_bit_color(color);
-                }
-            }
-        }
-    }
-
-    buf.buf_size = dst_w * dst_h;
-    buf.pitch    = dst_w;
-    buf.width    = dst_w;
-    buf.height   = dst_h;
-
-    display_write(display_dev, dx0, dy0, &buf, scaled_bitmap);
-}
-
-void render_bitmap_180(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
-    struct display_buffer_descriptor buf_font_desc;
-
-    uint16_t screen_width  = 240;
-    uint16_t screen_height = 240;
-
-    uint16_t color;
-    uint16_t pixel;
-
-    uint16_t font_width_scaled  = width * scale;
-    uint16_t font_height_scaled = height * scale;
-    uint16_t font_buf_size_scaled = font_width_scaled * font_height_scaled;
-
-    uint16_t index = 0;
-
-    for (uint16_t line = 0; line < height; line++) {
-        for (uint16_t i = 0; i < scale; i++) {
-            for (uint16_t column = 0; column < width; column++) {
-                for (uint16_t j = 0; j < scale; j++) {
-
-                    pixel = bitmap[
-                        (height - 1 - line) * width +
-                        (width  - 1 - column)
-                    ];
-
-                    if (pixel == 1) {
-                        color = num_color;
-                    } else {
-                        color = bg_color;
-                    }
-
-                    *(scaled_bitmap + index) = swap_16_bit_color(color);
-                    index++;
-                }
-            }
-        }
-    }
-
-    buf_font_desc.buf_size = font_buf_size_scaled;
-    buf_font_desc.pitch    = font_width_scaled;
-    buf_font_desc.width    = font_width_scaled;
-    buf_font_desc.height   = font_height_scaled;
-
-    display_write(display_dev, screen_width  - x - font_width_scaled, screen_height - y - font_height_scaled, &buf_font_desc, scaled_bitmap);
-}
-
-void render_bitmap_180_multicolor(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, const uint16_t colors[]) {
-    struct display_buffer_descriptor buf_font_desc;
-
-    uint16_t screen_width  = 240;
-    uint16_t screen_height = 240;
-
-    uint16_t color;
-    uint16_t pixel;
-
-    uint16_t font_width_scaled  = width * scale;
-    uint16_t font_height_scaled = height * scale;
-    uint16_t font_buf_size_scaled = font_width_scaled * font_height_scaled;
-
-    uint16_t index = 0;
-
-    for (uint16_t line = 0; line < height; line++) {
-        for (uint16_t i = 0; i < scale; i++) {
-            for (uint16_t column = 0; column < width; column++) {
-                for (uint16_t j = 0; j < scale; j++) {
-
-                    pixel = bitmap[
-                        (height - 1 - line) * width +
-                        (width  - 1 - column)
-                    ];
-
-                    color = colors[pixel];
-
-                    *(scaled_bitmap + index) = swap_16_bit_color(color);
-                    index++;
-                }
-            }
-        }
-    }
-
-    buf_font_desc.buf_size = font_buf_size_scaled;
-    buf_font_desc.pitch    = font_width_scaled;
-    buf_font_desc.width    = font_width_scaled;
-    buf_font_desc.height   = font_height_scaled;
-
-    display_write(display_dev, screen_width  - x - font_width_scaled, screen_height - y - font_height_scaled, &buf_font_desc, scaled_bitmap);
-}
-
-void render_bitmap_90(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
-    struct display_buffer_descriptor buf;
-
-    uint16_t src_w = width * scale;
-    uint16_t src_h = height * scale;
-
-    uint16_t dst_w = src_h;
-    uint16_t dst_h = src_w;
-
-    uint16_t dx0 = 240 - y - src_h;
-    uint16_t dy0 = x;
-
-    uint16_t color, pixel;
-
-    for (uint16_t line = 0; line < height; line++) {
-        for (uint16_t i = 0; i < scale; i++) {
-            for (uint16_t col = 0; col < width; col++) {
-                for (uint16_t j = 0; j < scale; j++) {
-
-                    uint16_t sx = col * scale + j;
-                    uint16_t sy = line * scale + i;
-
-                    uint16_t dx = dst_w - 1 - sy;
-                    uint16_t dy = sx;
-
-                    pixel = bitmap[line * width + col];
-                    color = (pixel == 1) ? num_color : bg_color;
-
-                    scaled_bitmap[dy * dst_w + dx] = swap_16_bit_color(color);
-                }
-            }
-        }
-    }
-
-    buf.buf_size = dst_w * dst_h;
-    buf.pitch    = dst_w;
-    buf.width    = dst_w;
-    buf.height   = dst_h;
-
-    display_write(display_dev, dx0, dy0, &buf, scaled_bitmap);
-}
-
-void render_bitmap_90_multicolor(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, const uint16_t colors[]) {
-    struct display_buffer_descriptor buf;
-
-    uint16_t src_w = width * scale;
-    uint16_t src_h = height * scale;
-
-    uint16_t dst_w = src_h;
-    uint16_t dst_h = src_w;
-
-    uint16_t dx0 = 240 - y - src_h;
-    uint16_t dy0 = x;
-
-    uint16_t color, pixel;
-
-    for (uint16_t line = 0; line < height; line++) {
-        for (uint16_t i = 0; i < scale; i++) {
-            for (uint16_t col = 0; col < width; col++) {
-                for (uint16_t j = 0; j < scale; j++) {
-
-                    uint16_t sx = col * scale + j;
-                    uint16_t sy = line * scale + i;
-
-                    uint16_t dx = dst_w - 1 - sy;
-                    uint16_t dy = sx;
-
-                    pixel = bitmap[line * width + col];
-                    color = colors[pixel];
-
-                    scaled_bitmap[dy * dst_w + dx] = swap_16_bit_color(color);
-                }
-            }
-        }
-    }
-
-    buf.buf_size = dst_w * dst_h;
-    buf.pitch    = dst_w;
-    buf.width    = dst_w;
-    buf.height   = dst_h;
-
-    display_write(display_dev, dx0, dy0, &buf, scaled_bitmap);
-}
-
-void render_bitmap_0(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
-	struct display_buffer_descriptor buf_font_desc;
-
-    uint16_t color;
-    uint16_t pixel;
-    uint16_t font_width_scaled = width * scale;
-    uint16_t font_height_scaled = height * scale;
-    uint16_t font_buf_size_scaled = font_width_scaled * font_height_scaled;
-    uint16_t index = 0;
-    for (uint16_t line = 0; line < height; line++) {
-        for (uint16_t i = 0; i < scale; i++) {
-            for (uint16_t column = 0; column < width; column++) {
-                for (uint16_t j = 0; j < scale; j++) {
-                    pixel = bitmap[(line*width) + column];
-                    if (pixel == 1) {
-                        color = num_color;
-                    } else {
-                        color = bg_color;
-                    }
-                    *(scaled_bitmap + index) = swap_16_bit_color(color);
-                    index++;
-                }
-            }
-        }
-    }
-	buf_font_desc.buf_size = font_buf_size_scaled;
-	buf_font_desc.pitch = font_width_scaled;
-	buf_font_desc.width = font_width_scaled;
-	buf_font_desc.height = font_height_scaled;
-    display_write(display_dev, x, y, &buf_font_desc, scaled_bitmap);
-}
-
-void render_bitmap_0_multicolor(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, const uint16_t colors[]) {
-	struct display_buffer_descriptor buf_font_desc;
-
-    uint16_t color;
-    uint16_t pixel;
-    uint16_t font_width_scaled = width * scale;
-    uint16_t font_height_scaled = height * scale;
-    uint16_t font_buf_size_scaled = font_width_scaled * font_height_scaled;
-    uint16_t index = 0;
-    for (uint16_t line = 0; line < height; line++) {
-        for (uint16_t i = 0; i < scale; i++) {
-            for (uint16_t column = 0; column < width; column++) {
-                for (uint16_t j = 0; j < scale; j++) {
-                    pixel = bitmap[(line*width) + column];
-                    color = colors[pixel];
-                    *(scaled_bitmap + index) = swap_16_bit_color(color);
-                    index++;
-                }
-            }
-        }
-    }
-	buf_font_desc.buf_size = font_buf_size_scaled;
-	buf_font_desc.pitch = font_width_scaled;
-	buf_font_desc.width = font_width_scaled;
-	buf_font_desc.height = font_height_scaled;
-    display_write(display_dev, x, y, &buf_font_desc, scaled_bitmap);
-}
-
-void render_bitmap(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color) {
-    if (scaled_bitmap == NULL) {
-        return; /* the heap ran out at init: draw nothing rather than fault */
-    }
-    switch(get_display_orientation()) {
-        case DISPLAY_ORIENTATION_90: return render_bitmap_90(scaled_bitmap, bitmap, x, y, width, height, scale, num_color, bg_color);
-        case DISPLAY_ORIENTATION_180: return render_bitmap_180(scaled_bitmap, bitmap, x, y, width, height, scale, num_color, bg_color);
-        case DISPLAY_ORIENTATION_270: return render_bitmap_270(scaled_bitmap, bitmap, x, y, width, height, scale, num_color, bg_color);
-        default: return render_bitmap_0(scaled_bitmap, bitmap, x, y, width, height, scale, num_color, bg_color);
-    }
-}
-void render_bitmap_multicolor(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, const uint16_t colors[]) {
-    if (scaled_bitmap == NULL) {
-        return;
-    }
-    switch(get_display_orientation()) {
-        case DISPLAY_ORIENTATION_90: return render_bitmap_90_multicolor(scaled_bitmap, bitmap, x, y, width, height, scale, colors);
-        case DISPLAY_ORIENTATION_180: return render_bitmap_180_multicolor(scaled_bitmap, bitmap, x, y, width, height, scale, colors);
-        case DISPLAY_ORIENTATION_270: return render_bitmap_270_multicolor(scaled_bitmap, bitmap, x, y, width, height, scale, colors);
-        default: return render_bitmap_0_multicolor(scaled_bitmap, bitmap, x, y, width, height, scale, colors);
-    }
 }
 
 void print_bitmap_5x8(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, uint16_t scale, uint16_t color, uint16_t bg_color) {
@@ -1494,225 +1251,6 @@ void print_bitmap_multicolor(uint16_t *scaled_bitmap, Character c, uint16_t x, u
         case FONT_SIZE_10x13: print_bitmap_multicolor_10x13(scaled_bitmap, c, x, y, scale, colors); break;
         default: break; /* the one-colour fonts go through print_bitmap() */
     }
-}
-
-void print_line_horizontal_270(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t scale, uint16_t color) {
-    struct display_buffer_descriptor line_desc;
-
-    uint16_t horizontal_line_len = end_x - start_x + scale;
-
-    /* Vertical line after rotation */
-    line_desc.buf_size = horizontal_line_len * scale;
-    line_desc.pitch    = scale;
-    line_desc.width    = scale;
-    line_desc.height   = horizontal_line_len;
-
-    fill_buffer_color(buf_frame, line_desc.buf_size * 2u, color);
-
-    uint16_t x_rot_start = start_y;
-    uint16_t x_rot_end   = end_y;
-    uint16_t y_rot       = SCREEN_WIDTH - start_x - horizontal_line_len;
-
-    display_write(display_dev, x_rot_start, y_rot, &line_desc, buf_frame);
-    display_write(display_dev, x_rot_end,   y_rot, &line_desc, buf_frame);
-}
-
-void print_line_horizontal_180(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t scale, uint16_t color) {
-    struct display_buffer_descriptor horizontal_line_desc;
-
-    uint16_t horizontal_line_len = end_x - start_x + scale;
-
-    horizontal_line_desc.buf_size = horizontal_line_len * scale;
-    horizontal_line_desc.pitch    = horizontal_line_len;
-    horizontal_line_desc.width    = horizontal_line_len;
-    horizontal_line_desc.height   = scale;
-
-    fill_buffer_color(buf_frame, horizontal_line_desc.buf_size * 2u, color);
-
-    uint16_t x_rot = SCREEN_WIDTH  - start_x - horizontal_line_len;
-    uint16_t y_rot_start = SCREEN_HEIGHT - start_y - scale;
-    uint16_t y_rot_end   = SCREEN_HEIGHT - end_y   - scale;
-
-    display_write(display_dev, x_rot, y_rot_start, &horizontal_line_desc, buf_frame);
-    display_write(display_dev, x_rot, y_rot_end,   &horizontal_line_desc, buf_frame);
-}
-
-void print_line_horizontal_90(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t scale, uint16_t color) {
-    struct display_buffer_descriptor line_desc;
-
-    uint16_t horizontal_line_len = end_x - start_x + scale;
-
-    /* Vertical line after rotation */
-    line_desc.buf_size = horizontal_line_len * scale;
-    line_desc.pitch    = scale;
-    line_desc.width    = scale;
-    line_desc.height   = horizontal_line_len;
-
-    fill_buffer_color(buf_frame, line_desc.buf_size * 2u, color);
-
-    uint16_t x_rot_start = SCREEN_HEIGHT - start_y - scale;
-    uint16_t x_rot_end   = SCREEN_HEIGHT - end_y   - scale;
-    uint16_t y_rot       = start_x;
-
-    display_write(display_dev, x_rot_start, y_rot, &line_desc, buf_frame);
-    display_write(display_dev, x_rot_end,   y_rot, &line_desc, buf_frame);
-}
-
-void print_line_horizontal_0(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t scale, uint16_t color) {
-    struct display_buffer_descriptor horizontal_line_desc;
-
-    uint16_t horizontal_line_len = end_x - start_x + scale;
-
-    horizontal_line_desc.buf_size = horizontal_line_len * scale;
-	horizontal_line_desc.pitch = horizontal_line_len;
-	horizontal_line_desc.width = horizontal_line_len;
-	horizontal_line_desc.height = scale;
-
-    fill_buffer_color(buf_frame, horizontal_line_desc.buf_size * 2u, color);
-    display_write(display_dev, start_x, start_y, &horizontal_line_desc, buf_frame);
-    display_write(display_dev, start_x, end_y, &horizontal_line_desc, buf_frame);
-}
-
-void print_line_horizontal(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t scale, uint16_t color) {
-    DisplayOrientation orientation = get_display_orientation();
-    switch(orientation) {
-        case DISPLAY_ORIENTATION_90: print_line_horizontal_90(buf_frame, start_x, end_x, start_y, end_y, scale, color); return;
-        case DISPLAY_ORIENTATION_180: print_line_horizontal_180(buf_frame, start_x, end_x, start_y, end_y, scale, color); return;
-        case DISPLAY_ORIENTATION_270: print_line_horizontal_270(buf_frame, start_x, end_x, start_y, end_y, scale, color); return;
-        default: print_line_horizontal_0(buf_frame, start_x, end_x, start_y, end_y, scale, color); return;
-    }
-}
-
-void print_line_vertical_270(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t scale, uint16_t color) {
-    struct display_buffer_descriptor line_desc;
-
-    uint16_t vertical_line_len = end_y - start_y + scale;
-
-    /* Horizontal line after rotation */
-    line_desc.width    = vertical_line_len;
-    line_desc.height   = scale;
-    line_desc.pitch    = vertical_line_len;
-    line_desc.buf_size = vertical_line_len * scale;
-
-    fill_buffer_color(buf_frame, line_desc.buf_size * 2u, color);
-
-    uint16_t x_rot = start_y;
-    uint16_t y_rot_start = SCREEN_WIDTH - start_x - scale;
-    uint16_t y_rot_end   = SCREEN_WIDTH - end_x   - scale;
-
-    display_write(display_dev, x_rot, y_rot_start, &line_desc, buf_frame);
-    display_write(display_dev, x_rot, y_rot_end,   &line_desc, buf_frame);
-}
-
-void print_line_vertical_180(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t scale, uint16_t color) {
-    struct display_buffer_descriptor vertical_line_desc;
-
-    uint16_t vertical_line_len = end_y - start_y + scale;
-
-    vertical_line_desc.buf_size = vertical_line_len * scale;
-    vertical_line_desc.pitch    = scale;
-    vertical_line_desc.width    = scale;
-    vertical_line_desc.height   = vertical_line_len;
-
-    fill_buffer_color(buf_frame, vertical_line_desc.buf_size * 2u, color);
-
-    uint16_t x_rot_start = SCREEN_WIDTH  - start_x - scale;
-    uint16_t x_rot_end   = SCREEN_WIDTH  - end_x   - scale;
-    uint16_t y_rot       = SCREEN_HEIGHT - start_y - vertical_line_len;
-
-    display_write(display_dev, x_rot_start, y_rot, &vertical_line_desc, buf_frame);
-    display_write(display_dev, x_rot_end,   y_rot, &vertical_line_desc, buf_frame);
-}
-
-void print_line_vertical_90(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t scale, uint16_t color) {
-    struct display_buffer_descriptor line_desc;
-
-    uint16_t vertical_line_len = end_y - start_y + scale;
-
-    /* Horizontal line after rotation */
-    line_desc.width    = vertical_line_len;
-    line_desc.height   = scale;
-    line_desc.pitch    = vertical_line_len;
-    line_desc.buf_size = vertical_line_len * scale;
-
-    fill_buffer_color(buf_frame, line_desc.buf_size * 2u, color);
-
-    uint16_t x_rot = SCREEN_HEIGHT - start_y - vertical_line_len;
-    uint16_t y_rot_start = start_x;
-    uint16_t y_rot_end   = end_x;
-
-    display_write(display_dev, x_rot, y_rot_start, &line_desc, buf_frame);
-    display_write(display_dev, x_rot, y_rot_end,   &line_desc, buf_frame);
-}
-
-
-void print_line_vertical_0(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t scale, uint16_t color) {
-    struct display_buffer_descriptor vertical_line_desc;
-
-    uint16_t vertical_line_len = end_y - start_y + scale;
-
-    vertical_line_desc.buf_size = vertical_line_len * scale;
-	vertical_line_desc.pitch = scale;
-	vertical_line_desc.width = scale;
-	vertical_line_desc.height = vertical_line_len;
-
-    fill_buffer_color(buf_frame, vertical_line_desc.buf_size * 2u, color);
-    display_write(display_dev, start_x, start_y, &vertical_line_desc, buf_frame);
-    display_write(display_dev, end_x, start_y, &vertical_line_desc, buf_frame);
-}
-
-void print_line_vertical(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t scale, uint16_t color) {
-    DisplayOrientation orientation = get_display_orientation();
-    switch (orientation) {
-        case DISPLAY_ORIENTATION_90: print_line_vertical_90(buf_frame, start_x, end_x, start_y, end_y, scale, color); return;
-        case DISPLAY_ORIENTATION_180: print_line_vertical_180(buf_frame, start_x, end_x, start_y, end_y, scale, color); return;
-        case DISPLAY_ORIENTATION_270: print_line_vertical_270(buf_frame, start_x, end_x, start_y, end_y, scale, color); return;
-        default: print_line_vertical_0(buf_frame, start_x, end_x, start_y, end_y, scale, color); return;
-    }
-}
-
-void print_rectangle_270(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t color, uint16_t scale) {
-    print_line_horizontal_270(buf_frame, start_x, end_x, start_y, end_y, scale, color);
-    print_line_vertical_270(buf_frame, start_x, end_x, start_y, end_y, scale, color);
-}
-
-void print_rectangle_180(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t color, uint16_t scale) {
-    print_line_horizontal_180(buf_frame, start_x, end_x, start_y, end_y, scale, color);
-    print_line_vertical_180(buf_frame, start_x, end_x, start_y, end_y, scale, color);
-}
-
-void print_rectangle_90(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t color, uint16_t scale) {
-    print_line_horizontal_90(buf_frame, start_x, end_x, start_y, end_y, scale, color);
-    print_line_vertical_90(buf_frame, start_x, end_x, start_y, end_y, scale, color);
-}
-
-void print_rectangle_0(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t color, uint16_t scale) {
-    print_line_horizontal_0(buf_frame, start_x, end_x, start_y, end_y, scale, color);
-    print_line_vertical_0(buf_frame, start_x, end_x, start_y, end_y, scale, color);
-}
-
-void print_rectangle(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t color, uint16_t scale) {
-    if (buf_frame == NULL) {
-        return;
-    }
-    DisplayOrientation orientation = get_display_orientation();
-    switch(orientation) {
-        case DISPLAY_ORIENTATION_90: print_rectangle_90(buf_frame, start_x, end_x, start_y, end_y, color, scale); return;
-        case DISPLAY_ORIENTATION_180: print_rectangle_180(buf_frame, start_x, end_x, start_y, end_y, color, scale); return;
-        case DISPLAY_ORIENTATION_270: print_rectangle_270(buf_frame, start_x, end_x, start_y, end_y, color, scale); return;
-        default: print_rectangle_0(buf_frame, start_x, end_x, start_y, end_y, color, scale); return;
-    }
-}
-
-void render_filled_rectangle(uint8_t *buf_area, uint8_t x, uint8_t y, uint8_t width, uint8_t height) {
-    if (buf_area == NULL) {
-        return;
-    }
-    struct display_buffer_descriptor buf_desc_area;
-    buf_desc_area.pitch = width;
-	buf_desc_area.width = width;
-	buf_desc_area.height = height;
-	display_write_wrapper_game(x, y, &buf_desc_area, buf_area);
 }
 
 void clear_screen(uint16_t color) {

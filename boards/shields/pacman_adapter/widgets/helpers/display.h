@@ -130,8 +130,6 @@ Character int_to_num_char(uint8_t i);
 void print_container(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t scale);
 void fill_buffer_color(uint8_t *buf, size_t buf_size, uint32_t color);
 void init_display(void);
-void display_write_wrapper_game(uint16_t x, uint16_t y, struct display_buffer_descriptor *buf_desc, uint8_t *buf);
-void display_write_wrapper(uint16_t x, uint16_t y, struct display_buffer_descriptor *buf_desc, uint8_t *buf);
 void render_bitmap(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, uint16_t num_color, uint16_t bg_color);
 void render_bitmap_multicolor(uint16_t *scaled_bitmap, const uint16_t bitmap[], uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t scale, const uint16_t colors[]);
 void print_bitmap(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, uint16_t scale, uint16_t color, uint16_t bg_color, FontSize font_size);

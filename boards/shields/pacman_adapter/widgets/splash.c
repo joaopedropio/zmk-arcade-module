@@ -119,6 +119,10 @@ void print_splash(void) {
     initialized_splash = true;
 }
 
+/* the splash is drawn once and then left alone; tools/uisim draws it again to
+ * check that every rotation comes out as the same picture turned */
+void reset_splash(void) { initialized_splash = false; }
+
 void zmk_widget_splash_init(void) {
     buf_glyph = k_malloc(SCALED_BITMAP_BYTES(WORDMARK_FONT_W, WORDMARK_FONT_H, wordmark_scale));
     buf_sprite = k_malloc(SCALED_BITMAP_BYTES(splash_pac_width, 1, 1));

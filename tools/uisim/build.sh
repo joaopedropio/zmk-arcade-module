@@ -9,7 +9,7 @@ set -e
 
 out=${1:-/tmp/uisim}
 root=$(cd "$(dirname "$0")/../.." && pwd)
-defs=$(mktemp /tmp/uiconfig.XXXXXX.h)
+defs=$(mktemp)   # the -include file needs no particular name
 
 python3 - "${KCONFIG:-$root/Kconfig}" > "$defs" <<'PY'
 import re, sys
