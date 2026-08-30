@@ -133,8 +133,17 @@ void zmk_widget_splash_init(void) {
     }
 }
 
+/*
+ * The dongle calls this once, when the splash hands the panel over.  The
+ * pointers are cleared anyway: k_free() of the same address twice corrupts the
+ * heap, and a caller that runs the splash more than once - the configurator
+ * page does - should get a null pointer rather than a wrecked allocator.
+ */
 void clean_up_splash(void) {
     k_free(buf_glyph);
     k_free(buf_sprite);
     k_free(buf_pellet);
+    buf_glyph = NULL;
+    buf_sprite = NULL;
+    buf_pellet = NULL;
 }

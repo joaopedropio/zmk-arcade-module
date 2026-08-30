@@ -265,7 +265,11 @@ EMSCRIPTEN_KEEPALIVE void preview_render(void) {
         print_splash();
         return;
     }
-    clean_up_splash();
+    /*
+     * The splash keeps its buffers here.  On the dongle they are freed the
+     * moment it hands over, because the heap is tight and it never comes
+     * back; on a page it comes back every time the screen is switched.
+     */
     print_menu();
 
     /*

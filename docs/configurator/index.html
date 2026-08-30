@@ -192,11 +192,7 @@
           ask — but its layout and every colour are the real thing.
         </p>
         <div id="picked"></div>
-        <div class="previewbar">
-          <button id="screen-0" class="screenpick on">Game</button>
-          <button id="screen-1" class="screenpick">Splash</button>
-          <button id="screen-2" class="screenpick">Dashboard</button>
-        </div>
+        <div class="previewbar" id="tabs"></div>
         <div class="previewbar">
           <button id="play">Play</button>
           <button id="rewind">Rewind</button>
@@ -216,7 +212,7 @@
   </footer>
 </main>
 
-<script src="preview.js?v=ea343456e7ee"></script>
+<script src="preview.js?v=85c90eb583e3"></script>
 <script>
 "use strict";
 
@@ -227,6 +223,26 @@
  */
 
 const PROMPT_FALLBACK = "uart:~$";
+/*
+ * One tab at a time, and the three that are a screen also drive the preview.
+ * Every setting belongs to exactly one: the matchers are exact enough that
+ * their order does not matter, and Dashboard takes whatever the others leave,
+ * so a setting added to the firmware turns up somewhere rather than nowhere.
+ */
+const TABS = [
+  { name: "Game",      screen: 0,    match: (n) => /^game-/.test(n) },
+  { name: "Splash",    screen: 1,    match: (n) => /^splash-(multi|logo|created-by|bg)/.test(n) },
+  { name: "Dashboard", screen: 2,    match: null },
+  { name: "Layout",    screen: 2,    match: (n) => /^(screen|slot-mode|slot[1-6]|battery-slots|rotate)$/.test(n) },
+  { name: "Sound",     screen: null, match: (n) => /^(mute|volume|bass-floor|sample-rate|mute-threshold)$/.test(n) },
+  { name: "Timing",    screen: null, match: (n) => /^(frame-interval|splash-frames|splash-interval|logo-interval|wpm-slow|wpm-fast|theme-threshold)$/.test(n) },
+];
+
+function tabOf(name) {
+  for (const tab of TABS) if (tab.match && tab.match(name)) return tab;
+  return TABS.find((tab) => !tab.match);
+}
+
 const GROUPS = [
   ["The maze",        /^game-/],
   ["Layout",          /^(screen$|slot|battery-slots$|rotate$)/],
@@ -249,7 +265,7 @@ const FRAME_MS = 66; /* about 15 fps, which is the speed the dongle plays it */
 
 let port = null, writer = null, incoming = "", prompt = PROMPT_FALLBACK;
 let settings = [];
-let wasm = null, playing = null, screenIndex = 0;
+let wasm = null, playing = null, screenIndex = 0, tabIndex = 0;
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -336,9 +352,10 @@ async function loadSchema() {
   if (!rows.length) throw new Error("`pacman schema` said nothing - is this the right firmware?");
   settings = rows;
   render();
+  buildTabs();
   guardPreview("drawing the screen", () => {
     $("previewpanel").classList.remove("hidden");
-    setScreen(screenIndex);
+    setScreen(TABS[tabIndex].screen ?? screenIndex);
     pushAll();
   });
   say("Connected. " + rows.length + " settings.", "good");
@@ -463,11 +480,14 @@ function controlFor(setting) {
 function render() {
   const panels = $("panels");
   panels.textContent = "";
-  $("count").textContent = settings.length + " settings. ";
+
+  const tab = TABS[tabIndex];
+  const mine = settings.filter((setting) => tabOf(setting.name) === tab);
+  $("count").textContent = mine.length + " of " + settings.length + " settings. ";
 
   const order = GROUPS.map(([title]) => title).concat("Other");
   const byGroup = new Map();
-  for (const setting of settings) {
+  for (const setting of mine) {
     const group = groupOf(setting.name);
     if (!byGroup.has(group)) byGroup.set(group, []);
     byGroup.get(group).push(setting);
@@ -597,8 +617,32 @@ function renderScreen() {
 function setScreen(index) {
   screenIndex = index;
   wasm._preview_set_screen(index);
-  for (let i = 0; i < 3; i++) $("screen-" + i).classList.toggle("on", i === index);
   if (index === 0) rewind(); else renderScreen();
+}
+
+function buildTabs() {
+  const strip = $("tabs");
+  strip.textContent = "";
+  TABS.forEach((tab, i) => {
+    const button = document.createElement("button");
+    button.className = "screenpick" + (i === tabIndex ? " on" : "");
+    button.textContent = tab.name;
+    button.addEventListener("click", () => setTab(i));
+    strip.append(button);
+  });
+}
+
+/*
+ * Switching tab switches the screen too where the tab is one, so what is on
+ * the panel is always the thing whose colours are listed underneath it.
+ */
+function setTab(index) {
+  tabIndex = index;
+  setPlaying(false);
+  buildTabs();
+  render();
+  const screen = TABS[index].screen;
+  if (screen !== null) guardPreview("switching screen", () => setScreen(screen));
 }
 
 function rewind() {
@@ -623,6 +667,14 @@ function setPlaying(on) {
 /* scroll the setting into view, flash its row and put its swatch under the canvas */
 function pickSetting(name) {
   const setting = settings.find((s) => s.name === name);
+
+  /* the row is only in the DOM if its tab is showing, so go there first */
+  const wanted = TABS.indexOf(tabOf(name));
+  if (wanted !== -1 && wanted !== tabIndex) {
+    tabIndex = wanted;
+    buildTabs();
+    render();
+  }
   const row = [...document.querySelectorAll(".row")]
     .find((r) => r.querySelector("label").firstChild.textContent === name);
 
@@ -792,9 +844,7 @@ async function disconnect() {
 $("screen").addEventListener("click", onScreenClick);
 $("play").addEventListener("click", () => setPlaying(!playing));
 $("rewind").addEventListener("click", () => { setPlaying(false); rewind(); });
-for (let i = 0; i < 3; i++) {
-  $("screen-" + i).addEventListener("click", () => { setPlaying(false); setScreen(i); });
-}
+
 
 /*
  * The renderer is local, so it loads whether or not a dongle is plugged in -
