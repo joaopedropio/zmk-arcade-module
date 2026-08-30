@@ -278,19 +278,21 @@ ghosts long enough to matter.
 
 ## Sound
 
-The dongle had a piezo buzzer on P0.29 that this module never used.  It is
-gone, and a MAX98357A takes its place: an I2S amplifier with no registers to
-set up, so three pins carry the sound and a fourth shuts it up.
+The dongle had a piezo buzzer on P0.29 that this module never used.  Nothing
+drives it any more - the node, the chosen and the PWM behind it are gone, so
+it can stay soldered where it is and stay quiet - and a MAX98357A does the
+sound instead: an I2S amplifier with no registers to set up, so three pins
+carry the sound and a fourth shuts it up.
 
 They run down the left header in the order the breakout's own pads do, so the
 module solders on as one straight run:
 
 | MAX98357A | nRF52840 | |
 |---|---|---|
-| LRC | P0.29 | word select — the pad the buzzer used to sit on |
-| BCLK | P0.02 | bit clock |
-| DIN | P1.15 | the samples |
-| SD | P1.13 | held high while something is playing, low the rest of the time |
+| LRC | P0.02 | word select |
+| BCLK | P1.15 | bit clock |
+| DIN | P1.13 | the samples |
+| SD | P1.11 | held high while something is playing, low the rest of the time |
 | GAIN | — | leave it floating for 9 dB, or tie it as the datasheet says |
 | GND, Vin | GND, VCC | 3.3 V works; 5 V is louder if the board has it |
 

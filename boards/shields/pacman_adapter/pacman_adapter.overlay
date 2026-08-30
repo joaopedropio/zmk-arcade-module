@@ -22,16 +22,19 @@
      * do, so the module solders on as one straight run and there is nothing to
      * remember while doing it:
      *
-     *     LRC  -> P0.29   (where the buzzer used to sit)
-     *     BCLK -> P0.02
-     *     DIN  -> P1.15
-     *     SD   -> P1.13   (GAIN is left floating, which is 9 dB)
+     *     LRC  -> P0.02
+     *     BCLK -> P1.15
+     *     DIN  -> P1.13
+     *     SD   -> P1.11   (GAIN is left floating, which is 9 dB)
+     *
+     * P0.29 is skipped: the old buzzer is still soldered to it.  Nothing here
+     * drives that pin any more, so the buzzer stays quiet.
      */
     pacman_amp: pacman_amp {
         compatible = "pacman,max98357a";
         status = "okay";
         i2s = <&i2s0>;
-        sd-gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;  /* SD -> P1.13 */
+        sd-gpios = <&gpio1 11 GPIO_ACTIVE_HIGH>;  /* SD -> P1.11 */
     };
 
     dongle_action_direct_kscan: dongle_action_direct_kscan {
@@ -79,16 +82,16 @@
 
     i2s0_default: i2s0_default {
         group1 {
-            psels = <NRF_PSEL(I2S_LRCK_M, 0, 29)>, /* LRC  -> P0.29 */
-                    <NRF_PSEL(I2S_SCK_M, 0, 2)>,   /* BCLK -> P0.02 */
-                    <NRF_PSEL(I2S_SDOUT, 1, 15)>;  /* DIN  -> P1.15 */
+            psels = <NRF_PSEL(I2S_LRCK_M, 0, 2)>,  /* LRC  -> P0.02 */
+                    <NRF_PSEL(I2S_SCK_M, 1, 15)>,  /* BCLK -> P1.15 */
+                    <NRF_PSEL(I2S_SDOUT, 1, 13)>;  /* DIN  -> P1.13 */
         };
     };
     i2s0_sleep: i2s0_sleep {
         group1 {
-            psels = <NRF_PSEL(I2S_LRCK_M, 0, 29)>,
-                    <NRF_PSEL(I2S_SCK_M, 0, 2)>,
-                    <NRF_PSEL(I2S_SDOUT, 1, 15)>;
+            psels = <NRF_PSEL(I2S_LRCK_M, 0, 2)>,
+                    <NRF_PSEL(I2S_SCK_M, 1, 15)>,
+                    <NRF_PSEL(I2S_SDOUT, 1, 13)>;
             low-power-enable;
         };
     };
