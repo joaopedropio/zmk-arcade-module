@@ -23,11 +23,12 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include "helpers/display.h"
 #include "pacman_art.h"
 
-/* the wordmark: seven 10x13 glyphs, three times up, centred on the panel */
+/* the wordmark: six 10x13 glyphs, three times up, centred on the panel - six
+ * of them at this pitch come to 185 of the 240, which is where the 27 is */
 #define WORDMARK_FONT_W 10
 #define WORDMARK_FONT_H 13
 static const uint16_t wordmark_scale = 3;
-static const uint16_t wordmark_x = 12;
+static const uint16_t wordmark_x = 27;
 static const uint16_t wordmark_y = 44;
 static const uint16_t wordmark_pitch = 31; /* a pixel of air between glyphs */
 
@@ -56,7 +57,7 @@ static void print_wordmark(void) {
         get_splash_logo_multicolor_2(),
         get_splash_logo_multicolor_3(),
     };
-    Character word[] = {CHAR_P, CHAR_A, CHAR_C, CHAR_DASH, CHAR_M, CHAR_A, CHAR_N};
+    Character word[] = {CHAR_P, CHAR_A, CHAR_C, CHAR_M, CHAR_A, CHAR_N};
 
     for (uint8_t i = 0; i < ARRAY_SIZE(word); i++) {
         print_bitmap_multicolor(buf_glyph, word[i], wordmark_x + (i * wordmark_pitch), wordmark_y,
