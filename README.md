@@ -282,13 +282,17 @@ The dongle had a piezo buzzer on P0.29 that this module never used.  It is
 gone, and a MAX98357A takes its place: an I2S amplifier with no registers to
 set up, so three pins carry the sound and a fourth shuts it up.
 
+They run down the left header in the order the breakout's own pads do, so the
+module solders on as one straight run:
+
 | MAX98357A | nRF52840 | |
 |---|---|---|
-| BCLK | P1.06 | bit clock |
-| LRC | P1.00 | word select |
-| DIN | P0.29 | the pad the buzzer used to sit on |
-| SD | P1.02 | held high while something is playing, low the rest of the time |
+| LRC | P0.29 | word select — the pad the buzzer used to sit on |
+| BCLK | P0.02 | bit clock |
+| DIN | P1.15 | the samples |
+| SD | P1.13 | held high while something is playing, low the rest of the time |
 | GAIN | — | leave it floating for 9 dB, or tie it as the datasheet says |
+| GND, Vin | GND, VCC | 3.3 V works; 5 V is louder if the board has it |
 
 Those pins are `i2s0_default` and the `pacman_amp` node in
 `pacman_adapter.overlay`, which is the only place to change them if your
