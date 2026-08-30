@@ -32,8 +32,9 @@ ffmpeg -framerate 15 -i /tmp/frames/frame_%05d.ppm -i /tmp/pal.png \
 tools/uisim/build.sh /tmp/uisim && /tmp/uisim /tmp/frames
 ```
 The splash and the dashboard, drawn against the Zephyr/LVGL stubs in
-`tools/uisim/stub/`. Layout and artwork only; slot contents come from ZMK state
-the host does not have.
+`tools/uisim/stub/`. The widgets that ask ZMK for a layer name or a battery
+level get their answers from `stub/uisim_state.h`, so the dashboard comes out
+filled in - plausible, not live. Change those values to see a different one.
 
 ```sh
 tools/sfxsim/build.sh /tmp/sfxsim && /tmp/sfxsim /tmp/sounds 16000
@@ -145,11 +146,16 @@ may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
   column breaks the page.
 - **The configurator's preview is the real renderer**, compiled by
   `tools/wasm/build.sh` and committed as `docs/configurator/preview.js`. Change
-  the game's drawing code and that file is stale until it is rebuilt. Two
-  orders have to stay together by hand: `PREVIEW_COLORS` in the page and the
-  enum in `tools/wasm/preview.c`, and `preview_apply_colors()` mirrors
-  `pacman_reload_palette()` including the house being filled with the wall's
-  colour.
+  any drawing code - the game, the splash, a widget - and that file is stale
+  until it is rebuilt. It walks `settings_list.h` for the name of every
+  setting, so the page drives it by the same words the shell takes and there is
+  no third list to keep in step; `reload_game_palette()` there does mirror
+  `pacman_reload_palette()` by hand, house fill included.
+- **Both harnesses supply their own platform.** `tools/uisim/uisim.c` and
+  `tools/wasm/preview.c` each define the sound and game entry points as no-ops,
+  because the dashboard widgets call them and neither a laptop nor a browser
+  has a speaker to answer with. That is deliberate: the widgets are built
+  exactly as the firmware builds them, with nothing compiled out.
 
 ## Style
 

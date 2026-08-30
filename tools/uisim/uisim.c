@@ -4,8 +4,9 @@
  * The UI helpers draw by handing rectangles to display_write(); here that
  * lands in a plain framebuffer which is written out as PPM, so the layout can
  * be looked at without flashing anything.  The widgets that read ZMK state
- * (battery, connectivity, layer, wpm, modifiers) are stubbed out - what this
- * shows is the splash, the frames and the logo lap.
+ * (battery, connectivity, layer, wpm, modifiers) get their answers from
+ * stub/uisim_state.h instead, so the dashboard comes out filled in rather
+ * than empty - plausible, not live.
  *
  *   cc -I tools/uisim/stub -I boards/shields/pacman_adapter/widgets \
  *      -o /tmp/uisim tools/uisim/uisim.c \
@@ -23,14 +24,43 @@
 
 #include <zephyr/drivers/display.h>
 
+#include "action_button.h"
+#include "battery_status.h"
 #include "frames.h"
 #include "helpers/display.h"
+#include "layer_status.h"
 #include "logo.h"
+#include "modifier.h"
+#include "pacman.h"
+#include "output_status.h"
+#include "sound.h"
 #include "splash.h"
+#include "theme.h"
+#include "wpm.h"
 
 #define PANEL 240
 
 const struct device sim_display_dev = {.name = "sim"};
+
+/*
+ * The dashboard reaches for the speaker when a half connects, and for the game
+ * when the action button swaps screens.  Neither exists here, so they are
+ * answered rather than compiled out - keeping the widgets exactly as the
+ * firmware builds them is the whole point of this harness.
+ */
+void pacman_sound_init(void) {}
+void pacman_sound_quiet(void) {}
+void pacman_sound_connected(bool connected) { (void)connected; }
+void pacman_sound_set_mute(bool muted) { (void)muted; }
+void pacman_sound_set_volume(uint8_t volume) { (void)volume; }
+void pacman_sound_set_bass_floor(uint16_t floor_hz) { (void)floor_hz; }
+
+void pacman_start(void) {}
+void pacman_stop(void) {}
+void pacman_toggle_pause(void) {}
+bool pacman_is_paused(void) { return true; }
+void pacman_reload_palette(void) {}
+void pacman_set_frame_interval(uint32_t ms) { (void)ms; }
 static uint16_t fb[PANEL][PANEL];
 
 void display_write(const struct device *dev, uint16_t x, uint16_t y,
@@ -167,11 +197,16 @@ int main(int argc, char **argv) {
 
     /* and the dashboard: its frames, and the header a few steps into its lap */
     clean_up_splash();
-    clear_screen(get_menu_bg_color());
-    uint8_t *buf_frame = malloc(320 * 2);
-    print_frames(buf_frame);
     logo_animation_init();
-    start_animation();
+    zmk_widget_output_status_init();
+    zmk_widget_peripheral_battery_status_init();
+    zmk_widget_layer_init();
+    zmk_widget_wpm_init();
+    zmk_widget_modifier_init();
+    zmk_widget_action_button_init();
+    initialize_battery_status();
+    print_menu();
+    /* print_menu() leaves the header to an LVGL timer there is nobody to run */
     for (int i = 0; i < 24; i++) {
         logo_animation_timer(NULL);
     }

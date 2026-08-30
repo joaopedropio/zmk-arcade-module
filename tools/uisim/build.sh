@@ -37,7 +37,15 @@ cc -O1 -Wall -include "$defs" \
    "$root/boards/shields/pacman_adapter/widgets/helpers/display.c" \
    "$root/boards/shields/pacman_adapter/widgets/splash.c" \
    "$root/boards/shields/pacman_adapter/widgets/logo.c" \
-   "$root/boards/shields/pacman_adapter/widgets/frames.c"
+   "$root/boards/shields/pacman_adapter/widgets/frames.c" \
+   "$root/boards/shields/pacman_adapter/widgets/theme.c" \
+   "$root/boards/shields/pacman_adapter/widgets/battery_status.c" \
+   "$root/boards/shields/pacman_adapter/widgets/output_status.c" \
+   "$root/boards/shields/pacman_adapter/widgets/layer_status.c" \
+   "$root/boards/shields/pacman_adapter/widgets/modifier.c" \
+   "$root/boards/shields/pacman_adapter/widgets/wpm.c" \
+   "$root/boards/shields/pacman_adapter/widgets/action_button.c" \
+   "$root/tools/uisim/stub/settings_stub.c"
 
 rm -f "$defs"
 echo "built $out"

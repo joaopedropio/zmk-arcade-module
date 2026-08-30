@@ -212,20 +212,24 @@ one tab-separated line per setting — so the page never needs updating when the
 firmware gains a setting, and it cannot show you a control for one that is not
 there.
 
-It also shows the panel. `tools/wasm/build.sh` compiles the game core and
-renderer to WebAssembly — the same `pacman_core.c` and `pacman_render.c` the
-firmware runs — so the maze on the page is not a drawing of the maze, it is
-the maze, and it cannot drift when `PM_TILE` or a sprite changes. Click
-anything in it and the page jumps to the colour that painted it, worked out by
-asking the renderer to quantise each setting the way the panel does and
-comparing. Two settings can hold the same colour — the door and the pink ghost
-are both `ffb8ff` out of the box — so a click on those offers the pair.
+It also shows the panel — all three screens of it. `tools/wasm/build.sh`
+compiles the game, the splash and the dashboard widgets to WebAssembly, the
+same C the firmware runs, so what is on the page is not a drawing of the
+screen, it is the screen, and it cannot drift when `PM_TILE` or a sprite or a
+slot position changes. The dashboard's slot contents are made up — a browser
+has no keyboard to ask for a layer name or a battery level, so those come from
+`tools/uisim/stub/uisim_state.h` — but its layout and every colour are real.
 
-That covers the thirteen maze colours. The dashboard's forty-two are still
-edited from the list below: previewing them needs `tools/uisim` compiled the
-same way, and its widgets read ZMK state the host does not have. Rebuilding
-`preview.js` needs emscripten (`brew install emscripten`); opening the page
-does not. WebSerial needs a secure context, which HTTPS-served Pages is, and a
+Click anything and the page jumps to the colour that painted it. It narrows
+the field by asking the renderer to quantise each setting the way the panel
+does, then settles it by changing each candidate to something it cannot
+already be and redrawing to see which one moved. That second step is what
+makes the dashboard workable: most of its colours are black by default, so a
+click on the background matches eighteen settings and only one of them is
+actually painting it.
+
+Rebuilding `preview.js` needs emscripten (`brew install emscripten`); opening
+the page does not. WebSerial needs a secure context, which HTTPS-served Pages is, and a
 browser that implements it: Chrome, Edge or Opera on desktop. Firefox and
 Safari have no WebSerial and the page says so rather than half-working.
 

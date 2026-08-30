@@ -145,6 +145,7 @@
   .choices { display: flex; flex-wrap: wrap; gap: 8px; }
   .choices button { padding: 5px 10px; font-size: 13px; }
   .previewbar { display: flex; gap: 8px; margin-top: 10px; }
+  .screenpick.on { border-color: var(--pac); color: var(--pac); }
   .row.flash { animation: flash 1.4s ease-out; }
   @keyframes flash {
     from { background: #2a2a12; }
@@ -186,9 +187,16 @@
         <p>
           This is the dongle's own renderer, compiled to WebAssembly — the same
           code the firmware runs, so what you see is what the panel draws.
-          Click anything in it to jump to the colour that painted it.
+          Click anything in it to jump to the colour that painted it. The
+          dashboard's slot contents are made up — a browser has no keyboard to
+          ask — but its layout and every colour are the real thing.
         </p>
         <div id="picked"></div>
+        <div class="previewbar">
+          <button id="screen-0" class="screenpick on">Game</button>
+          <button id="screen-1" class="screenpick">Splash</button>
+          <button id="screen-2" class="screenpick">Dashboard</button>
+        </div>
         <div class="previewbar">
           <button id="play">Play</button>
           <button id="rewind">Rewind</button>
@@ -234,17 +242,6 @@ const GROUPS = [
   ["Frame and menu",  /^(frame|menu-)/],
 ];
 
-/*
- * The thirteen game colours in the order tools/wasm/preview.c has them - the
- * page writes them straight into the module's array, so the two orders have
- * to stay together.
- */
-const PREVIEW_COLORS = [
-  "game-bg", "game-wall", "game-wall-fill", "game-wall-flash", "game-house",
-  "game-door", "game-pellet", "game-pac", "game-ghost-0", "game-ghost-1",
-  "game-ghost-2", "game-ghost-3", "game-fright",
-];
-
 /* seed 1 reaches this frame with all four ghosts out of the house and Pac-Man
  * in the open, which is the most of the palette anyone can click at once */
 const OPENING_FRAME = 354;
@@ -252,7 +249,7 @@ const FRAME_MS = 66; /* about 15 fps, which is the speed the dongle plays it */
 
 let port = null, writer = null, incoming = "", prompt = PROMPT_FALLBACK;
 let settings = [];
-let wasm = null, playing = null;
+let wasm = null, playing = null, screenIndex = 0;
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -357,7 +354,7 @@ async function setValue(setting, word, control) {
     }
     setting.value = word;
     setting.stored = true;
-    if (PREVIEW_COLORS.includes(setting.name)) pushColors();
+    if (wasm) { pushSetting(setting); wasm._preview_apply_all(); renderScreen(); }
     syncControls(setting);
     say(reply || (setting.name + " set"), "good");
     return true;
@@ -546,22 +543,47 @@ function drawScreen() {
   ctx.putImageData(image, 0, 0);
 }
 
-function pushColors() {
+/* the module takes a setting by the same name the shell does, so there is no
+ * table here to keep in step with the firmware's */
+function asNumber(setting) {
+  if (setting.kind === "color") return parseInt(setting.value, 16) || 0;
+  if (setting.kind === "enum") return Math.max(0, (setting.labels || []).indexOf(setting.value));
+  return parseInt(setting.value, 10) || 0;
+}
+
+function pushSetting(setting) {
+  const ptr = wasm.stringToNewUTF8(setting.name);
+  wasm._preview_set(ptr, asNumber(setting));
+  wasm._free(ptr);
+}
+
+function pushAll() {
   if (!wasm || !settings.length) return;
-  const base = wasm._preview_colors() >> 2;
-  PREVIEW_COLORS.forEach((name, i) => {
-    const setting = settings.find((s) => s.name === name);
-    wasm.HEAPU32[base + i] = setting ? parseInt(setting.value, 16) || 0 : 0;
-  });
-  wasm._preview_apply_colors();
-  wasm._preview_repaint();
+  for (const setting of settings) pushSetting(setting);
+  wasm._preview_apply_all();
+  renderScreen();
+}
+
+function renderScreen() {
+  wasm._preview_render();
   drawScreen();
 }
 
+function setScreen(index) {
+  screenIndex = index;
+  wasm._preview_set_screen(index);
+  for (let i = 0; i < 3; i++) $("screen-" + i).classList.toggle("on", i === index);
+  if (index === 0) rewind(); else renderScreen();
+}
+
 function rewind() {
-  wasm._preview_reset(1);
-  for (let i = 0; i < OPENING_FRAME; i++) wasm._preview_step();
-  drawScreen();
+  if (screenIndex === 0) {
+    wasm._preview_reset(1);
+    for (let i = 0; i < OPENING_FRAME; i++) wasm._preview_step();
+    drawScreen();
+    return;
+  }
+  renderScreen();
 }
 
 function setPlaying(on) {
@@ -603,7 +625,7 @@ function offerChoices(names) {
   const box = document.createElement("div");
   box.className = "picked";
   const title = document.createElement("div");
-  title.textContent = "That colour is shared by:";
+  title.textContent = "Painted by more than one:";
   const choices = document.createElement("div");
   choices.className = "choices";
   for (const name of names) {
@@ -616,12 +638,49 @@ function offerChoices(names) {
   $("picked").append(box);
 }
 
+function pixelAt(px, py) {
+  return frameBuffer()[py * wasm._preview_panel() + px];
+}
+
+/*
+ * Matching a pixel against the palette narrows the field but cannot settle it
+ * on the dashboard, where most of the sixty-odd colours are black and a click
+ * on the background would offer eighteen of them.  So each candidate is tried:
+ * change it to something it cannot already be, draw again, and see whether
+ * that pixel moved.  Whichever ones move are the ones that paint it.
+ *
+ * It costs one redraw per candidate, on a click, in a renderer that draws the
+ * whole panel in about a millisecond - and it needs no idea of where anything
+ * is on screen, which is what keeps this page free of a second copy of the
+ * layout.
+ */
+function identify(px, py, candidates) {
+  if (candidates.length < 2) return candidates;
+
+  const before = pixelAt(px, py);
+  const found = [];
+
+  for (const name of candidates) {
+    const setting = settings.find((s) => s.name === name);
+    const original = setting.value;
+    setting.value = ((parseInt(original, 16) ^ 0xffffff) >>> 0).toString(16).padStart(6, "0");
+    pushSetting(setting);
+    wasm._preview_render();
+    if (pixelAt(px, py) !== before) found.push(name);
+    setting.value = original;
+    pushSetting(setting);
+  }
+
+  wasm._preview_render();
+  drawScreen();
+  return found.length ? found : candidates;
+}
+
 /*
  * Which setting painted a pixel is answered by asking the renderer to quantise
  * each colour the way the panel does and comparing - no second copy of the
- * artwork, and nothing to keep in step.  Two settings can hold the same colour
- * (the door and a ghost are both ffb8ff out of the box), so the answer is a
- * list rather than a name.
+ * artwork, and nothing to keep in step - and then by identify() where more
+ * than one colour comes out equal.
  */
 function onScreenClick(event) {
   if (!wasm || !settings.length || playing) return;
@@ -633,17 +692,18 @@ function onScreenClick(event) {
   if (x < 0 || y < 0 || x >= panel || y >= panel) return;
 
   const pixel = frameBuffer()[y * panel + x];
-  const matches = PREVIEW_COLORS.filter((name) => {
-    const setting = settings.find((s) => s.name === name);
-    return setting && wasm._preview_rgb565(parseInt(setting.value, 16) || 0) === pixel;
-  });
+  const matches = settings
+    .filter((s) => s.kind === "color" && wasm._preview_rgb565(parseInt(s.value, 16) || 0) === pixel)
+    .map((s) => s.name);
 
   if (matches.length === 0) {
-    say("Nothing settable painted that pixel - try the maze, a ghost or a pellet.");
+    say("No colour setting matches that pixel - it may be drawn from another one, blended.");
     return;
   }
-  if (matches.length === 1) { pickSetting(matches[0]); return; }
-  offerChoices(matches);
+
+  const owners = identify(x, y, matches);
+  if (owners.length === 1) { pickSetting(owners[0]); return; }
+  offerChoices(owners);
 }
 
 function setConnected(on) {
@@ -707,6 +767,9 @@ async function disconnect() {
 $("screen").addEventListener("click", onScreenClick);
 $("play").addEventListener("click", () => setPlaying(!playing));
 $("rewind").addEventListener("click", () => { setPlaying(false); rewind(); });
+for (let i = 0; i < 3; i++) {
+  $("screen-" + i).addEventListener("click", () => { setPlaying(false); setScreen(i); });
+}
 
 /*
  * The renderer is local, so it loads whether or not a dongle is plugged in -
@@ -718,8 +781,8 @@ PacmanPreview().then((module) => {
   $("screen").classList.remove("idle");
   if (settings.length) {
     $("previewpanel").classList.remove("hidden");
-    rewind();
-    pushColors();
+    setScreen(screenIndex);
+    pushAll();
   }
 }).catch((err) => say("The preview renderer would not load: " + err.message, "bad"));
 
