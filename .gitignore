@@ -2,3 +2,4 @@ build/
 .venv/
 *.o
 *.ppm
+.DS_Store
