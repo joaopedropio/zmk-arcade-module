@@ -3,3 +3,4 @@ build/
 *.o
 *.ppm
 .DS_Store
+__pycache__/
