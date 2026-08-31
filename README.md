@@ -109,6 +109,11 @@ of the maze in miniature, a ring of pellets with Pac-Man running it and a ghost
 a few steps behind. Batteries take the strip along the bottom, one, two or
 three of them per `PACMAN_BATTERY_SLOTS`.
 
+A mode with fewer slots drops them from the top, not the bottom: `_5` and `_6`
+are the two that 2-slot keeps, `_3` upwards for 4-slot, `_2` upwards for
+5-slot. The configurator only shows the slots the chosen mode has, so the rest
+keep their setting but are neither drawn nor offered.
+
 **A widget goes in one slot only.** Nothing refuses the second one, which is
 what makes it worth saying: `get_slot_by_name()` returns the first slot holding
 a widget, so every widget that asks draws into that one and the other slot is

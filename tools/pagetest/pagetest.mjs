@@ -403,6 +403,42 @@ check(splash.differ && !splash.blank,
       (splash.blank ? " (the image came out blank)" : ""));
 
 /*
+ * A mode only has so many slots, and it drops them from the top: 2-slot is
+ * slot5 and slot6, because set_slot_1() gives slot1 SLOT_NUMBER_NONE in every
+ * mode but 6-slot. Showing a row for a slot the panel has not got is offering
+ * a choice that changes nothing, so the rows are counted as rendered rather
+ * than as the predicate that picks them.
+ */
+const perMode = await vm.runInContext(`(async () => {
+  setNav(1);
+  const rendered = () => {
+    const names = [];
+    for (const section of document.getElementById("panels").children) {
+      for (const row of section.children[1].children) names.push(row.children[0].textContent);
+    }
+    return names.filter((n) => /^slot[1-6]$/.test(n));
+  };
+  const mode = settings.find((s) => s.name === "slot-mode");
+  const seen = {};
+  for (const word of mode.labels) {
+    await setValue(mode, word);
+    render();
+    seen[word] = rendered().join(",");
+  }
+  return seen;
+})()`, ctx);
+const wantPerMode = {
+  "2-slot": "slot5,slot6",
+  "4-slot": "slot3,slot4,slot5,slot6",
+  "5-slot": "slot2,slot3,slot4,slot5,slot6",
+  "6-slot": "slot1,slot2,slot3,slot4,slot5,slot6",
+};
+const modeWrong = Object.keys(wantPerMode).filter((m) => perMode[m] !== wantPerMode[m]);
+check(modeWrong.length === 0,
+      "each mode shows only the slots it has" +
+      (modeWrong.length ? ": " + modeWrong.map((m) => `${m} gave ${perMode[m]}`) : ""));
+
+/*
  * A widget can only be in one slot.  The firmware does not refuse the second
  * one - get_slot_by_name() returns the first slot holding it, so the other is
  * never drawn into - which makes it the page's job to keep that state out of

@@ -800,6 +800,31 @@ async function setValue(setting, word, quiet) {
 const SLOT_SETTING = /^slot[1-6]$/;
 const SLOT_EMPTY = "empty";
 
+/*
+ * A mode that shows fewer slots drops them from the top, not the bottom:
+ * set_slot_1() gives slot1 SLOT_NUMBER_NONE in every mode but 6-slot, so
+ * 2-slot is slot5 and slot6 rather than slot1 and slot2.  The count comes out
+ * of the mode's own name, so a firmware that adds a 3-slot layout needs
+ * nothing here - and the page never has to hold a second copy of where the
+ * slots actually are, which is the one thing it must not know.
+ */
+function slotsInMode() {
+  const mode = settings.find((s) => s.name === "slot-mode");
+  const count = mode ? parseInt(mode.value, 10) : NaN;
+  return Number.isFinite(count) ? count : 6;
+}
+
+function slotIsLive(name) {
+  return parseInt(name.slice(4), 10) > 6 - slotsInMode();
+}
+
+/* the slots this mode has no room for, and what they would have shown */
+function slotsOutOfReach() {
+  return slotSettings()
+    .filter((s) => !slotIsLive(s.name) && s.value !== SLOT_EMPTY)
+    .map((s) => s.name + " (" + s.value + ")");
+}
+
 function slotSettings() {
   return settings.filter((setting) => SLOT_SETTING.test(setting.name));
 }
@@ -898,9 +923,18 @@ function controlFor(setting) {
       select.append(option);
     }
     select.value = setting.value;
-    select.addEventListener("change", () => SLOT_SETTING.test(setting.name)
-      ? setSlot(setting, select.value)
-      : setValue(setting, select.value));
+    select.addEventListener("change", async () => {
+      if (SLOT_SETTING.test(setting.name)) return setSlot(setting, select.value);
+      if (!(await setValue(setting, select.value))) return;
+      /* the mode decides which slot rows exist, so the list is drawn again */
+      if (setting.name !== "slot-mode") return;
+      const stranded = slotsOutOfReach();
+      render();
+      if (stranded.length) {
+        say("Now " + select.value + ", which has no room for " + stranded.join(", ") +
+            " - those keep their setting but are not drawn, and are not shown here.");
+      }
+    });
     wrap.append(select);
     return wrap;
   }
@@ -948,6 +982,8 @@ function render() {
   const section = SECTIONS[navIndex];
   const mine = settings.filter((setting) => {
     if (sectionOf(setting.name) !== section) return false;
+    /* a slot this mode has not got is not a setting you can do anything with */
+    if (SLOT_SETTING.test(setting.name) && !slotIsLive(setting.name)) return false;
     return section !== SECTIONS[0] || screenOf(setting.name) === SCREENS[screenIndex];
   });
   $("count").textContent = mine.length + " of " + settings.length + " settings. ";
