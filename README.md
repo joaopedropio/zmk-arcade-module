@@ -11,11 +11,13 @@ scatter/chase targeting rules.
 
 **Space Shooter** — after
 [the arcade game of that name](https://store.steampowered.com/app/3059240/Space_Shooter/)
-— flies a ship along the bottom of a starfield, breaking meteors into smaller
-meteors, dodging what it cannot shoot and picking up whatever drops between
-waves.
+— flies a triangle around a starfield under its own power, turning either way
+and thrusting along whatever direction it happens to be pointing. It breaks
+meteors into smaller meteors, flies around the ones it cannot break in time,
+and chases the pickups they leave behind. There is nothing to clear: meteors
+keep arriving as fast as they are destroyed.
 
-<img src="docs/demo.gif" width="320" alt="The splash screen, then Pac-Man playing itself on the dongle display"/> <img src="docs/shooter.gif" width="320" alt="The ship breaking up a wave of meteors and starting the next one"/>
+<img src="docs/demo.gif" width="320" alt="The splash screen, then Pac-Man playing itself on the dongle display"/> <img src="docs/shooter.gif" width="320" alt="The ship turning and thrusting its way through a field of meteors"/>
 
 Which one plays is the `game` setting, changed from the shell or the
 configurator without reflashing; both are always built, and each keeps its
@@ -128,9 +130,9 @@ python3 tools/splash_image.py > boards/shields/pacman_adapter/widgets/splash_ima
 ```
 
 **The game** owns the whole panel, and is either the maze or the shooter
-depending on `game`. The shooter puts its score across the top, the wave and
-whatever pickup is running along the bottom, and the lives it has left as small
-ships in the top corner; everything else is playfield.
+depending on `game`. The shooter puts its score across the top, the lives it
+has left beside it as small ships, and whatever pickup is running along the
+bottom; everything else is playfield.
 
 **The dashboard** is a grid of slots: `PACMAN_INFO_SLOT_MODE` picks the layout
 and `PACMAN_INFO_SLOT_1` … `_6` say what goes in each one — `connectivity`,
@@ -209,7 +211,7 @@ ones worth knowing about; the rest colour the dashboard and are listed in
 | `CONFIG_PACMAN_METEOR_COLOR` / `_EDGE_` | `5a5f7a` / `a3adc9` | Meteor fill and rim. |
 | `CONFIG_PACMAN_BLAST_COLOR` | `ff5a2b` | A meteor coming apart. |
 | `CONFIG_PACMAN_POWERUP_COLOR` | `39ff9e` | A pickup, and the shield it grants. |
-| `CONFIG_PACMAN_HUD_COLOR` | `ffee00` | Score, wave and lives. |
+| `CONFIG_PACMAN_HUD_COLOR` | `ffee00` | Score and lives. |
 
 Colours are plain `rrggbb` strings (a leading `#` or `0x` is fine) and are
 converted to RGB565 once at boot.
@@ -431,25 +433,40 @@ pellet is worth turning round for: Pac-Man picks up a pixel a frame while the
 ghosts are blue and they drop to half speed. Over a two-hour soak he clears a
 maze about every 25 seconds and gets caught about every 135.
 
-The shooter's ship answers one question every frame: for each of the columns
-it could be standing in, how close would the nearest meteor come, and would a
-shot fired from there land? Both are worked out by predicting where each
-meteor will be — when it reaches the ship's row for the first, when a shot
-would catch it for the second — with the sideways drift folded back off the
-walls it bounces off on the way. Staying alive is weighted four times as
-heavily as hitting anything, but only up to a clearance of 28 pixels: past
-that one column is as safe as another and the aim is what decides between
-them, which is what stops the ship spending a whole wave chasing the single
-safest pixel on the panel. A little weight is left over for not crossing the
-screen to get there, so it does not twitch.
+The shooter's ship has one nose and four things that want it, and it hands it
+out in that order: getting out from under a meteor that is about to arrive,
+chasing a pickup before it drifts off the panel, turning back in when it has
+wandered within 45 pixels of a wall, and otherwise pointing at whatever it
+means to shoot. Only the first three ever light the engine — coasting is free,
+and thrusting is what puts the ship somewhere it did not choose. Firing is
+decided separately, on where the nose actually ended up: a ship that has just
+turned to run still takes the shot if the shot happens to be there.
 
-A meteor that reaches the bottom comes round at the top again rather than
-counting as cleared, so a wave ends when it is shot and not when it is
-outlasted. Big meteors break into two medium ones and those into two small
-ones; a wave is four big at most, which is why there are room for sixteen.
-Waves get faster until they cap, a pickup drops every third one, and over a
-two-hour soak the ship reaches wave 8 or 9 before it runs out of lives, about
-every four and a half minutes.
+Where to shoot is found by going round three times rather than by solving a
+quadratic — how long a shot takes to reach where the meteor is, where the
+meteor has got to by then, and again — and whether to shoot is answered by
+walking the shot forward a few frames at a time and seeing what it passes
+through, which is right about a big meteor close by and a small one across the
+panel at the same time.
+
+Two rules were worth more than everything else put together. The first is
+never to break a meteor closer than 36 pixels: it comes apart into two faster
+ones already inside the distance needed to dodge them, and until the ship
+learned to fly around close rock instead of shooting it, small fragments were
+killing it two runs in three. The second is that a dodge goes *sideways* to
+the meteor's course rather than straight away from it — straight away is
+running down the track it is already on — and that the direction is committed
+to for sixteen frames once chosen, because near that track the side to step
+towards flips from frame to frame and a ship that keeps changing its mind
+stands still while the meteor arrives. Both are in `pilot()`, and the soak
+went from a run every 30 seconds to a run every 95.
+
+There are no waves. The spawner tops the panel back up whenever there is room,
+counting meteors by what they cost to draw rather than by how many there are —
+a big one is worth five small ones — so the frame stays about the same price
+whatever the mix is. What the score buys is more rock and faster rock, up to a
+ceiling. Over a two-hour soak the ship destroys about 10,700 meteors and runs
+out of lives every 95 seconds or so.
 
 ## How it is drawn
 
@@ -479,20 +496,31 @@ sky. Each thing that can move remembers the box it was last drawn in and the
 frame repaints the union of that and the box it wants now, which is what makes
 one moving meteor cost a thousand pixels instead of the panel.
 
+The ship is four points rather than a sprite — nose, two rear corners, and a
+notch cut deep between them — turned by the same sine table the game aims
+with, and every pixel of its bounding box is asked which of the shapes it is
+in. That is why there is no sheet of headings and no angle it cannot be at.
+The notch reaching almost to the middle is what makes it read as a swept pair
+of wings; a shallower one is an arrowhead, and an arrowhead does not have a
+front. Meteors are the same idea with curves: a disc with three circular bites
+taken out of it, the bites given in sixteenths of the meteor's own radius so
+one table carves a 6-pixel rock and a 15-pixel one, and turned a quarter at a
+time so a dozen of them on screen are never the same rock twice.
+
 Two things do not move, on purpose. The starfield holds still and blinks
 rather than scrolling, because scrolling it is a full 57600-pixel repaint
 every frame and the readout would be the only thing left with any budget; and
-the score, wave and lives are repainted when the words change rather than
-every frame, since anything passing underneath re-stamps them on its way. What
-carries the motion is the meteors, which is where it belongs.
+the readout is repainted when its words change rather than every frame, since
+anything passing underneath re-stamps it on its way. What carries the motion
+is the ship and the meteors, which is where it belongs.
 
 What it costs, per game:
 
 | | Pac-Man | Space Shooter |
 |---|---|---|
-| flash | 7.4 KB | 6.6 KB |
-| RAM | 671 bytes | 860 bytes |
-| SPI traffic | ~3600 pixels/frame ≈ 7 KB/frame, about 210 KB/s at 30 fps | ~2050 pixels/frame ≈ 4 KB/frame, about 120 KB/s |
+| flash | 7.4 KB | 8.1 KB |
+| RAM | 671 bytes | 932 bytes |
+| SPI traffic | ~3600 pixels/frame ≈ 7 KB/frame, about 210 KB/s at 30 fps | ~4000 pixels/frame ≈ 7.8 KB/frame, about 235 KB/s |
 | LVGL widgets | none — the status screen is an empty `lv_obj` | none |
 
 Flash and RAM are the core and the renderer only, built `-Os` for a Cortex-M4;
@@ -635,8 +663,8 @@ boards/shields/pacman_adapter/
         ├── panel.h/.c          the panel size and the band both games blit through
         ├── pacman_core.c       maze, Pac-Man's pathfinding, ghost AI, rounds
         ├── pacman_render.c     sprites, tiles and dirty-rectangle blitting
-        ├── shooter_core.c      meteors, waves, pickups and the ship's own aim
-        ├── shooter_render.c    ship stencil, meteor shapes, starfield, readout
+        ├── shooter_core.c      meteors, pickups, and the ship's own flying and aim
+        ├── shooter_render.c    turned hull, meteor shapes, starfield, readout
         ├── pacman_sfx.c        the polyphonic synth
         └── pacman_tunes.h      the tunes (generated, see tools/tunes.py)
 src/, include/, dts/            the zmk,behavior-dongle-action behaviour

@@ -346,7 +346,7 @@ try {
   </footer>
 </main>
 
-<script src="preview.js?v=44a95458d7c0"></script>
+<script src="preview.js?v=23d544bc86b0"></script>
 <script>
 "use strict";
 
@@ -621,9 +621,9 @@ const PROFILE_FILE_VERSION = 1;
 /* seed 1 reaches this frame with all four ghosts out of the house and Pac-Man
  * in the open, which is the most of the palette anyone can click at once */
 const OPENING_FRAME = 354;
-/* and this one has the shooter's second wave broken up, so the panel is
- * carrying meteors of two sizes, a shot in the air and the whole readout */
-const SHOOTER_OPENING_FRAME = 620;
+/* and this one catches the shooter with a pickup drifting down and the engine
+ * lit, which are the two colours hardest to see on a frame picked at random */
+const SHOOTER_OPENING_FRAME = 300;
 const FRAME_MS = 66; /* about 15 fps, which is the speed the dongle plays it */
 
 let port = null, writer = null, incoming = "", prompt = PROMPT_FALLBACK;

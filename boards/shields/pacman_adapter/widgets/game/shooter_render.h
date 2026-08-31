@@ -22,17 +22,17 @@
 
 /*
  * Where the readout sits.  The score runs along the top at double size,
- * because it is the one thing anybody reads from across a desk; the wave and
- * whatever pickup is running go along the bottom at single size, where they
- * are there if you look but do not compete with the game.  Both bands are
- * clear of the ship's row and of the meteors' spawning ground, so neither ever
- * has to be moved out of the way.
+ * because it is the one thing anybody reads from across a desk, with the lives
+ * left beside it; whatever pickup is running goes along the bottom at single
+ * size, where it is there if you look but does not compete with the game.
+ * Both bands are drawn last and repainted when their words change, so the ship
+ * may fly straight through either without them having to move.
  */
 #define SS_HUD_X 6
 #define SS_HUD_Y 4
 #define SS_FOOT_Y 228
 
-/* the wave and the game over notice, across the middle of the panel */
+/* the game over notice, across the middle of the panel */
 #define SS_BANNER_Y 104
 #define SS_BANNER_SCALE 3
 
@@ -46,7 +46,9 @@
 /*
  * The starfield is behind everything and the readout in front of it; the rest
  * is drawn in the order a collision would happen in - meteors, then the ship
- * that is dodging them, then the blast that says it did not.
+ * that is dodging them, then the blast that says it did not.  The ship is two
+ * colours and its exhaust a third, which is what lets a triangle turning on
+ * the spot still read as a ship pointing somewhere.
  */
 typedef struct {
     uint16_t space;     /* the ground everything is drawn on */
@@ -59,7 +61,7 @@ typedef struct {
     uint16_t rock_edge; /* and the rim that gives it its shape */
     uint16_t blast;
     uint16_t power;     /* a pickup, and the shield it grants */
-    uint16_t hud;       /* score, wave, lives, banner */
+    uint16_t hud;       /* score, lives, and the game over notice */
 } ss_palette;
 
 void ss_render_set_palette(const ss_palette *p);

@@ -145,30 +145,26 @@ static void score_text(uint32_t score, char *buf) {
 /* ------------------------------------------------------------------ */
 
 /*
- * The ship, as a stencil: '#' is hull, '+' the cockpit running down the
- * middle, '.' the space around it.  Written out rather than packed into bits
- * because this is the one drawing in the file anybody will want to change, and
- * a row of hex is not something you can redraw a wing in.
+ * The ship, as four points in its own frame with +x out of the nose: a
+ * triangle with a notch cut out of the back, which is the shape this game has
+ * had since it was drawn on a vector tube.  Turning it is turning those four
+ * points, so there is no sprite sheet of headings and no angle it cannot be
+ * at - which is the whole reason the ship is described this way rather than
+ * stencilled like the sprites in the maze.
  */
-static const char *const SHIP[SS_SHIP_H] = {
-    "............#............",
-    "...........#+#...........",
-    "...........#+#...........",
-    "..........##+##..........",
-    "..........#+++#..........",
-    ".........##+++##.........",
-    ".........##+++##.........",
-    "........###+++###........",
-    "....#...###+++###...#....",
-    "...###..###+++###..###...",
-    "..#####.###+++###.#####..",
-    ".#######+++++++++#######.",
-    "#########+++++++#########",
-    "#######.#########.#######",
-    "..####...#######...####..",
-    ".........#######.........",
-    ".........##...##.........",
-};
+static int cross(int ax, int ay, int bx, int by, int px, int py) {
+    return (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+}
+
+/* a point is inside a triangle when it is the same side of all three edges */
+static bool in_tri(int px, int py, const int *v) {
+    int d0 = cross(v[0], v[1], v[2], v[3], px, py);
+    int d1 = cross(v[2], v[3], v[4], v[5], px, py);
+    int d2 = cross(v[4], v[5], v[0], v[1], px, py);
+    bool neg = d0 < 0 || d1 < 0 || d2 < 0;
+    bool pos = d0 > 0 || d1 > 0 || d2 > 0;
+    return !(neg && pos);
+}
 
 /*
  * Three bites out of a disc make a meteor.  Each is a circle in sixteenths of
@@ -290,8 +286,22 @@ static void draw_blast(const ss_blast *b) {
     }
 }
 
+/*
+ * A shot is a head with a short tail dragged out behind it along its own
+ * course.  A single dot at seven pixels a frame reads as a flicker; the tail
+ * is the frame it came from, which is what makes the direction visible on a
+ * panel this size.
+ */
+#define SS_TAIL 3
+
 static void draw_shot(const ss_shot *s) {
-    fill(SS_PX(s->x), SS_PX(s->y), 2, 7, pal.bullet);
+    int hx = SS_PX(s->x), hy = SS_PX(s->y);
+
+    fill(hx, hy, 2, 2, pal.bullet);
+    for (int k = 1; k <= SS_TAIL; k++) {
+        put(hx - (int)s->vx * k / (4 * SS_SUB), hy - (int)s->vy * k / (4 * SS_SUB),
+            pal.bullet);
+    }
 }
 
 /* the letter that says which pickup it is, in a diamond that catches the eye */
@@ -315,40 +325,100 @@ static void draw_drop(const ss_game *g) {
     draw_text(cx - 2, cy - 3, 1, pal.power, word);
 }
 
-static void draw_ship(const ss_game *g) {
-    int cx = SS_PX(g->ship_x);
-    int left = cx - SS_SHIP_W / 2;
+/*
+ * How far from its middle the ship reaches this frame, which is both what the
+ * drawing below clips to and what its dirty rectangle is sized from.  It moves
+ * with the exhaust and the shield rather than being a constant, because the
+ * flame is half again as long as the hull and paying for it on every frame the
+ * engine is off would be a third of the ship's cost for nothing.
+ */
+static int ss_ship_half(const ss_game *g) {
+    int half = SS_HULL_R;
 
-    for (int j = 0; j < SS_SHIP_H; j++) {
-        for (int i = 0; i < SS_SHIP_W; i++) {
-            char c = SHIP[j][i];
-            if (c == '.') {
-                continue;
-            }
-            put(left + i, SS_SHIP_Y + j, c == '+' ? pal.trim : pal.ship);
-        }
+    if (g->ship.thrusting && SS_FLAME_R > half) {
+        half = SS_FLAME_R;
+    }
+    if (g->power == SS_P_SHIELD && SS_SHIELD_R + 1 > half) {
+        half = SS_SHIELD_R + 1;
+    }
+    return half + 1;
+}
+
+/*
+ * Hull, cockpit, exhaust and shield, in that order - each one over the last,
+ * so the flame comes out from under the tail rather than across it.  The
+ * points are turned once and then every pixel of the bounding box is asked
+ * which of the shapes it is in, which is a handful of cross products on a box
+ * of forty pixels a side.
+ */
+static void draw_ship(const ss_game *g) {
+    int cx = SS_PX(g->ship.x), cy = SS_PX(g->ship.y);
+    int co = ss_cos(g->ship.angle), si = ss_sin(g->ship.angle);
+    int half = ss_ship_half(g);
+
+    /* one local point onto the panel */
+#define SS_TURNED(fx, fy, into, at)                                                                    do {                                                                                                   (into)[at] = cx + ((fx) * co - (fy) * si) / 1024;                                                   (into)[(at) + 1] = cy + ((fx) * si + (fy) * co) / 1024;                                         } while (0)
+
+    int hull[6], notch[6], pit[6], flame[6];
+    SS_TURNED(SS_NOSE, 0, hull, 0);
+    SS_TURNED(SS_REAR, -SS_REAR_SIDE, hull, 2);
+    SS_TURNED(SS_REAR, SS_REAR_SIDE, hull, 4);
+
+    /* the bite out of the tail: the two rear corners and a point in front */
+    notch[0] = hull[2];
+    notch[1] = hull[3];
+    notch[2] = hull[4];
+    notch[3] = hull[5];
+    SS_TURNED(SS_NOTCH, 0, notch, 4);
+
+    /* the cockpit: a small mark well forward, so the nose is the bright end.
+     * Any bigger and a white triangle inside a cyan one stops reading as a
+     * canopy and starts reading as a hole. */
+    SS_TURNED(SS_NOSE / 2, 0, pit, 0);
+    SS_TURNED(0, -3, pit, 2);
+    SS_TURNED(0, 3, pit, 4);
+
+    /* and the flame, a cone out of the notch that flickers on a three frame
+     * cycle - the only part of the ship that moves while the ship does not */
+    int len = SS_FLAME_R - 7 + (int)(g->frame % 3) * 3;
+    SS_TURNED(SS_FLAME_BASE, -SS_FLAME_HALF, flame, 0);
+    SS_TURNED(SS_FLAME_BASE, SS_FLAME_HALF, flame, 2);
+    SS_TURNED(-len, 0, flame, 4);
+#undef SS_TURNED
+
+    int x0 = cx - half, x1 = cx + half, y0 = cy - half, y1 = cy + half;
+    if (x0 < bx) {
+        x0 = bx;
+    }
+    if (y0 < by) {
+        y0 = by;
+    }
+    if (x1 >= bx + bw) {
+        x1 = bx + bw - 1;
+    }
+    if (y1 >= by + bh) {
+        y1 = by + bh - 1;
     }
 
-    /*
-     * Two plumes out of the two nozzles in the stencil's last row, flickering
-     * on a three frame cycle.  The flame is the only part of the ship that
-     * moves while the ship does not, and without it a stationary ship looks
-     * like a frame that failed to draw.
-     */
-    int len = 4 + (int)(g->frame % 3);
-    for (int j = 0; j < len; j++) {
-        int w = (j * 2 < len) ? 2 : 1;
-        fill(cx - 3, SS_SHIP_Y + SS_SHIP_H + j, w, 1, pal.thruster);
-        fill(cx + 4 - w, SS_SHIP_Y + SS_SHIP_H + j, w, 1, pal.thruster);
+    for (int y = y0; y <= y1; y++) {
+        for (int x = x0; x <= x1; x++) {
+            if (g->ship.thrusting && in_tri(x, y, flame)) {
+                put(x, y, pal.thruster);
+            }
+            if (!in_tri(x, y, hull) || in_tri(x, y, notch)) {
+                continue;
+            }
+            put(x, y, in_tri(x, y, pit) ? pal.trim : pal.ship);
+        }
     }
 
     if (g->power != SS_P_SHIELD) {
         return;
     }
     /* a bubble that turns, so it reads as a field rather than a drawn circle */
-    for (int y = SS_SHIP_MID - SS_SHIELD_R; y <= SS_SHIP_MID + SS_SHIELD_R; y++) {
+    for (int y = cy - SS_SHIELD_R; y <= cy + SS_SHIELD_R; y++) {
         for (int x = cx - SS_SHIELD_R; x <= cx + SS_SHIELD_R; x++) {
-            int dx = x - cx, dy = y - SS_SHIP_MID;
+            int dx = x - cx, dy = y - cy;
             int d2 = dx * dx + dy * dy;
             if (d2 > SS_SHIELD_R * SS_SHIELD_R ||
                 d2 < (SS_SHIELD_R - 1) * (SS_SHIELD_R - 1)) {
@@ -374,7 +444,7 @@ static void draw_life(int x, int y) {
 }
 
 static void draw_hud(const ss_game *g) {
-    char buf[12];
+    char buf[8];
 
     score_text(g->score, buf);
     draw_text(SS_HUD_X, SS_HUD_Y, 2, pal.hud, buf);
@@ -383,19 +453,6 @@ static void draw_hud(const ss_game *g) {
         draw_life(PM_PANEL - 9 - i * 10, SS_HUD_Y + 4);
     }
 
-    /* the wave down one corner and whatever is running down the other */
-    static const char wave_word[] = "WAVE ";
-    int n = 0;
-    while (wave_word[n] != '\0') {
-        buf[n] = wave_word[n];
-        n++;
-    }
-    unsigned wave = g->wave > 99 ? 99 : g->wave;
-    buf[n++] = (char)('0' + wave / 10);
-    buf[n++] = (char)('0' + wave % 10);
-    buf[n] = '\0';
-    draw_text(SS_HUD_X, SS_FOOT_Y, 1, pal.hud, buf);
-
     const char *power = ss_power_name(g);
     if (power != NULL) {
         draw_text(PM_PANEL - SS_HUD_X - text_w(power, 1), SS_FOOT_Y, 1, pal.power, power);
@@ -403,8 +460,7 @@ static void draw_hud(const ss_game *g) {
 }
 
 static void draw_banner(const ss_game *g) {
-    char buf[12];
-    const char *word = ss_banner(g, buf, (int)sizeof(buf));
+    const char *word = ss_banner(g);
     if (word == NULL) {
         return;
     }
@@ -528,10 +584,14 @@ static ss_box box_of(const ss_game *g, int idx) {
         if (!s->alive) {
             return b;
         }
-        b.x = (int16_t)SS_PX(s->x);
-        b.y = (int16_t)SS_PX(s->y);
-        b.w = 2;
-        b.h = 7;
+        /* the head and the far end of its tail, whichever way it is going */
+        int hx = SS_PX(s->x), hy = SS_PX(s->y);
+        int tx = hx - (int)s->vx * SS_TAIL / (4 * SS_SUB);
+        int ty = hy - (int)s->vy * SS_TAIL / (4 * SS_SUB);
+        b.x = (int16_t)(hx < tx ? hx : tx);
+        b.y = (int16_t)(hy < ty ? hy : ty);
+        b.w = (int16_t)((hx > tx ? hx : tx) + 2 - b.x);
+        b.h = (int16_t)((hy > ty ? hy : ty) + 2 - b.y);
     } else if (idx < SS_B_DROP) {
         const ss_blast *bl = &g->blasts[idx - SS_B_BLAST];
         if (!bl->alive) {
@@ -552,19 +612,13 @@ static ss_box box_of(const ss_game *g, int idx) {
         if (!ss_ship_visible(g)) {
             return b;
         }
-        int cx = SS_PX(g->ship_x);
-        int half = g->power == SS_P_SHIELD ? SS_SHIELD_R + 1 : SS_SHIP_W / 2;
-        int top = SS_SHIP_Y;
-        int bottom = SS_SHIP_Y + SS_SHIP_H + SS_FLAME_H;
-        if (g->power == SS_P_SHIELD) {
-            top = SS_SHIP_MID - SS_SHIELD_R - 1;
-            bottom = bottom > SS_SHIP_MID + SS_SHIELD_R + 1 ? bottom
-                                                            : SS_SHIP_MID + SS_SHIELD_R + 1;
-        }
-        b.x = (int16_t)(cx - half);
-        b.y = (int16_t)top;
-        b.w = (int16_t)(2 * half + 1);
-        b.h = (int16_t)(bottom - top);
+        /* square, because the ship turns: whichever way it is pointing, the
+         * same box holds it, and a box that changed shape with the heading
+         * would leave a corner of the last one unpainted */
+        int half = ss_ship_half(g);
+        b.x = (int16_t)(SS_PX(g->ship.x) - half);
+        b.y = (int16_t)(SS_PX(g->ship.y) - half);
+        b.w = b.h = (int16_t)(2 * half + 1);
     }
     b.on = true;
     return b;
@@ -611,22 +665,15 @@ static void hud_key(const ss_game *g, char *buf) {
 
 static void foot_key(const ss_game *g, char *buf) {
     const char *power = ss_power_name(g);
-    unsigned wave = g->wave > 99 ? 99 : g->wave;
 
-    buf[0] = (char)('0' + wave / 10);
-    buf[1] = (char)('0' + wave % 10);
-    buf[2] = '\0';
-    if (power != NULL) {
-        memcpy(buf + 2, power, strlen(power) + 1);
-    }
+    memcpy(buf, power != NULL ? power : "", power != NULL ? strlen(power) + 1 : 1);
 }
 
 static void snapshot_text(const ss_game *g) {
-    char buf[12];
+    const char *word = ss_banner(g);
 
     hud_key(g, prev_hud);
     foot_key(g, prev_foot);
-    const char *word = ss_banner(g, buf, (int)sizeof(buf));
     memcpy(prev_banner, word != NULL ? word : "", word != NULL ? strlen(word) + 1 : 1);
 }
 
@@ -645,8 +692,7 @@ static void repaint_text(const ss_game *g) {
         paint(g, 0, SS_FOOT_Y - 1, PM_PANEL, SS_GLYPH_H + 2);
     }
 
-    char bbuf[12];
-    const char *word = ss_banner(g, bbuf, (int)sizeof(bbuf));
+    const char *word = ss_banner(g);
     const char *now = word != NULL ? word : "";
     if (strcmp(now, prev_banner) != 0) {
         /* the wider of the two, so the one going away is wiped either way */

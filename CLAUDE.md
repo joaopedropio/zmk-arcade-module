@@ -2,8 +2,9 @@
 
 A ZMK module for the [snake dongle](https://github.com/joaopedropio/snake-dongle):
 the `pacman_adapter` shield turns the dongle's 240x240 ST7789V into one of two
-self-playing games - a Pac-Man or a Space Shooter, chosen by the `game`
-setting - with sound out of a MAX98357A. Everything is drawn straight to the
+self-playing games - a Pac-Man in a maze, or an Asteroids-shaped Space Shooter
+with a triangle that turns and thrusts freely, chosen by the `game` setting -
+with sound out of a MAX98357A. Everything is drawn straight to the
 panel — there are no LVGL objects and no full frame buffer, only dirty
 rectangles pushed over SPI, so the usual LVGL advice does not apply here.
 
@@ -23,7 +24,7 @@ it catches both game bugs and drawing bugs. The game name goes in front of the
 old argument list and may be left out, in which case it is the maze.
 `/tmp/pacman-sim 640 2 /tmp/frames 40` dumps PPMs instead.
 Balance changes want a soak: 200k frames prints clears against deaths for the
-maze, and waves against restarts for the shooter.
+maze, and meteors destroyed against restarts for the shooter.
 `docs/demo.gif` is those frames at 15 fps, which is the speed the dongle plays
 it, with the splash held in front for the first two seconds; `docs/shooter.gif`
 is the same for the other game, without a splash:
@@ -142,8 +143,9 @@ anything else they turn out to have in common belongs there too.
   needing the 115KB frame buffer this shield has not got.
 - **The geometry constants are load-bearing and documented where they live** —
   `PM_TILE` in `pacman_core.h`, `PM_WALL_LINE`/`PM_WALL_INSET`/`PM_WALL_R`/
-  `PM_BORDER_GAP`/`PM_SPRITE` in `pacman_render.h`; `SS_SUB`, `SS_SHIP_*` and
-  `SS_ROCKS` in `shooter_core.h`, `SS_HUD_*`/`SS_BANNER_*`/`SS_SHIELD_R` in
+  `PM_BORDER_GAP`/`PM_SPRITE` in `pacman_render.h`; `SS_SUB`, the angle units,
+  `SS_NOSE`/`SS_REAR`/`SS_NOTCH`/`SS_HULL_R`/`SS_FLAME_R` and `SS_ROCKS` in
+  `shooter_core.h`, `SS_HUD_*`/`SS_BANNER_*`/`SS_SHIELD_R` in
   `shooter_render.h`. Read those comments before changing a number. A `_Static_assert` catches the corner-overlap case;
   `PM_MARGIN` and `PM_MARGIN_END` differ on an odd leftover, so anything
   painting the margin has to use the right one.
@@ -153,6 +155,22 @@ anything else they turn out to have in common belongs there too.
   built on it — but row 7 departs from it deliberately, to leave an isolated
   tile between the two L's. `python3 tools/check_maze.py` checks the art either
   way; run it after touching `MAZE_ART`.
+- **The shooter's pilot is two rules and some bookkeeping.** Never break a
+  meteor closer than `SS_KEEP_OFF` - the fragments land inside the distance
+  needed to dodge them, and that alone was killing two runs in three - and
+  dodge *sideways* to a meteor's course rather than away from it, holding the
+  chosen side for `SS_EVADE_HOLD` frames. Without the hold the ship dithers on
+  the spot: near the track a meteor is on, which way to step flips frame to
+  frame. Anything asking "is this closing on me" has to use the relative
+  velocity of the two, never the meteor's alone, or the ship coasts into rocks
+  that were drifting away. `tools/sim`'s soak is how any of this is judged -
+  restarts per 200k frames, not how it looks over ten seconds.
+- **There are no waves in the shooter and nothing counts them.** Meteors are
+  topped up whenever there is room, weighted by what they cost to draw rather
+  than by how many there are, so the frame stays about the same price whatever
+  the mix is. Adding a wave counter back would mean a number nobody watching a
+  dongle can act on, which is the same reason the action button stopped
+  stepping through themes.
 - **The two games share one staging band and nothing else.** `game/panel.h`
   holds `PM_PANEL`, `pm_band[]`, `pm_blit()` and `pm_rgb565()`, and each
   renderer `_Static_assert`s its own widest blit against `PM_BAND_PX`. One

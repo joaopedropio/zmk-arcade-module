@@ -158,24 +158,23 @@ static int check_incremental_ss(ss_game *g, int frame) {
 }
 
 static void check_ss(const ss_game *g, int frame) {
-    int sx = SS_PX(g->ship_x);
-    if (sx - SS_SHIP_W / 2 < 0 || sx + SS_SHIP_W / 2 >= PM_PANEL) {
-        printf("FRAME %d: the ship left the panel at %d\n", frame, sx);
+    int sx = SS_PX(g->ship.x), sy = SS_PX(g->ship.y);
+
+    if (sx - SS_HULL_R < 0 || sx + SS_HULL_R >= PM_PANEL || sy - SS_HULL_R < 0 ||
+        sy + SS_HULL_R >= PM_PANEL) {
+        printf("FRAME %d: the ship left the panel at %d,%d\n", frame, sx, sy);
         exit(1);
     }
+    /* a meteor is allowed off the panel, but only far enough to be forgotten */
     for (int i = 0; i < SS_ROCKS; i++) {
         const ss_rock *r = &g->rocks[i];
         if (!r->alive) {
             continue;
         }
-        int rad = ss_rock_r[r->size];
+        int rad = ss_rock_r[r->size] + 8;
         int x = SS_PX(r->x), y = SS_PX(r->y);
-        if (x + rad < 0 || x - rad >= PM_PANEL) {
-            printf("FRAME %d: meteor %d left the panel sideways at %d\n", frame, i, x);
-            exit(1);
-        }
-        if (y - rad > PM_PANEL) {
-            printf("FRAME %d: meteor %d fell off the bottom at %d\n", frame, i, y);
+        if (x < -rad || x > PM_PANEL + rad || y < -rad || y > PM_PANEL + rad) {
+            printf("FRAME %d: meteor %d is adrift at %d,%d\n", frame, i, x, y);
             exit(1);
         }
     }
@@ -186,11 +185,11 @@ static int run_shooter(int frames, int every, const char *dir, int from, int spe
     ss_init(&g, 12345);
     ss_set_speed(&g, (uint8_t)speed);
 
-    int deaths = 0, waves = 0, stale = 0, powers = 0, overs = 0, out = 0;
-    uint16_t wave = g.wave;
+    int deaths = 0, stale = 0, powers = 0, overs = 0, out = 0, broken = 0;
     ss_phase phase = g.phase;
     ss_power power = g.power;
-    uint32_t top = 0;
+    uint32_t top = 0, last_score = 0;
+    long rock_frames = 0;
 
     for (int f = 0; f < frames; f++) {
         ss_step(&g);
@@ -200,6 +199,13 @@ static int run_shooter(int frames, int every, const char *dir, int from, int spe
         if (g.score > top) {
             top = g.score;
         }
+        if (g.score != last_score) {
+            broken++;
+            last_score = g.score;
+        }
+        for (int i = 0; i < SS_ROCKS; i++) {
+            rock_frames += g.rocks[i].alive ? 1 : 0;
+        }
         if (g.phase != phase) {
             if (g.phase == SS_DEAD) {
                 deaths++;
@@ -207,13 +213,9 @@ static int run_shooter(int frames, int every, const char *dir, int from, int spe
             if (g.phase == SS_OVER) {
                 deaths++;
                 overs++;
-                printf("  f%-6d game over on wave %u with %u\n", f, g.wave, (unsigned)top);
+                printf("  f%-6d game over with %u\n", f, (unsigned)top);
             }
             phase = g.phase;
-        }
-        if (g.wave != wave) {
-            waves++;
-            wave = g.wave;
         }
         if (g.power != power) {
             if (g.power != SS_P_NONE) {
@@ -231,11 +233,11 @@ static int run_shooter(int frames, int every, const char *dir, int from, int spe
         }
     }
 
-    printf("frames=%d score=%u best=%u wave=%u lives=%u deaths=%d waves=%d powerups=%d "
+    printf("frames=%d score=%u best=%u lives=%u deaths=%d meteors=%d powerups=%d "
            "restarts=%d\n",
-           frames, (unsigned)g.score, (unsigned)top, g.wave, g.lives, deaths, waves, powers,
-           overs);
-    printf("longest wait for a hit: %u frames, stale pixels: %d\n", g.patient, stale);
+           frames, (unsigned)g.score, (unsigned)top, g.lives, deaths, broken, powers, overs);
+    printf("longest wait for a hit: %u frames, %.1f meteors on the panel, stale pixels: %d\n",
+           g.patient, (double)rock_frames / frames, stale);
     printf("blits=%ld pixels=%ld (%.1f px/frame, %.1f blits/frame)\n", blit_calls, blit_pixels,
            (double)blit_pixels / frames, (double)blit_calls / frames);
     if (out) {

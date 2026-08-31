@@ -232,7 +232,7 @@ config PACMAN_POWERUP_COLOR
     default "39ff9e"
 
 config PACMAN_HUD_COLOR
-    string "Score, wave and lives colour (rrggbb)"
+    string "Score and lives colour (rrggbb)"
     default "ffee00"
 
 # ------------------------------------------------------------------
