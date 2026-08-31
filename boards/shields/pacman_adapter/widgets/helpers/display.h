@@ -146,6 +146,8 @@ void render_bitmap_multicolor(uint16_t *scaled_bitmap, const uint16_t bitmap[], 
 void print_bitmap(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, uint16_t scale, uint16_t color, uint16_t bg_color, FontSize font_size);
 void print_bitmap_multicolor(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, uint16_t scale, const uint16_t colors[], FontSize font_size);
 void print_rectangle(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t color, uint16_t scale);
+/* a solid block; buf_frame has to hold w * h pixels, so wide ones go in strips */
+void print_filled_rectangle(uint8_t *buf_frame, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
 void render_filled_rectangle(uint8_t *buf_area, uint8_t x, uint8_t y, uint8_t width, uint8_t height);
 void render_indexed_image(uint16_t *row_buf, const uint8_t *runs, size_t run_count, const uint16_t palette[], uint16_t x, uint16_t y, uint16_t width, uint16_t height);
 

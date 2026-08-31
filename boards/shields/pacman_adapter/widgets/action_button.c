@@ -23,6 +23,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 #include <zmk/display.h>
 #include <zmk/event_manager.h>
+#include <zmk/workqueue.h>
 #include <zmk_dongle_events/dongle_action_event.h>
 
 #include "action_button.h"
@@ -36,6 +37,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include "modifier.h"
 #include "output_status.h"
 #include "pacman.h"
+#include "progress.h"
 #include "sound.h"
 #include "theme.h"
 #include "wpm.h"
@@ -49,6 +51,22 @@ static int64_t pressed_timestamp = 0;
 static bool action_button_initialized = false;
 static bool menu_on = false;
 static bool dongle_lock = false;
+
+/*
+ * Whether a profile switch is in flight.  The button is answered on the
+ * display queue and the switch runs on another thread, so a second press
+ * arrives while the first is still writing flash - and would start a switch
+ * out of a profile that is only half applied.  It is refused rather than
+ * queued: the panel is showing a modal, and the honest answer to a press
+ * during one is nothing at all.
+ */
+static atomic_t switching = ATOMIC_INIT(0);
+
+/* what the two ends of the switch say to each other, all of it read by the
+ * display queue and written by the one doing the flash */
+static atomic_t progress_done = ATOMIC_INIT(0);
+static atomic_t progress_total = ATOMIC_INIT(0);
+static atomic_t progress_slot = ATOMIC_INIT(0);
 
 /* which action a press turned out to be, once it was let go of */
 typedef enum {
@@ -115,49 +133,114 @@ static void toggle_menu(void) {
 }
 
 /*
- * The repaint half of a profile switch, and the only half that belongs on the
- * display queue: apply_all() pushes the new values at whatever draws them and
- * the screen goes up again.  Re-applying everything rather than what moved is
- * the same trade the shell makes - the setters are idempotent, and eighty of
- * them cost less than the repaint after.
+ * The three things a profile switch does on the display queue, because they
+ * draw: put the modal up, move its bar along, and put the screen back.  The
+ * game is stopped for the first of them - its timer runs on this same thread
+ * and would paint the maze straight over the box - and started again by
+ * refresh_screen() at the end.
+ */
+static void open_progress(struct k_work *work) {
+    ARG_UNUSED(work);
+
+    pacman_stop();
+    progress_open((uint8_t)atomic_get(&progress_slot));
+}
+
+static K_WORK_DEFINE(open_progress_work, open_progress);
+
+static void draw_progress(struct k_work *work) {
+    ARG_UNUSED(work);
+
+    progress_draw((uint16_t)atomic_get(&progress_done), (uint16_t)atomic_get(&progress_total));
+}
+
+static K_WORK_DEFINE(draw_progress_work, draw_progress);
+
+/*
+ * apply_all() pushes the new values at whatever draws them and the screen goes
+ * up again.  Re-applying everything rather than what moved is the same trade
+ * the shell makes - the setters are idempotent, and eighty of them cost less
+ * than the repaint after.  The flag is cleared here, at the end of the whole
+ * thing, so the button stays refused until there is a screen to press against.
  */
 static void show_profile(struct k_work *work) {
     ARG_UNUSED(work);
 
     pacman_settings_apply_all();
     refresh_screen();
+    atomic_clear(&switching);
 }
 
 static K_WORK_DEFINE(show_profile_work, show_profile);
 
 /*
- * The other half is a flash write for the profile being left and one for every
- * setting that moved, which is far too much to do on the queue that has to
- * repaint next - the button is answered from a display widget listener, so
- * that is the thread this would otherwise run on.  It goes to the system work
- * queue instead and hands the drawing back when it is done.
+ * Called between flash writes, on the thread doing them.  It leaves a number
+ * behind and asks the display queue to draw it rather than drawing anything
+ * itself; an update that arrives while the last one is still queued is simply
+ * the number the queued one will read.
+ */
+static void on_progress(uint16_t done, uint16_t total) {
+    atomic_set(&progress_done, done);
+    atomic_set(&progress_total, total);
+    k_work_submit_to_queue(zmk_display_work_q(), &draw_progress_work);
+}
+
+/*
+ * The rest of a switch is a flash write for the profile being left and one for
+ * every setting that moved, which is far too much to do on the queue that has
+ * to repaint next - the button is answered from a display widget listener, so
+ * that is the thread this would otherwise run on.
+ *
+ * It goes to ZMK's low-priority queue rather than the system one, which is
+ * cooperative at -1 and so sits above the sound thread: a burst of flash
+ * writes there would hold the amplifier off between yields.  At 10 it is below
+ * both the sound thread and the display, which is the order this shield needs.
+ * The drawing is handed back a piece at a time as it goes.
  */
 static void switch_profile(struct k_work *work) {
     ARG_UNUSED(work);
 
     int slot = pacman_profile_next();
     if (slot == pacman_profile_current()) {
-        return; /* the only profile there is; nothing to move to */
-    }
-    if (pacman_profile_load(slot, NULL) < 0) {
+        atomic_clear(&switching); /* the only profile there is; nothing to move to */
         return;
     }
+
+    atomic_set(&progress_slot, slot);
+    atomic_set(&progress_done, 0);
+    atomic_set(&progress_total, 1);
+    k_work_submit_to_queue(zmk_display_work_q(), &open_progress_work);
+
+    /*
+     * The screen has to come back whether the load worked or not - the modal
+     * is already up by now, and a dongle left staring at a half-full bar is
+     * worse than one that simply did not move.
+     */
+    pacman_profile_load(slot, NULL, on_progress);
     k_work_submit_to_queue(zmk_display_work_q(), &show_profile_work);
 }
 
 static K_WORK_DEFINE(switch_profile_work, switch_profile);
 
-static void next_profile(void) { k_work_submit(&switch_profile_work); }
+static void next_profile(void) {
+    if (!atomic_cas(&switching, 0, 1)) {
+        return; /* one is already running; the modal is on the panel saying so */
+    }
+    k_work_submit_to_queue(zmk_workqueue_lowprio_work_q(), &switch_profile_work);
+}
 
 static void toggle_mute(void) { pacman_settings_toggle_mute(); }
 
 static void run_action(void) {
     if (dongle_lock) {
+        return;
+    }
+    /*
+     * A switch owns the panel until its bar is full - swapping screens or
+     * muting under the modal would draw over it, and pressing again would
+     * start a second switch out of a half-applied profile.
+     */
+    if (atomic_get(&switching)) {
         return;
     }
     dongle_lock = true;
@@ -213,6 +296,7 @@ void zmk_widget_action_button_init(void) {
     dongle_action_init();
 
     buf_frame = (uint8_t *)k_malloc(320 * 2 * sizeof(uint8_t));
+    progress_init();
 }
 
 void start_action_button(bool is_menu_on) {

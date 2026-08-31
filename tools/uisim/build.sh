@@ -45,6 +45,7 @@ cc -O1 -Wall -include "$defs" \
    "$root/boards/shields/pacman_adapter/widgets/modifier.c" \
    "$root/boards/shields/pacman_adapter/widgets/wpm.c" \
    "$root/boards/shields/pacman_adapter/widgets/action_button.c" \
+   "$root/boards/shields/pacman_adapter/widgets/progress.c" \
    "$root/tools/uisim/stub/settings_stub.c"
 
 rm -f "$defs"

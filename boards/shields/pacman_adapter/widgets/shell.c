@@ -348,7 +348,7 @@ static int cmd_profile_load(const struct shell *sh, size_t argc, char **argv) {
     }
 
     bool reboot = false;
-    int moved = pacman_profile_load(slot, &reboot);
+    int moved = pacman_profile_load(slot, &reboot, NULL);
     if (moved < 0) {
         shell_error(sh, "profile %d %s", slot, moved == -ENOENT ? "is empty" : "would not read");
         return moved;

@@ -10,6 +10,29 @@
 #define ARG_UNUSED(x) ((void)(x))
 
 /*
+ * Atomics are how the firmware's threads talk without a lock.  There is one
+ * thread here, so they are plain reads and writes - kept as the same calls so
+ * the widgets compile exactly as the firmware compiles them.
+ */
+typedef long atomic_t;
+#define ATOMIC_INIT(v) (v)
+
+static inline atomic_t atomic_get(const atomic_t *target) { return *target; }
+static inline atomic_t atomic_set(atomic_t *target, atomic_t value) {
+    atomic_t was = *target;
+    *target = value;
+    return was;
+}
+static inline atomic_t atomic_clear(atomic_t *target) { return atomic_set(target, 0); }
+static inline bool atomic_cas(atomic_t *target, atomic_t expect, atomic_t desired) {
+    if (*target != expect) {
+        return false;
+    }
+    *target = desired;
+    return true;
+}
+
+/*
  * The firmware uses work items to put a job on a particular thread - the flash
  * writes of a profile switch off the queue that has to repaint next, and the
  * repaint back onto it.  There is one thread here and nothing to keep apart,

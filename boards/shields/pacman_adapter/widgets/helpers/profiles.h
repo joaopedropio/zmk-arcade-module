@@ -105,14 +105,23 @@ int pacman_profile_read(int slot, pacman_profile_cb fn, void *ctx);
 int pacman_profile_save(int slot, const char *name);
 
 /*
+ * How far a load has got, called as it goes: the snapshot of the profile being
+ * left is the first step and each setting after it is another.  It runs on
+ * whatever thread called load, which is not the one that draws - so an
+ * implementation stores the number and leaves the drawing to somebody else.
+ */
+typedef void (*pacman_profile_progress_cb)(uint16_t done, uint16_t total);
+
+/*
  * Move the dongle onto the slot: the profile being left is written down as the
  * panel has it, then the slot's settings become the live ones, flash and all.
  * Returns how many actually moved, or 0 for the slot the dongle is already on;
  * *reboot, which may be NULL, says whether one of them was a setting the
  * widgets only read as they size themselves, and so whether the dongle owes a
- * restart before the screen matches the profile.
+ * restart before the screen matches the profile.  progress may be NULL where
+ * nobody is watching.
  */
-int pacman_profile_load(int slot, bool *reboot);
+int pacman_profile_load(int slot, bool *reboot, pacman_profile_progress_cb progress);
 
 int pacman_profile_rename(int slot, const char *name);
 

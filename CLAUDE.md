@@ -204,8 +204,16 @@ may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
   both host harnesses have to answer `pacman_profile_current()`,
   `_next()` and `_load()` themselves alongside the sound and game no-ops.
   A profile switch from the button is a flash write for the profile being left
-  plus one per setting that moved; the button is answered on the display queue,
-  so the switch goes to the system work queue and only the repaint comes back.
+  plus one per setting that moved, which is long enough to look like a button
+  that did not take - so `widgets/progress.c` puts a modal with a bar over
+  whichever screen is up, and the button is refused entirely until it is done.
+  The button is answered on the display queue, so the switch itself goes to
+  **ZMK's low-priority queue** (`zmk_workqueue_lowprio_work_q()`, priority 10),
+  never the system one: that is cooperative at -1 and sits above the sound
+  thread, so a burst of flash writes there would hold the amplifier off. Only
+  the drawing comes back to the display queue, a work item at a time, and the
+  game is stopped first because its timer runs on that same thread and would
+  paint the maze over the box.
 - **The dongle is always on a profile, and the live settings are it.**
   `pacman set` reaches flash as it is typed, so there is no draft of a profile
   and nothing to save: what it writes is the profile you are on. Keeping a look

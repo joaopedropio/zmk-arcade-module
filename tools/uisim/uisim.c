@@ -30,11 +30,13 @@
 #include "battery_status.h"
 #include "frames.h"
 #include "helpers/display.h"
+#include "helpers/profiles.h"
 #include "layer_status.h"
 #include "logo.h"
 #include "modifier.h"
 #include "pacman.h"
 #include "output_status.h"
+#include "progress.h"
 #include "sound.h"
 #include "splash.h"
 #include "theme.h"
@@ -70,8 +72,9 @@ bool pacman_is_paused(void) { return true; }
  */
 int pacman_profile_current(void) { return UISIM_PROFILE_SLOT; }
 int pacman_profile_next(void) { return UISIM_PROFILE_SLOT; }
-int pacman_profile_load(int slot, bool *reboot) {
+int pacman_profile_load(int slot, bool *reboot, pacman_profile_progress_cb progress) {
     (void)slot;
+    (void)progress;
     if (reboot) {
         *reboot = false;
     }
@@ -250,6 +253,16 @@ int main(int argc, char **argv) {
         logo_animation_timer(NULL);
     }
     write_ppm(dir, "dashboard");
+
+    /*
+     * And the modal a profile switch puts over whichever screen is up.  Drawn
+     * part-way along, because a bar at nothing and a bar at full both hide the
+     * thing worth looking at - whether the fill lands inside its own trough.
+     */
+    progress_init();
+    progress_open(UISIM_PROFILE_SLOT);
+    progress_draw(2, 3);
+    write_ppm(dir, "applying");
 
     return failures == 0 ? 0 : 1;
 }

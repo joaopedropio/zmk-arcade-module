@@ -67,6 +67,12 @@ it does:
 | 300-600 ms | moves to the next profile |
 | past 600 ms | mutes, or unmutes |
 
+Moving between profiles takes a moment - it is a flash write for the profile
+being left and one for every setting that moves - so the panel puts up a box
+saying which profile it is applying, with a bar, and ignores the button until
+the bar is full. Pressing again mid-switch would otherwise start a second one
+out of a profile that is only half applied.
+
 The middle one used to step through themes. A theme number was never anything
 you could act on from the panel — it picked between four-colour sets and the
 dashboard changed shade — so the hold now loads the next saved profile, which
@@ -532,6 +538,7 @@ boards/shields/pacman_adapter/
 └── widgets/
     ├── pacman.c                display device, palette, LVGL timer, WPM speed
     ├── action_button.c         swaps screens, moves between profiles, mutes
+    ├── progress.c              the box and bar shown while one is applied
     ├── splash.c                the wordmark and the chase, or the picture
     ├── logo.c                  the dashboard's animated header
     ├── frames.c                the boxes the slots are drawn in

@@ -385,7 +385,7 @@ int pacman_profile_save(int slot, const char *name) {
  * the range check is the same one the shell does, and an entry that fails it
  * is left as it was rather than taking the whole load down.
  */
-int pacman_profile_load(int slot, bool *reboot) {
+int pacman_profile_load(int slot, bool *reboot, pacman_profile_progress_cb progress) {
     char leaving[PACMAN_PROFILE_NAME_LEN];
 
     if (reboot) {
@@ -424,15 +424,30 @@ int pacman_profile_load(int slot, bool *reboot) {
      * when that write fails is the honest outcome: going on would lose the
      * profile somebody is standing on.
      */
+    /*
+     * Counted before the writing starts, so whoever is drawing a bar has a
+     * denominator from the first step rather than a bar that grows its own
+     * scale.  The snapshot is the first of them and each entry after is one
+     * more; it is the slowest single step, which is why it is worth counting
+     * rather than leaving the bar at nothing until it is over.
+     */
+    uint16_t total = scratch.entries + 1;
+
     rc = snapshot(current_slot, leaving);
     if (rc) {
         LOG_ERR("Could not write profile %u before leaving it: %d", current_slot, rc);
         return rc;
     }
+    if (progress) {
+        progress(1, total);
+    }
 
     int moved = 0;
     for (uint16_t i = 0; i < scratch.entries; i++) {
         int id = id_for_hash(scratch.entry[i].key);
+        if (progress) {
+            progress(i + 2, total);
+        }
         if (id < 0) {
             continue;
         }

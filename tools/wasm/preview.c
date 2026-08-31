@@ -30,6 +30,7 @@
 #include "battery_status.h"
 #include "frames.h"
 #include "helpers/display.h"
+#include "helpers/profiles.h"
 #include "helpers/settings.h"
 #include "layer_status.h"
 #include "logo.h"
@@ -192,8 +193,9 @@ static int profile_slot = 0;
 
 int pacman_profile_current(void) { return profile_slot; }
 int pacman_profile_next(void) { return profile_slot; }
-int pacman_profile_load(int slot, bool *reboot) {
+int pacman_profile_load(int slot, bool *reboot, pacman_profile_progress_cb progress) {
     (void)slot;
+    (void)progress;
     if (reboot) {
         *reboot = false;
     }

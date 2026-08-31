@@ -1093,6 +1093,18 @@ void print_rectangle(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint1
     fill_rect(buf_frame, start_x, start_y, scale, down, color);
     fill_rect(buf_frame, end_x, start_y, scale, down, color);
 }
+/*
+ * The same rectangle, filled rather than outlined.  print_rectangle() draws
+ * four thin ones and leaves the middle alone, which is no use to anything that
+ * wants a solid block - a modal's ground, a progress bar's fill.  The caller's
+ * buffer has to hold w * h pixels; a caller with a smaller one paints in
+ * strips, which is what there is instead of a frame buffer on this shield.
+ */
+void print_filled_rectangle(uint8_t *buf_frame, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+                            uint16_t color) {
+    fill_rect(buf_frame, x, y, w, h, color);
+}
+
 void init_display(void) {
 	display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 	if (!device_is_ready(display_dev)) {
