@@ -6,14 +6,14 @@
 
 #include "pacman_render.h"
 
-#define BAND_BYTES (PM_BLIT_MAX * 2)
-
 /* tile-relative sizes, so the grid can be rescaled without retuning them */
 #define PM_PELLET    (PM_TILE / 4)                      /* pellet side, 2px at 10px tiles */
 #define PM_PELLET_AT ((PM_TILE - PM_PELLET) / 2)
 #define PM_POWER_R2  ((PM_TILE * PM_TILE * 40) / 100)   /* power pellet radius^2 */
 
-static uint8_t scratch[BAND_BYTES];
+/* the band is shared with the shooter, which is why it is not declared here */
+_Static_assert(PM_BLIT_MAX <= PM_BAND_PX, "a maze blit outgrew panel.h's band");
+
 static pm_palette pal;
 static bool pal_ready;
 
@@ -22,13 +22,6 @@ static int16_t prev_y[PM_ACTORS];
 static bool prev_vis[PM_ACTORS];
 static bool prev_valid;
 static bool last_blink;
-
-uint16_t pm_rgb565(uint32_t rgb888) {
-    uint16_t r = (uint16_t)(((rgb888 >> 16) & 0xFF) * 31 / 255);
-    uint16_t g = (uint16_t)(((rgb888 >> 8) & 0xFF) * 63 / 255);
-    uint16_t b = (uint16_t)((rgb888 & 0xFF) * 31 / 255);
-    return (uint16_t)((r << 11) | (g << 5) | b);
-}
 
 void pm_render_default_palette(pm_palette *p) {
     p->bg = pm_rgb565(0x000000);
@@ -524,7 +517,7 @@ static void paint(pm_game *g, int x0, int y0, int w, int h) {
         return;
     }
 
-    uint8_t *out = scratch;
+    uint8_t *out = pm_band;
     for (int y = y0; y < y0 + h; y++) {
         for (int x = x0; x < x0 + w; x++) {
             uint16_t c = bg_pixel(g, x, y);
@@ -559,7 +552,7 @@ static void paint(pm_game *g, int x0, int y0, int w, int h) {
         }
     }
     pm_blit((uint16_t)(x0 + PM_MARGIN), (uint16_t)(y0 + PM_MARGIN), (uint16_t)w,
-            (uint16_t)h, scratch);
+            (uint16_t)h, pm_band);
 }
 
 /* fills one band of the margin; the four of them cover it exactly once */
@@ -567,7 +560,7 @@ static void paint_band(const pm_game *g, int x0, int y0, int w, int h) {
     if (w <= 0 || h <= 0) {
         return;
     }
-    uint8_t *out = scratch;
+    uint8_t *out = pm_band;
     for (int y = y0; y < y0 + h; y++) {
         for (int x = x0; x < x0 + w; x++) {
             int b = border_px(g, x, y);
@@ -576,7 +569,7 @@ static void paint_band(const pm_game *g, int x0, int y0, int w, int h) {
             *out++ = (uint8_t)(c & 0xFF);
         }
     }
-    pm_blit((uint16_t)x0, (uint16_t)y0, (uint16_t)w, (uint16_t)h, scratch);
+    pm_blit((uint16_t)x0, (uint16_t)y0, (uint16_t)w, (uint16_t)h, pm_band);
 }
 
 static void paint_border(const pm_game *g) {

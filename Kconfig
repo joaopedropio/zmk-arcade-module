@@ -26,7 +26,7 @@ config PACMAN_PROFILE_SLOTS
     help
       A profile is every setting at once under a name, written to flash so it
       travels with the dongle rather than with the browser that made it.  Each
-      one costs about seven hundred bytes of the storage partition when it is
+      one costs about eight hundred bytes of the storage partition when it is
       used, and nothing while the slot is empty.
 
 config PACMAN_ROTATE_DISPLAY
@@ -119,6 +119,19 @@ config PACMAN_WPM_FAST
     int "Words per minute above which the game runs fast"
     default 60
 
+config PACMAN_DEFAULT_GAME
+    string "Which game the panel plays"
+    default "pacman"
+    help
+      "pacman" is the maze; "shooter" is the meteors.  Both are self-playing
+      animations on the same panel and either can be chosen later from the
+      shell or the configurator, so this is only what a freshly flashed dongle
+      comes up on.
+
+# ------------------------------------------------------------------
+# The maze's colours.
+# ------------------------------------------------------------------
+
 config PACMAN_BG_COLOR
     string "Background colour (rrggbb)"
     default "000000"
@@ -170,6 +183,57 @@ config PACMAN_GHOST_3_COLOR
 config PACMAN_FRIGHT_COLOR
     string "Colour of a frightened ghost (rrggbb)"
     default "2121de"
+
+# ------------------------------------------------------------------
+# The shooter's colours.  Cool hull, hot exhaust, grey rock: the three
+# families are what let the ship, its flame and a meteor be told apart
+# at a glance, and a palette that keeps them apart will read at arm's
+# length whatever the individual colours are.
+# ------------------------------------------------------------------
+
+config PACMAN_SPACE_COLOR
+    string "Colour behind the stars (rrggbb)"
+    default "05060f"
+
+config PACMAN_STAR_COLOR
+    string "Star colour (rrggbb)"
+    default "8899bb"
+
+config PACMAN_SHIP_COLOR
+    string "Ship hull colour (rrggbb)"
+    default "6ee7ff"
+
+config PACMAN_SHIP_TRIM_COLOR
+    string "Ship cockpit colour (rrggbb)"
+    default "ffffff"
+
+config PACMAN_THRUSTER_COLOR
+    string "Exhaust flame colour (rrggbb)"
+    default "ff8a1f"
+
+config PACMAN_BULLET_COLOR
+    string "Shot colour (rrggbb)"
+    default "fff36b"
+
+config PACMAN_METEOR_COLOR
+    string "Meteor fill colour (rrggbb)"
+    default "5a5f7a"
+
+config PACMAN_METEOR_EDGE_COLOR
+    string "Meteor rim colour (rrggbb)"
+    default "a3adc9"
+
+config PACMAN_BLAST_COLOR
+    string "Colour of a meteor coming apart (rrggbb)"
+    default "ff5a2b"
+
+config PACMAN_POWERUP_COLOR
+    string "Pickup and shield colour (rrggbb)"
+    default "39ff9e"
+
+config PACMAN_HUD_COLOR
+    string "Score, wave and lives colour (rrggbb)"
+    default "ffee00"
 
 # ------------------------------------------------------------------
 # Splash screen and dashboard.  The dashboard is a grid of slots; each

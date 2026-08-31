@@ -44,8 +44,11 @@ emcc -O2 -std=c11 -Wall \
     -o "$out" \
     "$root/tools/wasm/preview.c" \
     "$stub/settings_stub.c" \
+    "$widgets/game/panel.c" \
     "$widgets/game/pacman_core.c" \
     "$widgets/game/pacman_render.c" \
+    "$widgets/game/shooter_core.c" \
+    "$widgets/game/shooter_render.c" \
     "$widgets/helpers/display.c" \
     "$widgets/splash.c" \
     "$widgets/logo.c" \

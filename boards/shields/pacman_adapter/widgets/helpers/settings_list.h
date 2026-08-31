@@ -45,6 +45,7 @@
     X(THEME_BG,              "theme-bg",              COLOR,  0,     0xffffff,                NULL,              apply_theme_colors,          true,  false, CONFIG_PACMAN_THEME_BG_COLOR)   \
     X(THEME_BG_DARKER,       "theme-bg-darker",       COLOR,  0,     0xffffff,                NULL,              apply_theme_colors,          true,  false, CONFIG_PACMAN_THEME_BG_DARKER_COLOR)   \
     X(THEME,                 "theme",                 NUMBER, 0,     0,                       NULL,              apply_theme,                 true,  false, "0")   \
+    X(GAME,                  "game",                  ENUM,   0,     PACMAN_GAME_SHOOTER,     game_labels,       apply_game,                  true,  false, CONFIG_PACMAN_DEFAULT_GAME)   \
     X(GAME_BG,               "game-bg",               COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_BG_COLOR)   \
     X(GAME_WALL,             "game-wall",             COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_WALL_COLOR)   \
     X(GAME_WALL_FILL,        "game-wall-fill",        COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_WALL_FILL_COLOR)   \
@@ -58,6 +59,17 @@
     X(GAME_GHOST_2,          "game-ghost-2",          COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_GHOST_2_COLOR)   \
     X(GAME_GHOST_3,          "game-ghost-3",          COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_GHOST_3_COLOR)   \
     X(GAME_FRIGHT,           "game-fright",           COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_FRIGHT_COLOR)   \
+    X(GAME_SPACE,            "game-space",            COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_SPACE_COLOR)   \
+    X(GAME_STAR,             "game-star",             COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_STAR_COLOR)   \
+    X(GAME_SHIP,             "game-ship",             COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_SHIP_COLOR)   \
+    X(GAME_SHIP_TRIM,        "game-ship-trim",        COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_SHIP_TRIM_COLOR)   \
+    X(GAME_THRUSTER,         "game-thruster",         COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_THRUSTER_COLOR)   \
+    X(GAME_BULLET,           "game-bullet",           COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_BULLET_COLOR)   \
+    X(GAME_METEOR,           "game-meteor",           COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_METEOR_COLOR)   \
+    X(GAME_METEOR_EDGE,      "game-meteor-edge",      COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_METEOR_EDGE_COLOR)   \
+    X(GAME_BLAST,            "game-blast",            COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_BLAST_COLOR)   \
+    X(GAME_POWERUP,          "game-powerup",          COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_POWERUP_COLOR)   \
+    X(GAME_HUD,              "game-hud",              COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_HUD_COLOR)   \
     X(SPLASH_STYLE,          "splash-style",          ENUM,   0,     SPLASH_STYLE_IMAGE,      splash_style_labels, apply_splash_style,        false, false, CONFIG_PACMAN_SPLASH_STYLE)   \
     X(SPLASH_MULTI_0,        "splash-multi-0",        COLOR,  0,     0xffffff,                NULL,              apply_splash_multi,          false, true,  CONFIG_PACMAN_SPLASH_MULTICOLOR_0)   \
     X(SPLASH_MULTI_1,        "splash-multi-1",        COLOR,  0,     0xffffff,                NULL,              apply_splash_multi,          false, true,  CONFIG_PACMAN_SPLASH_MULTICOLOR_1)   \

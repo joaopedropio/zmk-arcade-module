@@ -73,7 +73,7 @@
 #define PM_CANVAS_W  (PM_WIDTH + 2 * PM_BORDER_GAP)
 #define PM_CANVAS_H  (PM_HEIGHT + 2 * PM_BORDER_GAP)
 
-/* the widest run of pixels any one blit can carry */
+/* the widest run of pixels any one blit can carry; panel.h's band holds it */
 #define PM_BLIT_MAX  (PM_CANVAS_W * PM_TILE)
 
 typedef struct {
@@ -95,12 +95,8 @@ typedef struct {
     uint16_t pupil;
 } pm_palette;
 
-uint16_t pm_rgb565(uint32_t rgb888);
 void pm_render_set_palette(const pm_palette *p);
 void pm_render_default_palette(pm_palette *p);
 
 /* draws the frame; repaints the whole maze when the core asks for it */
 void pm_render_frame(pm_game *g);
-
-/* implemented by the platform: push w*h RGB565 (big endian) pixels at x,y */
-extern void pm_blit(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t *pixels);

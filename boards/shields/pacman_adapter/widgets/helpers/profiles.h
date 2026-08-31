@@ -16,7 +16,7 @@
  * copies it into another slot and carries on from the copy.
  *
  * That is also why the current slot's record is only rewritten as the dongle
- * leaves it.  Holding it in step would mean seven hundred bytes of flash for
+ * leaves it.  Holding it in step would mean eight hundred bytes of flash for
  * every colour somebody drags a slider over - forty-six of them for one
  * preset - to write down values that are already in flash a key at a time.  So
  * the record keeps the name, name() and read() answer for the current slot out

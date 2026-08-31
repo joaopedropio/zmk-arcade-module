@@ -1,14 +1,19 @@
 /*
- * Host simulator for the Pac-Man dongle widget.
+ * Host simulator for the dongle's two games.
  *
- * Runs the very same game core and renderer that the firmware runs, but
+ * Runs the very same game cores and renderers that the firmware runs, but
  * blits into a plain PM_PANEL square frame buffer and writes PPM frames, so the
  * animation can be checked (and eyeballed) without flashing anything.
  *
- *   cc -O2 -o /tmp/pmsim tools/sim/sim.c \
- *      boards/shields/pacman_adapter/widgets/game/pacman_core.c \
- *      boards/shields/pacman_adapter/widgets/game/pacman_render.c
- *   /tmp/pmsim <frames> <every-nth-frame> <out-dir> [first-frame] [speed 1-3]
+ *   tools/sim/build.sh /tmp/pacman-sim
+ *   /tmp/pacman-sim [pacman|shooter] <frames> <every-nth-frame> <out-dir> \
+ *                   [first-frame] [speed 1-5]
+ *
+ * The game name may be left out, and then it is the maze - so the command in
+ * CLAUDE.md still means what it did.  Both games are checked the same way:
+ * every frame the incremental redraw is compared against a full repaint, and
+ * whatever else is true of that game (nobody inside a wall, nobody off the
+ * panel) is checked alongside it.
  *
  * SPDX-License-Identifier: MIT
  */
@@ -18,6 +23,7 @@
 #include <string.h>
 
 #include "../../boards/shields/pacman_adapter/widgets/game/pacman_render.h"
+#include "../../boards/shields/pacman_adapter/widgets/game/shooter_render.h"
 
 static uint16_t fb[PM_PANEL][PM_PANEL];
 static long blit_calls;
@@ -127,12 +133,136 @@ static void check(const pm_game *g, int frame) {
     }
 }
 
+/* the shooter's own version of the two checks above */
+static int check_incremental_ss(ss_game *g, int frame) {
+    memcpy(shadow, fb, sizeof(fb));
+    long calls = blit_calls, px = blit_pixels;
+    g->redraw = true;
+    ss_render_frame(g);
+    blit_calls = calls;
+    blit_pixels = px;
+
+    int diff = 0;
+    for (int y = 0; y < PM_PANEL; y++) {
+        for (int x = 0; x < PM_PANEL; x++) {
+            if (shadow[y][x] != fb[y][x]) {
+                if (!diff) {
+                    printf("FRAME %d: stale pixel at %d,%d (%04x != %04x)\n", frame, x, y,
+                           shadow[y][x], fb[y][x]);
+                }
+                diff++;
+            }
+        }
+    }
+    return diff;
+}
+
+static void check_ss(const ss_game *g, int frame) {
+    int sx = SS_PX(g->ship_x);
+    if (sx - SS_SHIP_W / 2 < 0 || sx + SS_SHIP_W / 2 >= PM_PANEL) {
+        printf("FRAME %d: the ship left the panel at %d\n", frame, sx);
+        exit(1);
+    }
+    for (int i = 0; i < SS_ROCKS; i++) {
+        const ss_rock *r = &g->rocks[i];
+        if (!r->alive) {
+            continue;
+        }
+        int rad = ss_rock_r[r->size];
+        int x = SS_PX(r->x), y = SS_PX(r->y);
+        if (x + rad < 0 || x - rad >= PM_PANEL) {
+            printf("FRAME %d: meteor %d left the panel sideways at %d\n", frame, i, x);
+            exit(1);
+        }
+        if (y - rad > PM_PANEL) {
+            printf("FRAME %d: meteor %d fell off the bottom at %d\n", frame, i, y);
+            exit(1);
+        }
+    }
+}
+
+static int run_shooter(int frames, int every, const char *dir, int from, int speed) {
+    ss_game g;
+    ss_init(&g, 12345);
+    ss_set_speed(&g, (uint8_t)speed);
+
+    int deaths = 0, waves = 0, stale = 0, powers = 0, overs = 0, out = 0;
+    uint16_t wave = g.wave;
+    ss_phase phase = g.phase;
+    ss_power power = g.power;
+    uint32_t top = 0;
+
+    for (int f = 0; f < frames; f++) {
+        ss_step(&g);
+        ss_render_frame(&g);
+        check_ss(&g, f);
+
+        if (g.score > top) {
+            top = g.score;
+        }
+        if (g.phase != phase) {
+            if (g.phase == SS_DEAD) {
+                deaths++;
+            }
+            if (g.phase == SS_OVER) {
+                deaths++;
+                overs++;
+                printf("  f%-6d game over on wave %u with %u\n", f, g.wave, (unsigned)top);
+            }
+            phase = g.phase;
+        }
+        if (g.wave != wave) {
+            waves++;
+            wave = g.wave;
+        }
+        if (g.power != power) {
+            if (g.power != SS_P_NONE) {
+                powers++;
+                printf("  f%-6d picked up %s\n", f, ss_power_name(&g));
+            }
+            power = g.power;
+        }
+
+        if ((f % 37) == 0) {
+            stale += check_incremental_ss(&g, f);
+        }
+        if (every > 0 && dir && f >= from && (f % every) == 0) {
+            write_ppm(dir, out++);
+        }
+    }
+
+    printf("frames=%d score=%u best=%u wave=%u lives=%u deaths=%d waves=%d powerups=%d "
+           "restarts=%d\n",
+           frames, (unsigned)g.score, (unsigned)top, g.wave, g.lives, deaths, waves, powers,
+           overs);
+    printf("longest wait for a hit: %u frames, stale pixels: %d\n", g.patient, stale);
+    printf("blits=%ld pixels=%ld (%.1f px/frame, %.1f blits/frame)\n", blit_calls, blit_pixels,
+           (double)blit_pixels / frames, (double)blit_calls / frames);
+    if (out) {
+        printf("wrote %d frames to %s\n", out, dir);
+    }
+    return 0;
+}
+
 int main(int argc, char **argv) {
+    bool shooter = false;
+
+    /* an optional game name in front, so the old command line still works */
+    if (argc > 1 && (strcmp(argv[1], "shooter") == 0 || strcmp(argv[1], "pacman") == 0)) {
+        shooter = strcmp(argv[1], "shooter") == 0;
+        argv++;
+        argc--;
+    }
+
     int frames = argc > 1 ? atoi(argv[1]) : 1200;
     int every = argc > 2 ? atoi(argv[2]) : 0;
     const char *dir = argc > 3 ? argv[3] : NULL;
     int from = argc > 4 ? atoi(argv[4]) : 0;
     int speed = argc > 5 ? atoi(argv[5]) : 4;
+
+    if (shooter) {
+        return run_shooter(frames, every, dir, from, speed);
+    }
 
     pm_game g;
     pm_init(&g, 12345);

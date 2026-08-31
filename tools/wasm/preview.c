@@ -39,6 +39,8 @@
 #include "pacman_core.h"
 #include "pacman_render.h"
 #include "pacman.h"
+#include "shooter_core.h"
+#include "shooter_render.h"
 #include "sound.h"
 #include "splash.h"
 #include "theme.h"
@@ -48,6 +50,9 @@
 
 static uint16_t fb[PANEL][PANEL];
 static pm_game game;
+static ss_game shooter;
+/* which of the two the game screen is showing, as the `game` setting says */
+static int playing;
 static uint32_t values[PACMAN_SETTING_COUNT];
 static int screen; /* 0 game, 1 splash, 2 dashboard */
 static int built;
@@ -81,7 +86,7 @@ void display_write(const struct device *dev, uint16_t x, uint16_t y,
     }
 }
 
-/* the firmware's pacman.c does exactly this, from the same thirteen values */
+/* the firmware's pacman.c does exactly this, from the same values */
 static void reload_game_palette(void) {
     pm_palette p;
     pm_render_default_palette(&p);
@@ -102,7 +107,25 @@ static void reload_game_palette(void) {
     p.fright_body = pm_rgb565(values[PACMAN_SETTING_GAME_FRIGHT]);
 
     pm_render_set_palette(&p);
+
+    ss_palette s;
+    ss_render_default_palette(&s);
+
+    s.space = pm_rgb565(values[PACMAN_SETTING_GAME_SPACE]);
+    s.star = pm_rgb565(values[PACMAN_SETTING_GAME_STAR]);
+    s.ship = pm_rgb565(values[PACMAN_SETTING_GAME_SHIP]);
+    s.trim = pm_rgb565(values[PACMAN_SETTING_GAME_SHIP_TRIM]);
+    s.thruster = pm_rgb565(values[PACMAN_SETTING_GAME_THRUSTER]);
+    s.bullet = pm_rgb565(values[PACMAN_SETTING_GAME_BULLET]);
+    s.rock = pm_rgb565(values[PACMAN_SETTING_GAME_METEOR]);
+    s.rock_edge = pm_rgb565(values[PACMAN_SETTING_GAME_METEOR_EDGE]);
+    s.blast = pm_rgb565(values[PACMAN_SETTING_GAME_BLAST]);
+    s.power = pm_rgb565(values[PACMAN_SETTING_GAME_POWERUP]);
+    s.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
+
+    ss_render_set_palette(&s);
     game.redraw = true;
+    shooter.redraw = true;
 }
 
 /*
@@ -124,6 +147,12 @@ static void apply_rotate(uint32_t v) { set_display_orientation((DisplayOrientati
 static void apply_splash_style(uint32_t v) { set_splash_style((SplashStyle)v); }
 static void apply_theme(uint32_t v) { set_theme_number((uint8_t)v); }
 static void apply_game_palette(uint32_t v) { (void)v; reload_game_palette(); }
+
+static void apply_game(uint32_t v) {
+    playing = (int)v;
+    game.redraw = 1;
+    shooter.redraw = 1;
+}
 
 static void apply_theme_colors(uint32_t v) {
     (void)v;
@@ -259,12 +288,20 @@ EMSCRIPTEN_KEEPALIVE void preview_reset(uint32_t seed) {
     memset(fb, 0, sizeof(fb));
     pm_init(&game, seed ? seed : 1u);
     pm_set_speed(&game, 4, 4);
+    ss_init(&shooter, seed ? seed : 1u);
+    ss_set_speed(&shooter, 4);
     game.redraw = true;
+    shooter.redraw = true;
 }
 
 /* one tick of whatever the current screen does over time */
 EMSCRIPTEN_KEEPALIVE void preview_step(void) {
     if (screen == 0) {
+        if (playing == PACMAN_GAME_SHOOTER) {
+            ss_step(&shooter);
+            ss_render_frame(&shooter);
+            return;
+        }
         pm_step(&game);
         pm_render_frame(&game);
         return;
@@ -281,6 +318,11 @@ EMSCRIPTEN_KEEPALIVE void preview_render(void) {
     build_once();
 
     if (screen == 0) {
+        if (playing == PACMAN_GAME_SHOOTER) {
+            shooter.redraw = true;
+            ss_render_frame(&shooter);
+            return;
+        }
         game.redraw = true;
         pm_render_frame(&game);
         return;

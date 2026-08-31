@@ -1,10 +1,11 @@
 # Working on this repo
 
 A ZMK module for the [snake dongle](https://github.com/joaopedropio/snake-dongle):
-the `pacman_adapter` shield turns the dongle's 240x240 ST7789V into a self-playing
-Pac-Man, with sound out of a MAX98357A. Everything is drawn straight to the panel —
-there are no LVGL objects and no full frame buffer, only dirty rectangles pushed
-over SPI, so the usual LVGL advice does not apply here.
+the `pacman_adapter` shield turns the dongle's 240x240 ST7789V into one of two
+self-playing games - a Pac-Man or a Space Shooter, chosen by the `game`
+setting - with sound out of a MAX98357A. Everything is drawn straight to the
+panel — there are no LVGL objects and no full frame buffer, only dirty
+rectangles pushed over SPI, so the usual LVGL advice does not apply here.
 
 ## Check it on the host first
 
@@ -13,14 +14,19 @@ the change before claiming it works; flashing is the slow path.
 
 ```sh
 tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim 3000
+tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim shooter 3000
 ```
-The game core and renderer, blitting into a 240x240 buffer. Every frame it checks
-that nobody is inside a wall and that the incremental redraw matches a full
-repaint, and it prints pixels per frame — so it catches both game bugs and
-drawing bugs. `/tmp/pacman-sim 640 2 /tmp/frames 40` dumps PPMs instead.
-Balance changes want a soak: 200k frames prints clears against deaths.
+Either game core and its renderer, blitting into a 240x240 buffer. Every frame
+it checks that nobody is inside a wall (or off the panel) and that the
+incremental redraw matches a full repaint, and it prints pixels per frame — so
+it catches both game bugs and drawing bugs. The game name goes in front of the
+old argument list and may be left out, in which case it is the maze.
+`/tmp/pacman-sim 640 2 /tmp/frames 40` dumps PPMs instead.
+Balance changes want a soak: 200k frames prints clears against deaths for the
+maze, and waves against restarts for the shooter.
 `docs/demo.gif` is those frames at 15 fps, which is the speed the dongle plays
-it, with the splash held in front for the first two seconds:
+it, with the splash held in front for the first two seconds; `docs/shooter.gif`
+is the same for the other game, without a splash:
 
 ```sh
 ffmpeg -framerate 15 -i /tmp/frames/frame_%05d.ppm -vf palettegen=max_colors=64 /tmp/pal.png
@@ -104,7 +110,9 @@ boards/shields/pacman_adapter/
     ├── helpers/display.c    the drawing engine: bitmaps, text, rects, slots
     ├── helpers/settings.c   flash-backed settings; settings_list.h is the list
     ├── helpers/profiles.c   named sets of all of them, one flash key apiece
-    └── game/                pacman_core.c, pacman_render.c, pacman_sfx.c
+    └── game/                panel.c (the shared band), pacman_core.c,
+                             pacman_render.c, shooter_core.c, shooter_render.c,
+                             pacman_sfx.c
 src/ include/ dts/           the zmk,behavior-dongle-action behaviour
 tools/                       the four host harnesses and three generators
 tools/wasm/                  the renderer built for the browser, by emscripten
@@ -114,6 +122,9 @@ docs/configurator/           the WebSerial settings page, served by GitHub Pages
 `widgets/game/*.c` is strictly portable C — no Zephyr, no LVGL, no libc beyond
 string and math. Keep it that way; the simulators are what it buys. The UI files
 may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
+Neither game may include the other's headers: what they share - the panel size,
+the staging band, `pm_blit()` and `pm_rgb565()` - is in `game/panel.h`, and
+anything else they turn out to have in common belongs there too.
 
 ## Things that bite
 
@@ -131,8 +142,9 @@ may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
   needing the 115KB frame buffer this shield has not got.
 - **The geometry constants are load-bearing and documented where they live** —
   `PM_TILE` in `pacman_core.h`, `PM_WALL_LINE`/`PM_WALL_INSET`/`PM_WALL_R`/
-  `PM_BORDER_GAP`/`PM_SPRITE` in `pacman_render.h`. Read those comments before
-  changing a number. A `_Static_assert` catches the corner-overlap case;
+  `PM_BORDER_GAP`/`PM_SPRITE` in `pacman_render.h`; `SS_SUB`, `SS_SHIP_*` and
+  `SS_ROCKS` in `shooter_core.h`, `SS_HUD_*`/`SS_BANNER_*`/`SS_SHIELD_R` in
+  `shooter_render.h`. Read those comments before changing a number. A `_Static_assert` catches the corner-overlap case;
   `PM_MARGIN` and `PM_MARGIN_END` differ on an odd leftover, so anything
   painting the margin has to use the right one.
 - **What a maze edit has to hold** is three things: no 2x2 all wall, no 2x2 all
@@ -141,14 +153,36 @@ may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
   built on it — but row 7 departs from it deliberately, to leave an isolated
   tile between the two L's. `python3 tools/check_maze.py` checks the art either
   way; run it after touching `MAZE_ART`.
+- **The two games share one staging band and nothing else.** `game/panel.h`
+  holds `PM_PANEL`, `pm_band[]`, `pm_blit()` and `pm_rgb565()`, and each
+  renderer `_Static_assert`s its own widest blit against `PM_BAND_PX`. One
+  buffer is safe only because one game runs at a time — never tick both.
+- **The two renderers work opposite ways round.** `pacman_render.c` asks each
+  pixel what is on it; `shooter_render.c` clears a rectangle and stamps the
+  sprites reaching into it, in a fixed order. Either way, a rectangle has to be
+  composed from game state alone and never from what is already on the panel —
+  that is exactly what `tools/sim`'s repaint check compares, and it is what
+  catches a sprite that forgot to say it moved.
+- **Switching games repaints both of them.** `pacman_set_game()` only says
+  which one the timer ticks; each renderer remembers what it last put on the
+  panel, and the idle one has had the other drawing over it ever since. That is
+  why `repaint_both()` and not `game.redraw`, in `pacman_start()`, the palette
+  reload and the periodic full redraw alike. Neither game is reset, so the maze
+  comes back mid-level.
+- **A preset has to have an opinion about both games.** Theme 0 already makes
+  the dashboard's colours count one at a time; across the two palettes it is
+  the same bargain, and a preset that stopped at the maze would leave a dongle
+  on the shooter looking exactly as it did. `tools/pagetest` drives the preview
+  from `presetValues(PRESETS[0])` and fails if the shooter comes out blank.
 - **The sound thread runs above ZMK's display thread** (priority 3 against 5).
   Below it, a full repaint starves the amplifier. The game timer and the sound
   thread talk only through atomics.
 - **Do not build `pacman_adapter` alongside `snake_adapter`** — same hardware,
   same `zmk,behavior-dongle-action`, defined twice.
-- **The game itself is silent by design.** Only a keyboard connecting or
+- **Both games are silent by design.** Only a keyboard connecting or
   dropping makes a sound. Do not add per-event sounds back; a dongle that chirps
-  at every pellet is a dongle you unplug.
+  at every pellet is a dongle you unplug, and the shooter was never given any
+  for the same reason.
 - **Disconnects are inferred from a peripheral battery level of 0**, because the
   central never sees the split connection event.
 - **Kconfig is a default, not the value.** `configure()` is two calls:
@@ -222,7 +256,7 @@ may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
   boot out of whatever the build left in the settings, and neither it nor the
   slot in use can be deleted - which is what makes "always on one" true. That
   is also why the current slot's record is only rewritten as the dongle leaves
-  it: holding it in step would cost seven hundred bytes per colour somebody
+  it: holding it in step would cost eight hundred bytes per colour somebody
   drags a slider over, so `name()` and `read()` answer for that slot out of the
   live settings, and `load` snapshots the profile being left before it applies
   the one being gone to. `configure()` calls `pacman_profile_init()` between

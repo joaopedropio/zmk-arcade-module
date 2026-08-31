@@ -1,12 +1,25 @@
 # Pac-Man Dongle Module 🟡
 
-A self-playing Pac-Man for the [snake dongle](https://github.com/joaopedropio/snake-dongle)
-hardware: a ZMK module that turns the dongle's 240x240 ST7789V panel into a
-little arcade cabinet. Nobody drives it — Pac-Man hunts pellets on his own,
-runs for a power pellet when he is cornered, chases the blue ghosts, and the
-four ghosts use the classic scatter/chase targeting rules.
+A self-playing arcade cabinet for the
+[snake dongle](https://github.com/joaopedropio/snake-dongle) hardware: a ZMK
+module that turns the dongle's 240x240 ST7789V panel into one of two games.
+Nobody drives either of them.
 
-<img src="docs/demo.gif" width="320" alt="The splash screen, then Pac-Man playing itself on the dongle display"/>
+**Pac-Man** hunts pellets on his own, runs for a power pellet when he is
+cornered and chases the blue ghosts, while the four ghosts use the classic
+scatter/chase targeting rules.
+
+**Space Shooter** — after
+[the arcade game of that name](https://store.steampowered.com/app/3059240/Space_Shooter/)
+— flies a ship along the bottom of a starfield, breaking meteors into smaller
+meteors, dodging what it cannot shoot and picking up whatever drops between
+waves.
+
+<img src="docs/demo.gif" width="320" alt="The splash screen, then Pac-Man playing itself on the dongle display"/> <img src="docs/shooter.gif" width="320" alt="The ship breaking up a wave of meteors and starting the next one"/>
+
+Which one plays is the `game` setting, changed from the shell or the
+configurator without reflashing; both are always built, and each keeps its
+place while the other is on the panel.
 
 Same idea (and the same hardware definition) as the
 [snake module](https://github.com/joaopedropio/snake-module), just a different game.
@@ -114,7 +127,10 @@ Swap in your own by replacing `tools/splash_art.png` and regenerating:
 python3 tools/splash_image.py > boards/shields/pacman_adapter/widgets/splash_image.h
 ```
 
-**The game** is the maze, and it owns the whole panel.
+**The game** owns the whole panel, and is either the maze or the shooter
+depending on `game`. The shooter puts its score across the top, the wave and
+whatever pickup is running along the bottom, and the lives it has left as small
+ships in the top corner; everything else is playfield.
 
 **The dashboard** is a grid of slots: `PACMAN_INFO_SLOT_MODE` picks the layout
 and `PACMAN_INFO_SLOT_1` … `_6` say what goes in each one — `connectivity`,
@@ -165,6 +181,7 @@ ones worth knowing about; the rest colour the dashboard and are listed in
 | `CONFIG_PACMAN_ROTATE_DISPLAY` | `0` | Panel rotation: 0, 90, 180 or 270. Only the rotation you pick is compiled in. |
 | `CONFIG_PACMAN_FRAME_INTERVAL` | `33` | Milliseconds per frame (33 ≈ 30 fps). |
 | `CONFIG_PACMAN_DEFAULT_SCREEN` | `game` | Which screen comes up after the splash. |
+| `CONFIG_PACMAN_DEFAULT_GAME` | `pacman` | Which game the game screen plays: `pacman` or `shooter`. |
 | `CONFIG_PACMAN_SPLASH_STYLE` | `drawn` | Which splash: `drawn` from the wordmark and sprites, or the `image` in `splash_image.h`. |
 | `CONFIG_PACMAN_SOUND` | `y` | Drive the I2S amplifier at all. `n` compiles the whole sound path out. |
 | `CONFIG_PACMAN_SOUND_VOLUME` | `80` | How loud, 0 to 100. 100 is unity; a limiter catches the peaks. |
@@ -184,6 +201,15 @@ ones worth knowing about; the rest colour the dashboard and are listed in
 | `CONFIG_PACMAN_PACMAN_COLOR` | `ffee00` | Pac-Man. |
 | `CONFIG_PACMAN_GHOST_0..3_COLOR` | `ff0000`, `ffb8ff`, `00ffff`, `ffb852` | The four ghosts. |
 | `CONFIG_PACMAN_FRIGHT_COLOR` | `2121de` | A frightened ghost. |
+| `CONFIG_PACMAN_SPACE_COLOR` | `05060f` | Behind the stars. |
+| `CONFIG_PACMAN_STAR_COLOR` | `8899bb` | The stars. |
+| `CONFIG_PACMAN_SHIP_COLOR` / `_TRIM_` | `6ee7ff` / `ffffff` | Ship hull and cockpit. |
+| `CONFIG_PACMAN_THRUSTER_COLOR` | `ff8a1f` | The exhaust, and nothing else. |
+| `CONFIG_PACMAN_BULLET_COLOR` | `fff36b` | Shots. |
+| `CONFIG_PACMAN_METEOR_COLOR` / `_EDGE_` | `5a5f7a` / `a3adc9` | Meteor fill and rim. |
+| `CONFIG_PACMAN_BLAST_COLOR` | `ff5a2b` | A meteor coming apart. |
+| `CONFIG_PACMAN_POWERUP_COLOR` | `39ff9e` | A pickup, and the shield it grants. |
+| `CONFIG_PACMAN_HUD_COLOR` | `ffee00` | Score, wave and lives. |
 
 Colours are plain `rrggbb` strings (a leading `#` or `0x` is fine) and are
 converted to RGB565 once at boot.
@@ -272,7 +298,7 @@ configurator imports a file, and the one thing here that does not move you
 onto what it wrote. That is also why `commit` refuses the slot you are on: that
 slot is whatever is on the panel, so a record written there would be dropped
 the moment you moved off it. Five slots by default,
-`CONFIG_PACMAN_PROFILE_SLOTS`; each costs about seven hundred bytes of the
+`CONFIG_PACMAN_PROFILE_SLOTS`; each costs about eight hundred bytes of the
 storage partition once it is used and nothing while it is empty. Because each
 setting is written down by the hash of its name, a profile saved by an older
 firmware still loads after settings are added or reordered — it simply says
@@ -405,6 +431,26 @@ pellet is worth turning round for: Pac-Man picks up a pixel a frame while the
 ghosts are blue and they drop to half speed. Over a two-hour soak he clears a
 maze about every 25 seconds and gets caught about every 135.
 
+The shooter's ship answers one question every frame: for each of the columns
+it could be standing in, how close would the nearest meteor come, and would a
+shot fired from there land? Both are worked out by predicting where each
+meteor will be — when it reaches the ship's row for the first, when a shot
+would catch it for the second — with the sideways drift folded back off the
+walls it bounces off on the way. Staying alive is weighted four times as
+heavily as hitting anything, but only up to a clearance of 28 pixels: past
+that one column is as safe as another and the aim is what decides between
+them, which is what stops the ship spending a whole wave chasing the single
+safest pixel on the panel. A little weight is left over for not crossing the
+screen to get there, so it does not twitch.
+
+A meteor that reaches the bottom comes round at the top again rather than
+counting as cleared, so a wave ends when it is shot and not when it is
+outlasted. Big meteors break into two medium ones and those into two small
+ones; a wave is four big at most, which is why there are room for sixteen.
+Waves get faster until they cap, a pickup drops every third one, and over a
+two-hour soak the ship reaches wave 8 or 9 before it runs out of lives, about
+every four and a half minutes.
+
 ## How it is drawn
 
 The maze is 9x9 tiles of 24px on a 240px panel. Walls and corridors are both
@@ -424,14 +470,37 @@ in the leftover margin, with a gap wherever a row runs off into a tunnel.
 trades against and which combinations do not work; a `_Static_assert` catches
 the one that would put a pixel in two rounded corners at once.
 
-What it costs:
+The shooter has no grid to hold it together, so it draws the other way round:
+the maze asks each pixel what is on it, while the shooter clears a rectangle
+and stamps the sprites that reach into it, in a fixed order — starfield,
+meteors, pickup, shots, ship, blast, readout. Both come to the same picture,
+and stamping is much the cheaper of the two when most of a rectangle is empty
+sky. Each thing that can move remembers the box it was last drawn in and the
+frame repaints the union of that and the box it wants now, which is what makes
+one moving meteor cost a thousand pixels instead of the panel.
 
-| | |
-|---|---|
-| flash | ~9 KB |
-| RAM | ~10 KB static (mostly a 9.6 KB blit scratch buffer and the pathfinder's arrays) |
-| SPI traffic | ~3800 pixels/frame ≈ 7.4 KB/frame, about 225 KB/s at 30 fps — a fifth of what a 20 MHz link carries |
-| LVGL widgets | none — the status screen is an empty `lv_obj` |
+Two things do not move, on purpose. The starfield holds still and blinks
+rather than scrolling, because scrolling it is a full 57600-pixel repaint
+every frame and the readout would be the only thing left with any budget; and
+the score, wave and lives are repainted when the words change rather than
+every frame, since anything passing underneath re-stamps them on its way. What
+carries the motion is the meteors, which is where it belongs.
+
+What it costs, per game:
+
+| | Pac-Man | Space Shooter |
+|---|---|---|
+| flash | 7.4 KB | 6.6 KB |
+| RAM | 671 bytes | 860 bytes |
+| SPI traffic | ~3600 pixels/frame ≈ 7 KB/frame, about 210 KB/s at 30 fps | ~2050 pixels/frame ≈ 4 KB/frame, about 120 KB/s |
+| LVGL widgets | none — the status screen is an empty `lv_obj` | none |
+
+Flash and RAM are the core and the renderer only, built `-Os` for a Cortex-M4;
+the pixels are what the simulator counts over a two-hour soak. On top of both
+sits the 10.3 KB band a rectangle is staged in before it goes down the SPI
+bus, which lives in `game/panel.h` rather than in either renderer: only one
+game is ever running, and a buffer each would be ten kilobytes spent on the
+game nobody is watching. A fifth of what a 20 MHz link carries, either way.
 
 ## Sound
 
@@ -455,10 +524,11 @@ Those pins are `i2s0_default` and the `pacman_amp` node in
 differs. `CONFIG_PACMAN_SOUND=n` compiles all of it out, and so does leaving
 the amplifier out of the devicetree.
 
-**The game is silent.** Munching, dying and clearing the maze all went out of
-the speaker once, and none of it was worth hearing on a loop for hours at a
+**Both games are silent.** Munching, dying and clearing the maze all went out
+of the speaker once, and none of it was worth hearing on a loop for hours at a
 desk — a dongle that chirps every time a pellet is eaten is a dongle you
-unplug. What is left is the one thing the dongle knows that you cannot see:
+unplug, and one that fires a laser every third second is worse. The shooter
+was therefore never given any. What is left is the one thing the dongle knows that you cannot see:
 two soft chime notes rising a fifth when a keyboard half reports in, D5 up to
 A5, and the same two falling when one goes away. Each note takes 110 ms to
 reach level and the second enters while the first is still ringing, so the pair
@@ -497,19 +567,24 @@ It runs at priority 3, above ZMK's display thread — underneath it, a full
 
 ## Trying it without flashing
 
-The game core and the renderer are plain C with no Zephyr or LVGL
+Both game cores and both renderers are plain C with no Zephyr or LVGL
 dependencies, so they build and run on a host. The simulator blits into a
-240x240 buffer, checks the invariants every frame (nobody inside a wall, and
-the incremental redraw always matches a full repaint) and can dump PPM frames:
+240x240 buffer, checks the invariants every frame (nobody inside a wall,
+nobody off the panel, and the incremental redraw always matching a full
+repaint) and can dump PPM frames:
 
 ```sh
 tools/sim/build.sh /tmp/pacman-sim
-/tmp/pacman-sim 3000                        # 100 seconds, invariants only
-/tmp/pacman-sim 640 2 /tmp/frames 40        # frames, every-nth, dir, from, speed
+/tmp/pacman-sim 3000                          # 100 seconds, invariants only
+/tmp/pacman-sim 640 2 /tmp/frames 40          # frames, every-nth, dir, from, speed
+/tmp/pacman-sim shooter 3000                  # the other game, same arguments
 ```
 
+The game name goes in front and may be left out, in which case it is the maze.
+
 `docs/demo.gif` is those frames at 15 fps — which is the speed the dongle plays
-it — with the splash held in front for the first two seconds.
+it — with the splash held in front for the first two seconds; `docs/shooter.gif`
+is the same for the other game.
 
 The splash and the dashboard have their own harness, which stubs Zephyr out and
 points the drawing helpers at a plain frame buffer. It shows the layout and the
@@ -536,7 +611,7 @@ boards/shields/pacman_adapter/
 ├── Kconfig.defconfig           display + LVGL defaults for the shield
 ├── custom_status_screen.c      hands ZMK an empty screen, starts the timer
 └── widgets/
-    ├── pacman.c                display device, palette, LVGL timer, WPM speed
+    ├── pacman.c                display device, palettes, LVGL timer, which game, WPM speed
     ├── action_button.c         swaps screens, moves between profiles, mutes
     ├── progress.c              the box and bar shown while one is applied
     ├── splash.c                the wordmark and the chase, or the picture
@@ -557,12 +632,15 @@ boards/shields/pacman_adapter/
     │   ├── fonts.h             six pixel fonts
     │   └── settings.c          the theme and the mute, remembered across reboots
     └── game/
+        ├── panel.h/.c          the panel size and the band both games blit through
         ├── pacman_core.c       maze, Pac-Man's pathfinding, ghost AI, rounds
         ├── pacman_render.c     sprites, tiles and dirty-rectangle blitting
+        ├── shooter_core.c      meteors, waves, pickups and the ship's own aim
+        ├── shooter_render.c    ship stencil, meteor shapes, starfield, readout
         ├── pacman_sfx.c        the polyphonic synth
         └── pacman_tunes.h      the tunes (generated, see tools/tunes.py)
 src/, include/, dts/            the zmk,behavior-dongle-action behaviour
-tools/sim/                      host simulator for the game
+tools/sim/                      host simulator for both games
 tools/uisim/                    host preview for the splash and the dashboard
 tools/sfxsim/                   renders the sounds to .wav on the host
 tools/sprites.py                regenerates the splash artwork
@@ -574,7 +652,7 @@ tools/tunes.py                  regenerates the tunes
 
 Hardware definition, dongle action behaviour and the general shape of the
 module come from [snake-module](https://github.com/joaopedropio/snake-module)
-by João Pedro. Pac-Man is © Bandai Namco; this is a hobby homage running on a
-keyboard dongle.
+by João Pedro. Pac-Man is © Bandai Namco, and Space Shooter belongs to its own
+authors; both of these are hobby homages running on a keyboard dongle.
 
 MIT licensed.

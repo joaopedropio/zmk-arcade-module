@@ -1,5 +1,5 @@
 /*
- * Pac-Man dongle widget - ZMK/LVGL glue.
+ * Pac-Man dongle widget - ZMK/LVGL glue for both games.
  *
  * SPDX-License-Identifier: MIT
  */
@@ -9,11 +9,24 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/*
+ * The two animations the panel can play.  They share the timer, the palette
+ * reload and the start/stop below, because from everything else's point of
+ * view there is one game screen and this only says what is on it.
+ */
+typedef enum {
+    PACMAN_GAME_PACMAN = 0,
+    PACMAN_GAME_SHOOTER,
+} PacmanGame;
+
 /* called once from the custom status screen */
 void zmk_widget_pacman_init(void);
 
-/* rebuild the palette from the stored colours */
+/* rebuild both games' palettes from the stored colours */
 void pacman_reload_palette(void);
+
+/* switch which of the two is playing; the panel is repainted from the top */
+void pacman_set_game(uint8_t which);
 
 /* retime the frame timer, in milliseconds */
 void pacman_set_frame_interval(uint32_t ms);

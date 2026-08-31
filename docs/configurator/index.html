@@ -346,7 +346,7 @@ try {
   </footer>
 </main>
 
-<script src="preview.js?v=4f2b72e37cac"></script>
+<script src="preview.js?v=44a95458d7c0"></script>
 <script>
 "use strict";
 
@@ -365,7 +365,8 @@ const PROMPT_FALLBACK = "uart:~$";
  * up somewhere rather than nowhere.
  */
 const SCREENS = [
-  { name: "Game",      match: (n) => /^game-/.test(n) },
+  /* `game` picks which of the two, and everything game- draws one of them */
+  { name: "Game",      match: (n) => /^game($|-)/.test(n) },
   /* every splash- setting bar the two the Timing section claims first */
   { name: "Splash",    match: (n) => /^splash-/.test(n) },
   { name: "Dashboard", match: null },
@@ -418,8 +419,16 @@ function screenOf(name) {
  */
 const UNOFFERED = /^theme$/;
 
+/*
+ * The first pattern to match wins, so the maze names its own colours and the
+ * shooter takes whatever game- is left.  Written that way round because the
+ * maze's list is finished and the shooter's is the one likely to grow: a
+ * colour added to it lands in its own group rather than under the wrong game.
+ */
 const GROUPS = [
-  ["The maze",        /^game-/],
+  ["Which game",      /^game$/],
+  ["The maze",        /^game-(bg|wall|house|door|pellet|pac|ghost|fright)/],
+  ["The starfield",   /^game-/],
   ["Layout",          /^(screen$|slot|battery-slots$|rotate$)/],
   ["Sound",           /^(mute$|volume$|bass-floor$|sample-rate$)/],
   ["Speed and timing", /^(frame-interval$|splash-frames$|splash-interval$|logo-interval$|wpm-slow$|wpm-fast$|theme-threshold$|mute-threshold$)/],
@@ -434,8 +443,12 @@ const GROUPS = [
 ];
 
 /*
- * The five that come with the page rather than with the dongle.  A preset is
- * only ever a handful of colours - never a layout, never a timing - so
+ * The five that come with the page rather than with the dongle.  Each has an
+ * opinion about both games, because the choice between them is a setting like
+ * any other and a look that only recoloured the maze would leave a dongle
+ * playing the shooter looking exactly as it did.  A preset is only ever a
+ * handful of colours - never a layout, never a timing, and never which game -
+ * so
  * applying one cannot leave a dongle needing a reboot to look like itself
  * again, and a setting it does not mention keeps whatever it had.  Names are
  * matched against whatever `pacman schema` reported, so a preset naming a
@@ -455,6 +468,10 @@ const PRESETS = [
       "game-pellet": "ffb897", "game-pac": "ffff00",
       "game-ghost-0": "ff0000", "game-ghost-1": "ffb8ff",
       "game-ghost-2": "00ffff", "game-ghost-3": "ffb852", "game-fright": "2121de",
+      "game-space": "000000", "game-star": "ffb897", "game-ship": "00ffff",
+      "game-ship-trim": "ffffff", "game-thruster": "ffb852", "game-bullet": "ffff00",
+      "game-meteor": "2121de", "game-meteor-edge": "6d6dff", "game-blast": "ff0000",
+      "game-powerup": "ffb8ff", "game-hud": "ffff00",
       "splash-logo": "ffff00", "splash-created-by": "ffb897", "splash-bg": "000000",
       "splash-multi-0": "ff0000", "splash-multi-1": "ffb8ff",
       "splash-multi-2": "00ffff", "splash-multi-3": "ffb852",
@@ -474,6 +491,10 @@ const PRESETS = [
       "game-pellet": "7dd3fc", "game-pac": "e0e7ff",
       "game-ghost-0": "f472b6", "game-ghost-1": "7dd3fc",
       "game-ghost-2": "a78bfa", "game-ghost-3": "38bdf8", "game-fright": "1e1b4b",
+      "game-space": "0b1020", "game-star": "7dd3fc", "game-ship": "7dd3fc",
+      "game-ship-trim": "e0e7ff", "game-thruster": "f472b6", "game-bullet": "e0e7ff",
+      "game-meteor": "1e1b4b", "game-meteor-edge": "4338ca", "game-blast": "f472b6",
+      "game-powerup": "a78bfa", "game-hud": "7dd3fc",
       "splash-logo": "7dd3fc", "splash-created-by": "a5b4fc", "splash-bg": "0b1020",
       "splash-multi-0": "f472b6", "splash-multi-1": "7dd3fc",
       "splash-multi-2": "a78bfa", "splash-multi-3": "38bdf8",
@@ -493,6 +514,10 @@ const PRESETS = [
       "game-pellet": "ffb000", "game-pac": "ffd980",
       "game-ghost-0": "ffb000", "game-ghost-1": "cc8800",
       "game-ghost-2": "996600", "game-ghost-3": "ffd980", "game-fright": "3d2400",
+      "game-space": "140c00", "game-star": "cc8800", "game-ship": "ffb000",
+      "game-ship-trim": "ffd980", "game-thruster": "ffd980", "game-bullet": "ffd980",
+      "game-meteor": "3d2400", "game-meteor-edge": "7a4a00", "game-blast": "ffb000",
+      "game-powerup": "ffd980", "game-hud": "ffb000",
       "splash-logo": "ffb000", "splash-created-by": "cc8800", "splash-bg": "140c00",
       "splash-multi-0": "ffb000", "splash-multi-1": "ffd980",
       "splash-multi-2": "cc8800", "splash-multi-3": "996600",
@@ -512,6 +537,10 @@ const PRESETS = [
       "game-pellet": "8bac0f", "game-pac": "9bbc0f",
       "game-ghost-0": "8bac0f", "game-ghost-1": "306230",
       "game-ghost-2": "9bbc0f", "game-ghost-3": "6b8c1f", "game-fright": "143a14",
+      "game-space": "0f380f", "game-star": "306230", "game-ship": "9bbc0f",
+      "game-ship-trim": "8bac0f", "game-thruster": "8bac0f", "game-bullet": "9bbc0f",
+      "game-meteor": "143a14", "game-meteor-edge": "306230", "game-blast": "8bac0f",
+      "game-powerup": "9bbc0f", "game-hud": "9bbc0f",
       "splash-logo": "9bbc0f", "splash-created-by": "8bac0f", "splash-bg": "0f380f",
       "splash-multi-0": "9bbc0f", "splash-multi-1": "8bac0f",
       "splash-multi-2": "306230", "splash-multi-3": "6b8c1f",
@@ -531,6 +560,10 @@ const PRESETS = [
       "game-pellet": "00e5ff", "game-pac": "fff200",
       "game-ghost-0": "ff2ec4", "game-ghost-1": "00e5ff",
       "game-ghost-2": "b026ff", "game-ghost-3": "ff6b00", "game-fright": "2a0a3d",
+      "game-space": "08000f", "game-star": "b026ff", "game-ship": "00e5ff",
+      "game-ship-trim": "ffffff", "game-thruster": "ff6b00", "game-bullet": "fff200",
+      "game-meteor": "2a0a3d", "game-meteor-edge": "b026ff", "game-blast": "ff2ec4",
+      "game-powerup": "00e5ff", "game-hud": "ff2ec4",
       "splash-logo": "ff2ec4", "splash-created-by": "00e5ff", "splash-bg": "08000f",
       "splash-multi-0": "ff2ec4", "splash-multi-1": "00e5ff",
       "splash-multi-2": "b026ff", "splash-multi-3": "fff200",
@@ -588,6 +621,9 @@ const PROFILE_FILE_VERSION = 1;
 /* seed 1 reaches this frame with all four ghosts out of the house and Pac-Man
  * in the open, which is the most of the palette anyone can click at once */
 const OPENING_FRAME = 354;
+/* and this one has the shooter's second wave broken up, so the panel is
+ * carrying meteors of two sizes, a shot in the air and the whole readout */
+const SHOOTER_OPENING_FRAME = 620;
 const FRAME_MS = 66; /* about 15 fps, which is the speed the dongle plays it */
 
 let port = null, writer = null, incoming = "", prompt = PROMPT_FALLBACK;
@@ -798,7 +834,14 @@ async function setValue(setting, word, quiet) {
       guardPreview("redrawing after a change", () => {
         pushSetting(setting);
         wasm._preview_apply_all();
-        renderScreen();
+        /*
+         * preview_step() only ever ticks the game that is showing, so the
+         * other one is still on its first frame - an empty sky, or a maze
+         * with nothing out of the house.  Switching between them therefore
+         * winds the new one on to its own opening rather than drawing it.
+         */
+        if (setting.name === "game" && previewScreen() === 0) rewind();
+        else renderScreen();
       });
     } else {
       await guardPreviewAsync("showing the new layout", rebootPreview);
@@ -1271,10 +1314,17 @@ function setNav(index) {
   });
 }
 
+/* which game the dongle is on, and so which of the two openings to wind to */
+function playingShooter() {
+  const game = settings.find((setting) => setting.name === "game");
+  return !!game && game.value === "shooter";
+}
+
 function rewind() {
   if (screenIndex === 0) {
     wasm._preview_reset(1);
-    for (let i = 0; i < OPENING_FRAME; i++) wasm._preview_step();
+    const opening = playingShooter() ? SHOOTER_OPENING_FRAME : OPENING_FRAME;
+    for (let i = 0; i < opening; i++) wasm._preview_step();
     drawScreen();
     return;
   }

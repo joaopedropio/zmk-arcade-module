@@ -462,6 +462,41 @@ check(splash.differ && !splash.blank,
       (splash.blank ? " (the image came out blank)" : ""));
 
 /*
+ * Which game the panel plays is a setting like any other, and the fixture
+ * predates it as well, so the module is driven directly here too.  The colours
+ * come out of a preset rather than being written in this file: a preset that
+ * stopped at the maze would leave the shooter drawing black on black, and this
+ * is where that shows up rather than on somebody's desk.
+ */
+const games = await (async () => {
+  const shot = async (which) => {
+    const m = await PacmanPreview();
+    const values = vm.runInContext("presetValues(PRESETS[0])", ctx);
+    for (const [name, word] of Object.entries(values)) {
+      const p = m.stringToNewUTF8(name);
+      m._preview_set(p, parseInt(word, 16) || 0);
+      m._free(p);
+    }
+    const p = m.stringToNewUTF8("game");
+    const known = m._preview_set(p, which);
+    m._free(p);
+    m._preview_set_screen(0);
+    m._preview_apply_all();
+    m._preview_reset(1);
+    for (let i = 0; i < 400; i++) m._preview_step();
+    const b = m._preview_framebuffer() >> 1;
+    return { known, frame: Array.from(m.HEAPU16.subarray(b, b + m._preview_panel() ** 2)).join(",") };
+  };
+  const maze = await shot(0), shooter = await shot(1);
+  return { known: shooter.known === 1, differ: maze.frame !== shooter.frame,
+           colours: new Set(shooter.frame.split(",")).size };
+})();
+check(games.known, "preview.js knows the game setting");
+check(games.differ && games.colours >= 4,
+      `and the shooter draws its own panel in ${games.colours} colours` +
+      (games.differ ? "" : " (it drew the maze)"));
+
+/*
  * A mode only has so many slots, and it drops them from the top: 2-slot is
  * slot5 and slot6, because set_slot_1() gives slot1 SLOT_NUMBER_NONE in every
  * mode but 6-slot. Showing a row for a slot the panel has not got is offering
@@ -584,12 +619,23 @@ check(store.size === 0, "auto remembers nothing, so the browser stays in charge"
 /* presets, which the page carries and the dongle has never heard of   */
 /* ------------------------------------------------------------------ */
 
+/*
+ * A preset naming a setting the connected dongle has not got is skipped rather
+ * than written, which is what lets one page serve several firmwares - so the
+ * only mistake to catch here is a name no firmware has.  settings_list.h is
+ * the second opinion, because the fixture is as old as the dongle that sent it
+ * and a setting added since is in the list and not in the schema.
+ */
 const presets = vm.runInContext(`(() => {
+  const listed = ${JSON.stringify(listed)};
   const unknown = [], wrong = [];
   for (const preset of PRESETS) {
     for (const [name, word] of Object.entries(preset.values)) {
       const setting = settings.find((s) => s.name === name);
-      if (!setting) { unknown.push(preset.name + "/" + name); continue; }
+      if (!setting) {
+        if (!listed.includes(name)) unknown.push(preset.name + "/" + name);
+        continue;
+      }
       if (setting.kind === "color" && !/^[0-9a-f]{6}$/.test(word)) wrong.push(name + "=" + word);
       if (setting.kind === "number" && !(Number(word) >= setting.min && Number(word) <= setting.max)) {
         wrong.push(name + "=" + word);
@@ -657,8 +703,14 @@ dialogs.confirm = true;
 dongle.written = [];
 await vm.runInContext("applyPreset(PRESETS[1])", ctx);
 const applied = new Set(dongle.written.map(([name]) => name));
-check(applied.size === roles.total,
-      `applying a preset wrote all ${applied.size} of its settings and nothing else`);
+/* everything in the preset that this firmware actually reported, and nothing
+ * else: the ones it did not report are the ones writeValues() skips */
+const writable = vm.runInContext(
+  `Object.keys(presetValues(PRESETS[1])).filter((n) => settings.some((s) => s.name === n)).length`,
+  ctx);
+check(applied.size === writable,
+      `applying a preset wrote all ${applied.size} of its ${writable} writable settings ` +
+      `and nothing else`);
 
 /* and the preview shows it: a preset has to move the dashboard, not just the maze */
 const moved = vm.runInContext(`(() => {

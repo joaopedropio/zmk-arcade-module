@@ -29,6 +29,7 @@ static const char *const slot_labels[] = {"connectivity", "layer",   "theme", "w
                                           "modifiers",    "battery", "empty", NULL};
 static const char *const rotate_labels[] = {"0", "90", "180", "270", NULL};
 static const char *const splash_style_labels[] = {"drawn", "image", NULL};
+static const char *const game_labels[] = {"pacman", "shooter", NULL};
 
 /* the labels are indexes into display.h's enums, so they have to end together */
 _Static_assert(ARRAY_SIZE(screen_labels) == STATUS_SCREEN + 2, "screen labels out of step");
@@ -38,6 +39,7 @@ _Static_assert(ARRAY_SIZE(rotate_labels) == DISPLAY_ORIENTATION_270 + 2,
                "rotation labels out of step");
 _Static_assert(ARRAY_SIZE(splash_style_labels) == SPLASH_STYLE_IMAGE + 2,
                "splash style labels out of step");
+_Static_assert(ARRAY_SIZE(game_labels) == PACMAN_GAME_SHOOTER + 2, "game labels out of step");
 
 static uint32_t values[PACMAN_SETTING_COUNT];
 
@@ -65,6 +67,7 @@ static void apply_rotate(uint32_t v) { set_display_orientation((DisplayOrientati
 static void apply_splash_style(uint32_t v) { set_splash_style((SplashStyle)v); }
 static void apply_mute(uint32_t v) { pacman_sound_set_mute(v != 0); }
 static void apply_theme(uint32_t v) { set_theme_number((uint8_t)v); }
+static void apply_game(uint32_t v) { pacman_set_game((uint8_t)v); }
 static void apply_volume(uint32_t v) { pacman_sound_set_volume((uint8_t)v); }
 static void apply_bass_floor(uint32_t v) { pacman_sound_set_bass_floor((uint16_t)v); }
 static void apply_frame_interval(uint32_t v) { pacman_set_frame_interval(v); }

@@ -9,6 +9,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "panel.h"
+
 /*
  * The grid is odd-sized on purpose.  Walls and corridors are both exactly one
  * tile thick, which only works on a lattice: tiles on even rows and columns
@@ -49,7 +51,6 @@
  * Anything painting the margin has to use the right one of the two or it
  * leaves a line of the panel untouched down the far edge.
  */
-#define PM_PANEL      240                                    /* the dongle's square panel */
 #define PM_MARGIN     ((PM_PANEL - PM_WIDTH) / 2)            /* 12 at 9x24 */
 #define PM_MARGIN_END (PM_PANEL - PM_MARGIN - PM_WIDTH)      /* 12 at 9x24 */
 
