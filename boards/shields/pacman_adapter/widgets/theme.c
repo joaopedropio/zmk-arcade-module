@@ -7,8 +7,18 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zephyr/drivers/display.h>
 #include <zmk/display.h>
 #include "helpers/display.h"
+#include "helpers/profiles.h"
 #include "helpers/settings.h"
 
+/*
+ * The slot widget shows which profile the dongle is on, not which theme.  A
+ * theme number was never anything anybody could act on from the panel - the
+ * button stepped through a list of four-colour sets and the dashboard changed
+ * shade - whereas a profile is the whole look under a name, and the same
+ * button now moves between them.  So the number here is the profile's slot,
+ * read as it is drawn, and the theme below is what the colours are still
+ * derived through.
+ */
 static uint8_t current_theme = 0;
 
 static uint16_t theme_font_scale = 4;
@@ -20,32 +30,29 @@ Slot theme_slot;
 static uint16_t theme_x = 17;
 static uint16_t theme_y = 11;
 
-void print_themes_5_slot_top() {
-    Character theme_template[] = {
-        CHAR_S,
-        CHAR_K,
-        CHAR_I,
-        CHAR_N,
-    };
+/*
+ * PROF is four glyphs where SKIN was four, so the number keeps the place the
+ * layout already had for it.  Slot 0 is drawn as a number like any other:
+ * under profiles it is the default one, not the "no theme chosen" the old C-
+ * stood for.
+ */
+static const Character profile_template[] = {
+    CHAR_P,
+    CHAR_R,
+    CHAR_O,
+    CHAR_F,
+};
 
+void print_themes_5_slot_top() {
     uint8_t gap = 4;
     uint8_t char_len = (theme_font_scale * theme_font_width) + gap;
-    uint16_t theme_x_custom = theme_x + 14;
     uint16_t theme_num_x = theme_x + (char_len * 4);
-    uint16_t theme_num_x_custom = theme_x_custom + (char_len * 4);
-    uint8_t num = current_theme;
-    uint16_t first_num = current_theme / 10;
-    uint16_t second_num = current_theme % 10;
-
+    uint8_t slot = (uint8_t)pacman_profile_current();
+    uint16_t first_num = slot / 10;
+    uint16_t second_num = slot % 10;
 
     uint16_t char_gap_pixels = 2;
-    if (num == 0) {
-        print_string(scaled_bitmap_theme_font, theme_template, theme_x_custom, theme_y, theme_font_scale, get_theme_font_color(), get_theme_font_bg_color(), FONT_SIZE_3x5, char_gap_pixels, 4);
-        print_bitmap(scaled_bitmap_theme_font, CHAR_C, theme_num_x_custom, theme_y, theme_font_scale, get_theme_font_color_1(), get_theme_font_bg_color(), FONT_SIZE_3x5);
-        print_bitmap(scaled_bitmap_theme_font, CHAR_NONE, theme_num_x_custom + char_len, theme_y, theme_font_scale, get_theme_font_color_1(), get_theme_font_bg_color(), FONT_SIZE_3x5);
-        return;
-    }
-    print_string(scaled_bitmap_theme_font, theme_template, theme_x, theme_y, theme_font_scale, get_theme_font_color(), get_theme_font_bg_color(), FONT_SIZE_3x5, char_gap_pixels, 4);
+    print_string(scaled_bitmap_theme_font, (Character *)profile_template, theme_x, theme_y, theme_font_scale, get_theme_font_color(), get_theme_font_bg_color(), FONT_SIZE_3x5, char_gap_pixels, 4);
     print_bitmap(scaled_bitmap_theme_font, int_to_num_char(first_num), theme_num_x, theme_y, theme_font_scale, get_theme_font_color_1(), get_theme_font_bg_color(), FONT_SIZE_3x5);
     print_bitmap(scaled_bitmap_theme_font, int_to_num_char(second_num), theme_num_x + char_len, theme_y, theme_font_scale, get_theme_font_color_1(), get_theme_font_bg_color(), FONT_SIZE_3x5);
 }
@@ -59,59 +66,21 @@ void print_themes() {
         print_themes_5_slot_top();
         return;
     }
-    Character theme_template[] = {
-        CHAR_S,
-        CHAR_K,
-        CHAR_I,
-        CHAR_N,
-    };
-
-    uint8_t num = current_theme;
-    uint16_t first_num = current_theme / 10;
-    uint16_t second_num = current_theme % 10;
-    uint16_t theme_x_custom = theme_x + 6;
-
+    uint8_t slot = (uint8_t)pacman_profile_current();
+    uint16_t first_num = slot / 10;
+    uint16_t second_num = slot % 10;
 
     uint16_t char_gap_pixels = 2;
-    if (num == 0) {
-        print_string(scaled_bitmap_theme_font, theme_template, theme_x_custom, theme_y, theme_font_scale, get_theme_font_color(), get_theme_font_bg_color(), FONT_SIZE_3x5, char_gap_pixels, 4);
-        print_bitmap(scaled_bitmap_theme_font, CHAR_C, theme_x_custom + 62, theme_y, theme_font_scale, get_theme_font_color_1(), get_theme_font_bg_color(), FONT_SIZE_3x5);
-        print_bitmap(scaled_bitmap_theme_font, CHAR_NONE, theme_x_custom + 76, theme_y, theme_font_scale, get_theme_font_color_1(), get_theme_font_bg_color(), FONT_SIZE_3x5);
-        return;
-    }
-    print_string(scaled_bitmap_theme_font, theme_template, theme_x, theme_y, theme_font_scale, get_theme_font_color(), get_theme_font_bg_color(), FONT_SIZE_3x5, char_gap_pixels, 4);
+    print_string(scaled_bitmap_theme_font, (Character *)profile_template, theme_x, theme_y, theme_font_scale, get_theme_font_color(), get_theme_font_bg_color(), FONT_SIZE_3x5, char_gap_pixels, 4);
     print_bitmap(scaled_bitmap_theme_font, int_to_num_char(first_num), theme_x + 62, theme_y, theme_font_scale, get_theme_font_color_1(), get_theme_font_bg_color(), FONT_SIZE_3x5);
     print_bitmap(scaled_bitmap_theme_font, int_to_num_char(second_num), theme_x + 76, theme_y, theme_font_scale, get_theme_font_color_1(), get_theme_font_bg_color(), FONT_SIZE_3x5);
 }
 
-void set_next_theme_number() {
-    current_theme++;
-    if (current_theme >= get_themes_colors_len()) {
-        current_theme = 0;
-    }
-}
-
-void set_previous_theme_number() {
-    if (current_theme == 0) {
-        current_theme = get_themes_colors_len() - 1;
-        return;
-    }
-    current_theme--;
-}
-
-void set_next_theme() {
-    set_next_theme_number();
-    /* the store applies what it accepts, so there is nothing to do but undo */
-    if (pacman_settings_save_current_theme(current_theme)) {
-        set_previous_theme_number();
-    }
-}
-
 /*
- * The theme somebody named, rather than the next one along.  This does not
- * write flash the way set_next_theme() does: the shell has already stored it
- * on its own thread, and a flash write does not belong on the display queue
- * that has to repaint straight afterwards.
+ * The theme somebody named.  Nothing steps through them any more - the button
+ * moves between profiles instead - so this never writes flash: whoever asked
+ * for the theme, the shell or a profile being loaded, has already stored it on
+ * a thread that is not the display queue about to repaint.
  */
 void set_theme_number(uint8_t theme) {
     if (theme >= get_themes_colors_len()) {

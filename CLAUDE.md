@@ -183,11 +183,43 @@ may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
   thread, off the queue that has to repaint next.
 - **`pacman schema` is a wire format.** The configurator page parses those
   tab-separated columns, so adding a setting is free but adding or reordering a
-  column breaks the page. `pacman profile list` and `pacman profile show` are
-  two more of them, closed by the same bare `end`; everything else under
-  `profile` answers with a sentence whose first word is what it did - saved,
-  loaded, renamed, deleted, staged, cleared - and the page treats anything else
-  as a failure, so neither end keeps a list of error strings.
+  column breaks the page. `pacman profile list`, `pacman profile show` and
+  `pacman profile current` are three more of them, closed by the same bare
+  `end`; everything else under `profile` answers with a sentence whose first
+  word is what it did - saved, loaded, renamed, deleted, staged, cleared - and
+  the page treats anything else as a failure, so neither end keeps a list of
+  error strings. Which slot the dongle is on is `current` rather than a fourth
+  column on `list`, because the column is the half that cannot grow.
+- **The action button steps between profiles, and the slot widget shows
+  which.** It used to step through themes and draw "SKIN nn"; a theme number
+  was nothing anybody could act on from the panel, so the same hold now loads
+  the next profile and the widget draws "PROF nn". The theme machinery is
+  untouched underneath - theme 0 is still what makes the individual colours
+  count - but nothing steps through themes any more, and the configurator
+  offers no control for the number (`UNOFFERED` in the page). The threshold
+  setting is still called `theme-threshold`; renaming it would drop it from
+  every stored profile, which is not worth the tidier word.
+- **`profiles.c` is built whether or not there is a shell**, because the button
+  reaches profiles too - so `action_button.c` and `theme.c` call into it, and
+  both host harnesses have to answer `pacman_profile_current()`,
+  `_next()` and `_load()` themselves alongside the sound and game no-ops.
+  A profile switch from the button is a flash write for the profile being left
+  plus one per setting that moved; the button is answered on the display queue,
+  so the switch goes to the system work queue and only the repaint comes back.
+- **The dongle is always on a profile, and the live settings are it.**
+  `pacman set` reaches flash as it is typed, so there is no draft of a profile
+  and nothing to save: what it writes is the profile you are on. Keeping a look
+  before changing it is `profile save <free slot>`, which snapshots the panel
+  and moves the dongle onto the copy. Slot 0 is written on a dongle's first
+  boot out of whatever the build left in the settings, and neither it nor the
+  slot in use can be deleted - which is what makes "always on one" true. That
+  is also why the current slot's record is only rewritten as the dongle leaves
+  it: holding it in step would cost seven hundred bytes per colour somebody
+  drags a slider over, so `name()` and `read()` answer for that slot out of the
+  live settings, and `load` snapshots the profile being left before it applies
+  the one being gone to. `configure()` calls `pacman_profile_init()` between
+  loading the defaults and applying them, guarded by `CONFIG_PACMAN_SHELL` -
+  a build with no shell has no profiles to be on.
 - **A profile is one flash key, not one per setting** - the opposite of what
   the settings themselves do, because a profile is only ever written whole and
   eighty keys apiece would spend the storage partition on entries nothing reads
@@ -218,10 +250,14 @@ may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
   before the first render rather than after. `tools/pagetest` checks the result
   against a module built from nothing, so pushing instead of rebooting fails.
 - **Both harnesses supply their own platform.** `tools/uisim/uisim.c` and
-  `tools/wasm/preview.c` each define the sound and game entry points as no-ops,
-  because the dashboard widgets call them and neither a laptop nor a browser
-  has a speaker to answer with. That is deliberate: the widgets are built
-  exactly as the firmware builds them, with nothing compiled out.
+  `tools/wasm/preview.c` each define the sound, game and profile entry points
+  as no-ops, because the dashboard widgets call them and neither a laptop nor
+  a browser has a speaker or a flash partition to answer with. That is
+  deliberate: the widgets are built exactly as the firmware builds them, with
+  nothing compiled out. The two differ on the profile number - uisim makes one
+  up in `uisim_state.h` like the battery levels, while the preview takes the
+  real one from the page through `preview_set_profile()`, because there the
+  page actually knows it.
 
 ## Style
 

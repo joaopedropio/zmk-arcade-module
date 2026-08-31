@@ -25,6 +25,8 @@
 #include <zephyr/drivers/display.h>
 
 #include "action_button.h"
+/* the made-up dongle state the widgets ask for; see the header */
+#include "uisim_state.h"
 #include "battery_status.h"
 #include "frames.h"
 #include "helpers/display.h"
@@ -59,6 +61,23 @@ void pacman_start(void) {}
 void pacman_stop(void) {}
 void pacman_toggle_pause(void) {}
 bool pacman_is_paused(void) { return true; }
+
+/*
+ * The slot widget draws which profile the dongle is on, and the action button
+ * steps between them - both of which are flash on the dongle and nothing here.
+ * The number comes out of uisim_state.h with the rest of the made-up state, so
+ * the dashboard shows a plausible one; stepping stays where it is.
+ */
+int pacman_profile_current(void) { return UISIM_PROFILE_SLOT; }
+int pacman_profile_next(void) { return UISIM_PROFILE_SLOT; }
+int pacman_profile_load(int slot, bool *reboot) {
+    (void)slot;
+    if (reboot) {
+        *reboot = false;
+    }
+    return 0;
+}
+
 void pacman_reload_palette(void) {}
 void pacman_set_frame_interval(uint32_t ms) { (void)ms; }
 static uint16_t fb[PANEL][PANEL];
@@ -184,6 +203,15 @@ int main(int argc, char **argv) {
     set_custom_theme_colors(0xffb897u, 0x2121deu, 0x1a1a2eu, 0x000000u);
     apply_current_theme(theme);
     init_display();
+
+    /*
+     * The slot widget that says which profile the dongle is on sizes itself
+     * from its slot, the way the firmware builds it after init_display().
+     * Without this it drew nothing, which is how it went unwatched here.  It
+     * settles the theme from stored state, so the one asked for goes back on.
+     */
+    theme_init();
+    apply_current_theme(theme);
 
     zmk_widget_splash_init();
     print_splash();

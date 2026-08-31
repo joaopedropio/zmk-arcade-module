@@ -19,8 +19,10 @@ if(CONFIG_ZMK_DISPLAY AND CONFIG_ZMK_DISPLAY_STATUS_SCREEN_CUSTOM)
     zephyr_library_sources(widgets/modifier.c)
     zephyr_library_sources(widgets/helpers/display.c)
     zephyr_library_sources(widgets/helpers/settings.c)
+    # profiles are reached by the action button as well as by the shell, so
+    # they are built whether or not there is anywhere to type at
+    zephyr_library_sources(widgets/helpers/profiles.c)
     if(CONFIG_PACMAN_SHELL)
-        zephyr_library_sources(widgets/helpers/profiles.c)
         zephyr_library_sources(widgets/shell.c)
     endif()
     zephyr_library_sources(widgets/sound.c)

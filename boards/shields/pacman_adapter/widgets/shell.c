@@ -11,12 +11,14 @@
  * That is what the configurator page reads, so the page describes itself from
  * whatever firmware it is talking to and cannot drift out of step with it.
  *
- * `pacman profile` keeps named sets of all of it on the dongle.  Its replies
- * are a wire format too: `list` and `show` print tab-separated columns closed
- * by a bare `end`, and everything that writes answers with a sentence whose
- * first word is what it did - saved, loaded, renamed, deleted, staged,
- * cleared.  Anything else the page is reading is a failure, which saves both
- * ends from a list of error strings to keep in step.
+ * `pacman profile` keeps named sets of all of it on the dongle, and the dongle
+ * is always on one of them - so `set` is not a change to the settings and a
+ * separate change to a profile, it is a change to the profile the dongle is
+ * on.  Its replies are a wire format too: `list`, `show` and `current` print
+ * tab-separated columns closed by a bare `end`, and everything that writes
+ * answers with a sentence whose first word is what it did - saved, loaded,
+ * renamed, deleted, staged, cleared.  Anything else the page is reading is a
+ * failure, which saves both ends from a list of error strings to keep in step.
  *
  * Not everything can be shown before that reboot, and the shell says which
  * rather than pretending: the slot widgets each size and allocate a scratch
@@ -246,6 +248,10 @@ static int slot_arg(const struct shell *sh, const char *word) {
  * Every slot, used or not, because the page offering somewhere to save has to
  * know how many there are and which are free.  A free one prints "-" for its
  * name, the same way the schema spells a column with nothing in it.
+ *
+ * Which one the dongle is on is `current` rather than a fifth column here,
+ * because a column is the half of this format that cannot be added to without
+ * breaking the page that reads it.
  */
 static int cmd_profile_list(const struct shell *sh, size_t argc, char **argv) {
     ARG_UNUSED(argc);
@@ -261,6 +267,22 @@ static int cmd_profile_list(const struct shell *sh, size_t argc, char **argv) {
         }
         shell_print(sh, "%d\t%s\t%d", slot, name, size);
     }
+    shell_print(sh, "end");
+    return 0;
+}
+
+/* the one row `list` cannot carry: which slot everything typed here lands in */
+static int cmd_profile_current(const struct shell *sh, size_t argc, char **argv) {
+    ARG_UNUSED(argc);
+    ARG_UNUSED(argv);
+
+    int slot = pacman_profile_current();
+    char name[PACMAN_PROFILE_NAME_LEN];
+
+    if (pacman_profile_name(slot, name, sizeof(name)) < 0) {
+        snprintf(name, sizeof(name), "%s", PACMAN_PROFILE_DEFAULT_NAME);
+    }
+    shell_print(sh, "%d\t%s", slot, name);
     shell_print(sh, "end");
     return 0;
 }
@@ -303,17 +325,26 @@ static int cmd_profile_save(const struct shell *sh, size_t argc, char **argv) {
         shell_error(sh, "profile %d would not be written (%d)", slot, rc);
         return rc;
     }
-    shell_print(sh, "saved %d settings to profile %d as \"%s\"", PACMAN_SETTING_COUNT, slot,
-                argv[2]);
+    shell_print(sh, "saved %d settings to profile %d as \"%s\"; the dongle is on it now",
+                PACMAN_SETTING_COUNT, slot, argv[2]);
     return 0;
 }
 
+/*
+ * Loading is moving: the profile being left is written down as the panel has
+ * it before the new values land, so nothing is lost by walking away from a
+ * profile somebody has been editing all afternoon.
+ */
 static int cmd_profile_load(const struct shell *sh, size_t argc, char **argv) {
     ARG_UNUSED(argc);
 
     int slot = slot_arg(sh, argv[1]);
     if (slot < 0) {
         return slot;
+    }
+    if (slot == pacman_profile_current()) {
+        shell_print(sh, "loaded profile %d; the dongle was already on it", slot);
+        return 0;
     }
 
     bool reboot = false;
@@ -355,6 +386,13 @@ static int cmd_profile_delete(const struct shell *sh, size_t argc, char **argv) 
     }
 
     int rc = pacman_profile_delete(slot);
+    if (rc == -EPERM) {
+        shell_error(sh, "profile %d cannot be forgotten; %s", slot,
+                    slot == PACMAN_PROFILE_DEFAULT_SLOT
+                        ? "it is the one the dongle falls back to"
+                        : "it is the one the dongle is on");
+        return rc;
+    }
     if (rc) {
         shell_error(sh, "profile %d would not be forgotten (%d)", slot, rc);
         return rc;
@@ -416,6 +454,10 @@ static int cmd_profile_commit(const struct shell *sh, size_t argc, char **argv) 
         shell_error(sh, "nothing has been staged to write");
         return rc;
     }
+    if (rc == -EBUSY) {
+        shell_error(sh, "profile %d is the one the dongle is on; write to another slot", slot);
+        return rc;
+    }
     if (rc) {
         shell_error(sh, "profile %d would not be written (%d)", slot, rc);
         return rc;
@@ -437,19 +479,24 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
     profile_subcmds,
     SHELL_CMD_ARG(list, NULL, "Every slot, tab separated, for the configurator page",
                   cmd_profile_list, 1, 0),
+    SHELL_CMD_ARG(current, NULL, "Which slot the dongle is on, tab separated",
+                  cmd_profile_current, 1, 0),
     SHELL_CMD_ARG(show, NULL, "show <slot> - what one profile holds, tab separated",
                   cmd_profile_show, 2, 0),
-    SHELL_CMD_ARG(save, NULL, "save <slot> <name> - the settings as they stand", cmd_profile_save,
-                  3, 0),
-    SHELL_CMD_ARG(load, NULL, "load <slot> - put a profile's settings back", cmd_profile_load, 2,
+    SHELL_CMD_ARG(save, NULL,
+                  "save <slot> <name> - the settings as they stand, and go on from there",
+                  cmd_profile_save, 3, 0),
+    SHELL_CMD_ARG(load, NULL, "load <slot> - move the dongle onto a profile", cmd_profile_load, 2,
                   0),
     SHELL_CMD_ARG(rename, NULL, "rename <slot> <name>", cmd_profile_rename, 3, 0),
-    SHELL_CMD_ARG(delete, NULL, "delete <slot> - forget it", cmd_profile_delete, 2, 0),
+    SHELL_CMD_ARG(delete, NULL, "delete <slot> - forget one the dongle is not on",
+                  cmd_profile_delete, 2, 0),
     SHELL_CMD_ARG(stage, &setting_name_list,
                   "stage [<setting> <value>] - build a profile to commit, or clear one",
                   cmd_profile_stage, 1, 2),
-    SHELL_CMD_ARG(commit, NULL, "commit <slot> <name> - write what was staged", cmd_profile_commit,
-                  3, 0),
+    SHELL_CMD_ARG(commit, NULL,
+                  "commit <slot> <name> - write what was staged, into a slot it is not on",
+                  cmd_profile_commit, 3, 0),
     SHELL_SUBCMD_SET_END);
 
 SHELL_STATIC_SUBCMD_SET_CREATE(
@@ -461,7 +508,8 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
                   cmd_reset, 2, 0),
     SHELL_CMD_ARG(schema, NULL, "Every setting, tab separated, for the configurator page",
                   cmd_schema, 1, 0),
-    SHELL_CMD(profile, &profile_subcmds, "Named sets of every setting, kept on the dongle", NULL),
+    SHELL_CMD(profile, &profile_subcmds, "The set of settings the dongle is on, and the others",
+              NULL),
     SHELL_SUBCMD_SET_END);
 
 SHELL_CMD_REGISTER(pacman, &pacman_subcmds, "What the Pac-Man dongle remembers", NULL);

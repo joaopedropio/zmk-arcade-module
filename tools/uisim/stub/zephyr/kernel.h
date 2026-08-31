@@ -9,6 +9,30 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #define ARG_UNUSED(x) ((void)(x))
 
+/*
+ * The firmware uses work items to put a job on a particular thread - the flash
+ * writes of a profile switch off the queue that has to repaint next, and the
+ * repaint back onto it.  There is one thread here and nothing to keep apart,
+ * so a submitted item simply runs where it was submitted.
+ */
+struct k_work;
+typedef void (*k_work_handler_t)(struct k_work *work);
+struct k_work { k_work_handler_t handler; };
+struct k_work_q;
+
+#define K_WORK_DEFINE(name, fn) struct k_work name = {.handler = (fn)}
+
+static inline int k_work_submit(struct k_work *work) {
+    work->handler(work);
+    return 0;
+}
+
+static inline int k_work_submit_to_queue(struct k_work_q *queue, struct k_work *work) {
+    ARG_UNUSED(queue);
+    work->handler(work);
+    return 0;
+}
+
 static inline void *k_malloc(size_t n) { return malloc(n); }
 static inline void k_free(void *p) { free(p); }
 static inline int64_t k_uptime_get(void) { return 0; }

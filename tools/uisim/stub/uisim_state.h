@@ -16,6 +16,9 @@
 
 #include <stdint.h>
 
+/* which profile slot the dashboard's PROF widget says the dongle is on */
+#define UISIM_PROFILE_SLOT 3
+
 #define UISIM_LAYER_INDEX 2
 #define UISIM_LAYER_NAME "LOWER"
 #define UISIM_WPM 45

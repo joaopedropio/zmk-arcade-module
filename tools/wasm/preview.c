@@ -180,6 +180,26 @@ void pacman_start(void) {}
 void pacman_stop(void) {}
 void pacman_toggle_pause(void) {}
 bool pacman_is_paused(void) { return true; }
+
+/*
+ * The slot widget draws which profile the dongle is on.  A browser has no
+ * flash to read that out of, but the page does know the answer - it asked the
+ * dongle - so it is pushed in rather than made up, and the preview shows the
+ * number the panel shows.  Stepping between them is the button's job, and
+ * there is no button here.
+ */
+static int profile_slot = 0;
+
+int pacman_profile_current(void) { return profile_slot; }
+int pacman_profile_next(void) { return profile_slot; }
+int pacman_profile_load(int slot, bool *reboot) {
+    (void)slot;
+    if (reboot) {
+        *reboot = false;
+    }
+    return 0;
+}
+
 void pacman_reload_palette(void) { reload_game_palette(); }
 void pacman_set_frame_interval(uint32_t ms) { (void)ms; }
 
@@ -225,6 +245,8 @@ EMSCRIPTEN_KEEPALIVE void preview_apply_all(void) {
 }
 
 EMSCRIPTEN_KEEPALIVE void preview_set_screen(int which) { screen = which; }
+
+EMSCRIPTEN_KEEPALIVE void preview_set_profile(int slot) { profile_slot = slot; }
 
 /*
  * A fixed seed on purpose: the preview should look the same every time the

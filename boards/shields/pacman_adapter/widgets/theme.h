@@ -11,7 +11,8 @@
 
 extern uint32_t themes_colors[][6];
 
-void set_next_theme(void);
 void set_theme_number(uint8_t theme);
+
+/* the slot widget: which profile the dongle is on */
 void print_themes(void);
 void theme_init(void);

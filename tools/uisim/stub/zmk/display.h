@@ -11,7 +11,12 @@
  */
 #pragma once
 
+#include <zephyr/kernel.h>
+
 #include "uisim_state.h"
+
+/* there is one queue here, and k_work_submit_to_queue ignores which */
+static inline struct k_work_q *zmk_display_work_q(void) { return (struct k_work_q *)0; }
 
 #define ZMK_DISPLAY_WIDGET_LISTENER(listener, state_type, cb, state_func)                          \
     static void listener##_init(void) {                                                            \

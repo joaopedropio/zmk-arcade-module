@@ -21,7 +21,6 @@ config PACMAN_SHELL
 
 config PACMAN_PROFILE_SLOTS
     int "How many profiles the dongle can hold"
-    depends on PACMAN_SHELL
     default 5
     range 1 16
     help

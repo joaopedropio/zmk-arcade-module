@@ -126,10 +126,22 @@ const raw = fs.readFileSync(new URL("schema.txt", import.meta.url), "latin1");
  * hardware; the profile side is modelled here because those replies are a wire
  * format of their own - a page that misreads them, or that writes an import in
  * the wrong order, would otherwise only be found out with a dongle in hand.
+ *
+ * The dongle is always on a profile, and being on one means the live settings
+ * are that profile - so the slot it is on and `live` are the same object here,
+ * exactly as `pacman set` and `profile show` present them.  Slot 1 is a
+ * profile it is not on, which is the only way to tell the two readings apart.
  */
+const live = Object.fromEntries(
+  fs.readFileSync(new URL("schema.txt", import.meta.url), "latin1")
+    .split(/\r?\n/).filter((line) => line.includes("\t"))
+    .map((line) => line.split("\t")).map(([name, , value]) => [name, value]));
+
 const dongle = {
-  profiles: [{ name: "Desk", values: { "game-wall": "2121de", "theme": "0" } },
-             null, null, null, null],
+  profiles: [{ name: "Desk", values: live },
+             { name: "Night", values: { "game-wall": "2121de", "theme": "0" } },
+             null, null, null],
+  current: 0,
   staged: null,
   knowsProfiles: true,
   written: [],
@@ -143,26 +155,41 @@ const words = (line) => (line.match(/"[^"]*"|\S+/g) || []).map((w) => w.replace(
 function profileCommand(argv) {
   const slot = Number(argv[3]);
   const held = dongle.profiles[slot];
+  const here = dongle.profiles[dongle.current];
 
   switch (argv[2]) {
   case "list":
     return term(dongle.profiles
       .map((p, i) => `${i}\t${p ? p.name : "-"}\t${p ? Object.keys(p.values).length : 0}`)
       .concat("end"));
+  case "current":
+    return term([`${dongle.current}\t${here.name}`, "end"]);
   case "show":
     if (!held) return term([`profile ${slot} is empty`]);
     return term(Object.entries(held.values).map(([k, v]) => `${k}\t${v}`).concat("end"));
   case "save":
-    dongle.profiles[slot] = { name: argv[4], values: { theme: "0" } };
-    return term([`saved 86 settings to profile ${slot} as "${argv[4]}"`]);
+    /* a snapshot of the live settings, and the dongle goes on from the copy */
+    dongle.profiles[slot] = { name: argv[4], values: Object.assign({}, here.values) };
+    dongle.current = slot;
+    return term([`saved 86 settings to profile ${slot} as "${argv[4]}"; the dongle is on it now`]);
   case "load":
     if (!held) return term([`profile ${slot} is empty`]);
+    if (slot === dongle.current) {
+      return term([`loaded profile ${slot}; the dongle was already on it`]);
+    }
+    dongle.current = slot;
     return term([`loaded profile ${slot}; 2 settings moved`]);
   case "rename":
     if (!held) return term([`profile ${slot} is empty`]);
     held.name = argv[4];
     return term([`renamed profile ${slot} to "${argv[4]}"`]);
   case "delete":
+    if (slot === 0) {
+      return term([`profile ${slot} cannot be forgotten; it is the one the dongle falls back to`]);
+    }
+    if (slot === dongle.current) {
+      return term([`profile ${slot} cannot be forgotten; it is the one the dongle is on`]);
+    }
     dongle.profiles[slot] = null;
     return term([`deleted profile ${slot}`]);
   case "stage":
@@ -172,6 +199,9 @@ function profileCommand(argv) {
     return term([`staged ${argv[3]} ${argv[4]}`]);
   case "commit":
     if (!dongle.staged) return term(["nothing has been staged to write"]);
+    if (slot === dongle.current) {
+      return term([`profile ${slot} is the one the dongle is on; write to another slot`]);
+    }
     dongle.profiles[slot] = { name: argv[4], values: dongle.staged };
     dongle.staged = null;
     return term([`saved profile ${slot} as "${argv[4]}"`]);
@@ -188,6 +218,7 @@ ctx.dongleSays = (line) => {
   }
   if (argv[0] === "pacman" && argv[1] === "set") {
     dongle.written.push([argv[2], argv[3]]);
+    dongle.profiles[dongle.current].values[argv[2]] = argv[3];
     return term([`${argv[2]} is now ${argv[3]}`]);
   }
   return term([]);
@@ -225,7 +256,7 @@ check(/^Connected\./.test(vm.runInContext('document.getElementById("status").tex
 /* every setting must be reachable: one section, and one screen within Screen */
 const partition = vm.runInContext(`(() => {
   const counts = {}, ambiguous = [];
-  for (const s of settings) {
+  for (const s of settings.filter((x) => !UNOFFERED.test(x.name))) {
     const sections = SECTIONS.filter((x) => x.match && x.match(s.name));
     if (sections.length > 1) ambiguous.push(s.name + " (sections)");
     const section = sectionOf(s.name);
@@ -244,8 +275,36 @@ const partition = vm.runInContext(`(() => {
 })()`, ctx);
 check(partition.ambiguous.length === 0, `nothing matches two places${partition.ambiguous.length ? ": " + partition.ambiguous : ""}`);
 check(partition.empty.length === 0, `no empty section${partition.empty.length ? ": " + partition.empty : ""}`);
-check(Object.values(partition.counts).reduce((a, b) => a + b, 0) === n,
-      `all ${n} settings reachable: ` + JSON.stringify(partition.counts));
+const offered = vm.runInContext(
+  "settings.filter((s) => !UNOFFERED.test(s.name)).length", ctx);
+check(Object.values(partition.counts).reduce((a, b) => a + b, 0) === offered,
+      `all ${offered} offered settings reachable: ` + JSON.stringify(partition.counts));
+
+/*
+ * The theme number is written by every preset and stored like anything else,
+ * but nothing on the page picks it any more: the dongle's button steps between
+ * profiles now, so a spinner for it led nowhere.  Checked as rows that were
+ * actually rendered, because a setting dropped from the array instead would
+ * take the presets' `theme: 0` down with it - and theme 0 is what makes the
+ * individual colours count at all.
+ */
+const themeRows = vm.runInContext(`(() => {
+  const seen = [];
+  for (let sec = 0; sec < SECTIONS.length; sec++) {
+    for (let scr = 0; scr < SCREENS.length; scr++) {
+      setNav(sec);
+      if (SECTIONS[sec].panel === "pick") setScreen(scr);
+      for (const section of document.getElementById("panels").children) {
+        for (const row of section.children[1].children) seen.push(row.children[0].textContent);
+      }
+    }
+  }
+  return seen.filter((name) => name === "theme");
+})()`, ctx);
+check(themeRows.length === 0, `no tab offers a theme control (${themeRows.length} found)`);
+check(vm.runInContext('settings.some((s) => s.name === "theme")', ctx) &&
+      vm.runInContext('PRESETS.every((p) => p.values.theme === "0")', ctx),
+      "but the setting is still there for the presets to write");
 
 /*
  * The fixture is bytes a dongle sent, which means it is as old as the dongle
@@ -582,6 +641,19 @@ const grounds = vm.runInContext(`(() => {
 check(grounds.length === 0,
       `every background takes the background colour${grounds.length ? ": " + grounds : ""}`);
 
+/*
+ * Apply is the one button that replaces a whole saved look rather than editing
+ * a corner of one: the live settings are the profile the dongle is on, so
+ * sixty-odd colours land in it at once.  Declining has to leave it untouched.
+ */
+dialogs.confirm = false;
+dongle.written = [];
+await vm.runInContext("applyPreset(PRESETS[1])", ctx);
+check(dongle.written.length === 0 && /left as it was/.test(
+        document.getElementById("status").textContent),
+      `declining the warning writes nothing (${dongle.written.length} written)`);
+dialogs.confirm = true;
+
 dongle.written = [];
 await vm.runInContext("applyPreset(PRESETS[1])", ctx);
 const applied = new Set(dongle.written.map(([name]) => name));
@@ -618,6 +690,17 @@ const slots = vm.runInContext("JSON.stringify(profiles)", ctx);
 check(JSON.parse(slots).length === 5 && JSON.parse(slots)[0].name === "Desk",
       `it read all five slots back: ${slots}`);
 
+/*
+ * Which profile the dongle is on is true of every tab, not only the one about
+ * profiles - somebody recolouring a maze is exactly the person who needs to
+ * know which look they are recolouring - so it is checked on the strip.
+ */
+check(vm.runInContext("onSlot === 0 && onProfileName() === \"Desk\"", ctx),
+      "the page read which profile the dongle is on");
+const chip = document.getElementById("nav").children.find((b) => b.id === "onprofile");
+check(chip && chip.children.some((b) => b.textContent === "Desk"),
+      "and names it beside the tabs");
+
 vm.runInContext('setNav(SECTIONS.findIndex((s) => s.view === "profiles"))', ctx);
 check(document.getElementById("panels").children.length === 2 &&
       document.getElementById("previewpanel").classList.contains("hidden") &&
@@ -625,31 +708,105 @@ check(document.getElementById("panels").children.length === 2 &&
       "the Profiles tab draws its two lists and no preview beside them");
 
 /*
+ * Two rows can never be deleted - the one the dongle is on, because it would
+ * be left on nothing, and the first, because that is what it falls back to -
+ * and the row it is on has nowhere to load from.  The buttons are read off the
+ * rendered rows rather than off the predicate that picks them, so a rule that
+ * is only in the firmware shows up here as a button the page still offers.
+ */
+const rowActs = () => {
+  const saved = document.getElementById("panels").children[1];
+  return saved.children[2].children.map((row) => ({
+    name: row.children[0].children[0].textContent,
+    acts: row.children[2].children.map((b) => b.textContent + (b.disabled ? "(off)" : "")),
+  }));
+};
+const rows = rowActs();
+check(rows[0] && rows[0].acts.join(",") === "Duplicate,Export,Rename,Delete(off)",
+      `the row the dongle is on offers no Load and no Delete: ${rows[0] && rows[0].acts}`);
+check(rows[1] && rows[1].acts.join(",") === "Load,Duplicate,Export,Rename,Delete",
+      `another saved profile offers all five: ${rows[1] && rows[1].acts}`);
+
+/*
  * The round trip is the whole point of a file: what one dongle exported has to
  * arrive on another as the same profile.  It also has to arrive without
  * touching the settings that are on the panel right now, which is what the
  * staging is for - so the writes are counted on the way through.
  */
-dialogs.prompt = () => "1";
+dialogs.prompt = () => "2";
 dongle.written = [];
-await vm.runInContext("guardAction(() => exportProfile(profiles[0]))", ctx);
+await vm.runInContext("guardAction(() => exportProfile(profiles[1]))", ctx);
 const file = saved.text ? JSON.parse(saved.text) : {};
-check(file["pacman-dongle-profile"] === 1 && file.name === "Desk" &&
+check(file["pacman-dongle-profile"] === 1 && file.name === "Night" &&
       file.settings && file.settings["game-wall"] === "2121de",
       "an exported profile is a file another dongle could read");
 
 await vm.runInContext(`importProfile(${JSON.stringify(saved.text || "{}")})`, ctx);
-check(dongle.profiles[1] && dongle.profiles[1].name === "Desk" &&
-      JSON.stringify(dongle.profiles[1].values) === JSON.stringify(dongle.profiles[0].values),
+check(dongle.profiles[2] && dongle.profiles[2].name === "Night" &&
+      JSON.stringify(dongle.profiles[2].values) === JSON.stringify(dongle.profiles[1].values),
       "importing it puts the same profile in another slot");
-check(dongle.written.length === 0,
-      `an import leaves the live settings alone (${dongle.written.length} written)`);
+check(dongle.written.length === 0 && dongle.current === 0,
+      `an import leaves the live settings alone and the dongle where it was ` +
+      `(${dongle.written.length} written, on ${dongle.current})`);
 
-await vm.runInContext("guardAction(() => renameProfile(profiles[1]))", ctx);
-check(dongle.profiles[1].name === "1", "renaming reaches the dongle");
+/*
+ * A staged profile written into the slot the dongle is on would be dropped
+ * unread - that slot answers out of the live settings - so the page has to
+ * refuse the slot rather than hand the firmware a write it will reject.
+ */
+dialogs.prompt = () => String(dongle.current);
+const untouched = JSON.stringify(dongle.profiles[dongle.current]);
+await vm.runInContext(`guardAction(() => importProfile(${JSON.stringify(saved.text || "{}")}))`, ctx);
+check(JSON.stringify(dongle.profiles[dongle.current]) === untouched &&
+      /would not survive/.test(document.getElementById("status").textContent),
+      "an import cannot be aimed at the profile the dongle is on");
 
-await vm.runInContext("guardAction(() => deleteProfile(profiles[1]))", ctx);
-check(dongle.profiles[1] === null, "deleting frees the slot");
+/*
+ * Duplicating is what there is instead of unsaved work: everything typed at
+ * this page reaches flash as it is typed, so keeping a look before changing it
+ * means copying it and carrying on from the copy.  The copy is where the
+ * dongle ends up, and the original has to come out of it untouched.
+ */
+dialogs.prompt = () => "3";
+const before = JSON.stringify(dongle.profiles[0].values);
+await vm.runInContext("guardAction(() => duplicateProfile(profiles[0]))", ctx);
+check(dongle.profiles[3] && dongle.current === 3 &&
+      JSON.stringify(dongle.profiles[3].values) === before,
+      `copying the profile the dongle is on moves it onto the copy (on ${dongle.current})`);
+check(JSON.stringify(dongle.profiles[0].values) === before &&
+      dongle.profiles[0].name === "Desk",
+      "and leaves the one it came from exactly as it was");
+check(vm.runInContext("onSlot === 3", ctx) &&
+      document.getElementById("nav").children.some(
+        (b) => b.id === "onprofile" && b.children.some((n) => n.textContent === "3")),
+      "the strip follows it onto the copy");
+
+/*
+ * The first slot survives a page that has moved off it: the dongle is on the
+ * copy now, so the only thing keeping slot 0 is the rule that it is the
+ * fallback.
+ */
+await vm.runInContext("guardAction(() => deleteProfile(profiles[0]))", ctx);
+check(dongle.profiles[0] !== null && /falls back/.test(
+        document.getElementById("status").textContent),
+      "the first profile still cannot be deleted once the dongle has left it");
+
+await vm.runInContext("guardAction(() => deleteProfile(profiles[3]))", ctx);
+check(dongle.profiles[3] !== null && /is on/.test(
+        document.getElementById("status").textContent),
+      "and neither can the one it is on");
+
+await vm.runInContext("guardAction(() => renameProfile(profiles[2]))", ctx);
+check(dongle.profiles[2].name === "3", "renaming reaches the dongle");
+
+await vm.runInContext("guardAction(() => deleteProfile(profiles[2]))", ctx);
+check(dongle.profiles[2] === null, "deleting a slot it is not on frees it");
+
+/* and moving back writes down the one being left, rather than dropping it */
+await vm.runInContext("guardAction(() => loadProfile(profiles[0]))", ctx);
+check(dongle.current === 0 && dongle.profiles[3] !== null,
+      `loading another profile moves the dongle and keeps the one it left ` +
+      `(on ${dongle.current})`);
 
 /*
  * A dongle whose firmware predates all this answers the command with a
@@ -662,8 +819,9 @@ check(vm.runInContext("profilesLive === false && navIndex === 0", ctx) &&
       vm.runInContext("wasm !== null", ctx) &&
       /^Connected\./.test(document.getElementById("status").textContent),
       "an older firmware loses the tab and keeps the connection");
-check(!document.getElementById("nav").children.some((b) => b.textContent === "Profiles"),
-      "and gets no button for it");
+check(!document.getElementById("nav").children.some((b) => b.textContent === "Profiles") &&
+      !document.getElementById("nav").children.some((b) => b.id === "onprofile"),
+      "and gets neither a button for it nor a profile to be on");
 
 /* ------------------------------------------------------------------ */
 /* one connection at a time                                            */

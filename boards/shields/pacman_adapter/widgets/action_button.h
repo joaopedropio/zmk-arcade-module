@@ -16,5 +16,5 @@ void print_menu(void);
 void refresh_screen(void);
 void set_theme_threshold(uint16_t term_ms);
 
-/* held past this, the press mutes or unmutes instead of changing theme */
+/* held past this, the press mutes or unmutes instead of changing profile */
 void set_mute_threshold(uint16_t term_ms);

@@ -64,11 +64,19 @@ it does:
 | Held | What it does |
 |---|---|
 | up to 300 ms | swaps between the game and the dashboard |
-| 300-600 ms | steps to the next theme |
+| 300-600 ms | moves to the next profile |
 | past 600 ms | mutes, or unmutes |
 
+The middle one used to step through themes. A theme number was never anything
+you could act on from the panel — it picked between four-colour sets and the
+dashboard changed shade — so the hold now loads the next saved profile, which
+is the whole look under a name, and the dashboard's `theme` slot draws which
+one you are on as `PROF nn` rather than `SKIN nn`. Empty slots are skipped, and
+a dongle with one profile stays where it is.
+
 The two thresholds are `CONFIG_PACMAN_THEME_THRESHOLD` and
-`CONFIG_PACMAN_MUTE_THRESHOLD`. The mute is saved, so a dongle switched off
+`CONFIG_PACMAN_MUTE_THRESHOLD` — the first keeps its name so that the value
+stored under it, and in every saved profile, survives. The mute is saved, so a dongle switched off
 muted comes back muted, and it silences whatever is sounding at the time.
 Unmuting chirps, since a mute that says nothing either way gives you no way to
 tell which state you are in. Setting `CONFIG_PACMAN_MUTE_THRESHOLD=0` leaves
@@ -104,7 +112,8 @@ python3 tools/splash_image.py > boards/shields/pacman_adapter/widgets/splash_ima
 
 **The dashboard** is a grid of slots: `PACMAN_INFO_SLOT_MODE` picks the layout
 and `PACMAN_INFO_SLOT_1` … `_6` say what goes in each one — `connectivity`,
-`layer`, `theme`, `wpm`, `modifiers`, `battery` or nothing. Its header is a lap
+`layer`, `theme` (which profile the dongle is on), `wpm`, `modifiers`,
+`battery` or nothing. Its header is a lap
 of the maze in miniature, a ring of pellets with Pac-Man running it and a ghost
 a few steps behind. Batteries take the strip along the bottom, one, two or
 three of them per `PACMAN_BATTERY_SLOTS`.
@@ -128,7 +137,10 @@ splash. Themes are the eleven colour schemes in `helpers/display.c`; the first
 is yours to set with `PACMAN_THEME_*`, and the choice is remembered across
 reboots. They colour the splash and the dashboard only — the maze keeps the
 arcade's own colours whatever theme is up, set by the `PACMAN_*_COLOR` options
-below.
+below. Nothing steps through them any more, and the configurator offers no
+control for the number: profiles took that job, and theme 0 — the default —
+is the one that paints the dashboard from the individual colours rather than
+deriving it. `pacman set theme` still reaches the others.
 
 The screens, their fonts and the slot machinery are ported from
 [snake-module](https://github.com/joaopedropio/snake-module): same widgets,
@@ -219,28 +231,46 @@ forgotten; the next boot takes what the firmware was built with
 ```
 
 A whole set of them can be kept under a name, on the dongle rather than in
-whatever made it:
+whatever made it — and the dongle is always on one of them. A freshly flashed
+one is on “Default” in slot 0, which holds what the firmware was built with:
 
 ```
-uart:~$ pacman profile save 0 "Desk"
-saved 86 settings to profile 0 as "Desk"
+uart:~$ pacman profile current
+0	Default
+end
+uart:~$ pacman profile save 1 "Desk"
+saved 86 settings to profile 1 as "Desk"; the dongle is on it now
 uart:~$ pacman profile list
-0	Desk	86
-1	-	0
+0	Default	86
+1	Desk	86
+2	-	0
 ...
 end
 uart:~$ pacman profile load 0
 loaded profile 0; 31 settings moved, and the layout needs a restart to show
 ```
 
-`profile show` prints one, `rename` and `delete` do what they say, and
-`stage`/`commit` build one a value at a time without disturbing the dongle in
-front of you — which is how the configurator imports a file. Five slots by
-default, `CONFIG_PACMAN_PROFILE_SLOTS`; each costs about seven hundred bytes
-of the storage partition once it is used and nothing while it is empty.
-Because each setting is written down by the hash of its name, a profile saved
-by an older firmware still loads after settings are added or reordered — it
-simply says nothing about the ones it never knew.
+Being on a profile means the live settings *are* that profile: `pacman set`
+reaches flash as you type it, and what it writes is the profile you are on.
+There is no unsaved half to lose and nothing to remember to save. To keep a
+look before changing it, `save` it into another slot — that snapshots what is
+on the panel, and the dongle carries on from the copy, leaving the original
+where it was. `load` moves between them, writing down the one being left
+first.
+
+Slot 0 cannot be deleted, because it is what the dongle falls back to, and
+neither can the slot it is on; both can be renamed. `profile show` prints one,
+`rename` and `delete` do what they say, and `stage`/`commit` build one a value
+at a time without disturbing the dongle in front of you — which is how the
+configurator imports a file, and the one thing here that does not move you
+onto what it wrote. That is also why `commit` refuses the slot you are on: that
+slot is whatever is on the panel, so a record written there would be dropped
+the moment you moved off it. Five slots by default,
+`CONFIG_PACMAN_PROFILE_SLOTS`; each costs about seven hundred bytes of the
+storage partition once it is used and nothing while it is empty. Because each
+setting is written down by the hash of its name, a profile saved by an older
+firmware still loads after settings are added or reordered — it simply says
+nothing about the ones it never knew.
 
 Colours, the volume, the frame interval and the typing thresholds change as
 you type. The slot layout, the rotation and the splash cannot: every slot
@@ -304,13 +334,22 @@ Five presets ship with the page — Arcade, Midnight, Amber CRT, Handheld and
 Neon — and each is a complete look rather than a maze palette: theme 0 draws
 every colour from its own setting, so a preset names the maze and the splash
 outright and fills the dashboard's forty-odd from four role colours (ink,
-accent, dim and background). Apply writes one to the dongle; Save keeps it in
-a slot without changing anything now. Below that are the dongle's own slots,
-with Load, Rename, Delete and Export, and an Import that reads a file another
-dongle exported. Import stages the values and commits them in one write, so
-bringing a profile in never disturbs the settings you are looking at. A
-firmware without `pacman profile` simply gets no tab, and the rest of the page
-carries on.
+accent, dim and background). Apply writes one over the profile the dongle is
+on — it asks first, because that is sixty-odd colours replacing a whole saved
+look rather than an edit to a corner of one — and Save keeps it in another slot
+without changing anything now. Below that are the dongle's own slots,
+with Load, Duplicate, Rename, Delete and Export, and an Import that reads a
+file another dongle exported. Import stages the values and commits them in one
+write, so bringing a profile in never disturbs the settings you are looking at.
+A firmware without `pacman profile` simply gets no tab, and the rest of the
+page carries on.
+
+Which profile the dongle is on sits at the end of the tab strip, because it is
+true of every tab: a colour changed on Screen goes into that profile, not into
+a draft of it. That is what Duplicate is for — it copies the profile you are
+on into a free slot and carries on from the copy, so the original keeps what it
+had. The row the dongle is on offers no Load, and Delete is refused there and
+on the first slot, which is the one it falls back to.
 
 The page has its own light and dark, separate from the dongle's — the switch
 in the header is Auto, Light or Dark, and Auto follows the browser and
@@ -492,12 +531,12 @@ boards/shields/pacman_adapter/
 ├── custom_status_screen.c      hands ZMK an empty screen, starts the timer
 └── widgets/
     ├── pacman.c                display device, palette, LVGL timer, WPM speed
-    ├── action_button.c         swaps screens, cycles themes, mutes
+    ├── action_button.c         swaps screens, moves between profiles, mutes
     ├── splash.c                the wordmark and the chase, or the picture
     ├── logo.c                  the dashboard's animated header
     ├── frames.c                the boxes the slots are drawn in
     ├── configuration.c         Kconfig into runtime settings
-    ├── theme.c                 the colour schemes and which one is current
+    ├── theme.c                 the colour schemes, and the profile slot widget
     ├── battery_status.c        \
     ├── output_status.c          | the slot widgets: what ZMK knows,
     ├── layer_status.c           | drawn into whichever slot holds it

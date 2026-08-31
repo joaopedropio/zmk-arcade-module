@@ -3,8 +3,8 @@
  *
  * One key on the keymap (bound to &dongle_action_behavior) drives the whole
  * UI, and what it does depends on how long it is held: a tap swaps between
- * the game and the dashboard, a hold past PACMAN_THEME_THRESHOLD steps to the
- * next colour theme.
+ * the game and the dashboard, a hold past PACMAN_THEME_THRESHOLD moves to the
+ * next profile, and a longer one mutes.
  *
  * The dashboard is a grid of slots - what goes in each one is Kconfig, see
  * PACMAN_INFO_SLOT_* - drawn straight to the panel by the widgets themselves.
@@ -29,6 +29,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include "battery_status.h"
 #include "frames.h"
 #include "helpers/display.h"
+#include "helpers/profiles.h"
 #include "helpers/settings.h"
 #include "layer_status.h"
 #include "logo.h"
@@ -52,7 +53,7 @@ static bool dongle_lock = false;
 /* which action a press turned out to be, once it was let go of */
 typedef enum {
     ACTION_MENU,
-    ACTION_THEME,
+    ACTION_PROFILE,
     ACTION_MUTE,
 } Action;
 
@@ -113,10 +114,45 @@ static void toggle_menu(void) {
     menu_on = true;
 }
 
-static void change_theme(void) {
-    set_next_theme();
+/*
+ * The repaint half of a profile switch, and the only half that belongs on the
+ * display queue: apply_all() pushes the new values at whatever draws them and
+ * the screen goes up again.  Re-applying everything rather than what moved is
+ * the same trade the shell makes - the setters are idempotent, and eighty of
+ * them cost less than the repaint after.
+ */
+static void show_profile(struct k_work *work) {
+    ARG_UNUSED(work);
+
+    pacman_settings_apply_all();
     refresh_screen();
 }
+
+static K_WORK_DEFINE(show_profile_work, show_profile);
+
+/*
+ * The other half is a flash write for the profile being left and one for every
+ * setting that moved, which is far too much to do on the queue that has to
+ * repaint next - the button is answered from a display widget listener, so
+ * that is the thread this would otherwise run on.  It goes to the system work
+ * queue instead and hands the drawing back when it is done.
+ */
+static void switch_profile(struct k_work *work) {
+    ARG_UNUSED(work);
+
+    int slot = pacman_profile_next();
+    if (slot == pacman_profile_current()) {
+        return; /* the only profile there is; nothing to move to */
+    }
+    if (pacman_profile_load(slot, NULL) < 0) {
+        return;
+    }
+    k_work_submit_to_queue(zmk_display_work_q(), &show_profile_work);
+}
+
+static K_WORK_DEFINE(switch_profile_work, switch_profile);
+
+static void next_profile(void) { k_work_submit(&switch_profile_work); }
 
 static void toggle_mute(void) { pacman_settings_toggle_mute(); }
 
@@ -128,8 +164,8 @@ static void run_action(void) {
     if (action == ACTION_MENU) {
         toggle_menu();
     }
-    if (action == ACTION_THEME) {
-        change_theme();
+    if (action == ACTION_PROFILE) {
+        next_profile();
     }
     if (action == ACTION_MUTE) {
         toggle_mute();
@@ -150,7 +186,7 @@ static void dongle_action_update_cb(struct zmk_dongle_actioned state) {
     if (elapsed_time > mute_threshold) {
         action = ACTION_MUTE;
     } else if (elapsed_time > theme_threshold) {
-        action = ACTION_THEME;
+        action = ACTION_PROFILE;
     } else if (elapsed_time > menu_threshold) {
         action = ACTION_MENU;
     }

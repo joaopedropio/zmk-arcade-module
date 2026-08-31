@@ -11,6 +11,10 @@
  * theme derives the whole dashboard from four colours and would otherwise
  * throw away any colour somebody had set by hand.
  *
+ * Between the two comes the profiles: the dongle is always on one, and the one
+ * it is on the first time it boots is the firmware it was flashed with - which
+ * is only known once the defaults are in.
+ *
  * SPDX-License-Identifier: MIT
  */
 
@@ -21,10 +25,12 @@ LOG_MODULE_REGISTER(pacman_configuration, LOG_LEVEL_INF);
 
 #include "configuration.h"
 #include "helpers/display.h"
+#include "helpers/profiles.h"
 #include "helpers/settings.h"
 
 void configure(void) {
     pacman_settings_load_defaults();
+    pacman_profile_init();
     set_color_override_cb(pacman_settings_apply_colors);
     pacman_settings_apply_all();
 }
