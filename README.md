@@ -82,10 +82,23 @@ The same three presses are available from the keymap: bind
 The panel is shared by three things, one at a time, and none of them is an
 LVGL widget — they all draw straight to the display.
 
-**The splash** goes up first: the wordmark, Pac-Man about to run into a ghost,
-and who to blame. It stays for two and a half seconds
+**The splash** goes up first, in one of two styles. `PACMAN_SPLASH_STYLE`
+`drawn` builds it out of the wordmark, Pac-Man about to run into a ghost, and
+who to blame — every colour of it a setting you can change. `image` puts up
+the poster in `splash_image.h` instead, which brings its own eight colours and
+ignores those settings. Either stays for two and a half seconds
 (`PACMAN_SPLASH_FRAMES` × `PACMAN_SPLASH_INTERVAL`), which is also what keeps
 LVGL's first flush of its own empty screen off the game.
+
+The picture is run-length encoded — a palette index and a length packed into
+each byte, no run crossing a row — so it decodes a row at a time straight to
+the panel. There is no frame buffer on this shield to hold 240×240 of 16-bit
+pixels, and eight flat colours of poster come to about 8 KB instead of 115.
+Swap in your own by replacing `tools/splash_art.png` and regenerating:
+
+```sh
+python3 tools/splash_image.py > boards/shields/pacman_adapter/widgets/splash_image.h
+```
 
 **The game** is the maze, and it owns the whole panel.
 
@@ -120,6 +133,7 @@ ones worth knowing about; the rest colour the dashboard and are listed in
 | `CONFIG_PACMAN_ROTATE_DISPLAY` | `0` | Panel rotation: 0, 90, 180 or 270. Only the rotation you pick is compiled in. |
 | `CONFIG_PACMAN_FRAME_INTERVAL` | `33` | Milliseconds per frame (33 ≈ 30 fps). |
 | `CONFIG_PACMAN_DEFAULT_SCREEN` | `game` | Which screen comes up after the splash. |
+| `CONFIG_PACMAN_SPLASH_STYLE` | `drawn` | Which splash: `drawn` from the wordmark and sprites, or the `image` in `splash_image.h`. |
 | `CONFIG_PACMAN_SOUND` | `y` | Drive the I2S amplifier at all. `n` compiles the whole sound path out. |
 | `CONFIG_PACMAN_SOUND_VOLUME` | `80` | How loud, 0 to 100. 100 is unity; a limiter catches the peaks. |
 | `CONFIG_PACMAN_SOUND_CONNECT` | `y` | Chirp when a keyboard connects or drops off. |
@@ -157,12 +171,14 @@ CONFIG_SHELL=y
 The shell needs somewhere to talk. On a dongle that is the USB it is already
 plugged into, which means a CDC ACM endpoint — build with `-S cdc-acm-console`,
 or add the `zephyr,shell-uart` chosen node yourself. That snippet also renames
-the USB device to "Zephyr USB console sample" and changes its product id, so
-put yours back:
+the USB device to "Zephyr USB console sample" and takes product id `0x0004`, so
+put yours back. Not in a `.conf`, though: snippet config is merged after the
+keyboard's, so it would win. They go on the build command, where nothing is
+merged on top of them:
 
-```
-CONFIG_USB_DEVICE_PRODUCT="Cygnus"
-CONFIG_USB_DEVICE_PID=0x615E
+```sh
+west build ... -S cdc-acm-console -- ... \
+    -DCONFIG_USB_DEVICE_PRODUCT='"Cygnus"' -DCONFIG_USB_DEVICE_PID=0x615E
 ```
 
 Then a serial terminal on `/dev/tty.usbmodem*` (macOS) or `/dev/ttyACM*`
@@ -187,6 +203,30 @@ slot3 will be modifiers from the next boot
 uart:~$ pacman reset all
 forgotten; the next boot takes what the firmware was built with
 ```
+
+A whole set of them can be kept under a name, on the dongle rather than in
+whatever made it:
+
+```
+uart:~$ pacman profile save 0 "Desk"
+saved 86 settings to profile 0 as "Desk"
+uart:~$ pacman profile list
+0	Desk	86
+1	-	0
+...
+end
+uart:~$ pacman profile load 0
+loaded profile 0; 31 settings moved, and the layout needs a restart to show
+```
+
+`profile show` prints one, `rename` and `delete` do what they say, and
+`stage`/`commit` build one a value at a time without disturbing the dongle in
+front of you — which is how the configurator imports a file. Five slots by
+default, `CONFIG_PACMAN_PROFILE_SLOTS`; each costs about seven hundred bytes
+of the storage partition once it is used and nothing while it is empty.
+Because each setting is written down by the hash of its name, a profile saved
+by an older firmware still loads after settings are added or reordered — it
+simply says nothing about the ones it never knew.
 
 Colours, the volume, the frame interval and the typing thresholds change as
 you type. The slot layout, the rotation and the splash cannot: every slot
@@ -244,6 +284,29 @@ already be and redrawing to see which one moved. That second step is what
 makes the dashboard workable: most of its colours are black by default, so a
 click on the background matches eighteen settings and only one of them is
 actually painting it.
+
+A fifth tab, Profiles, is the same sets of settings from the other side.
+Five presets ship with the page — Arcade, Midnight, Amber CRT, Handheld and
+Neon — and each is a complete look rather than a maze palette: theme 0 draws
+every colour from its own setting, so a preset names the maze and the splash
+outright and fills the dashboard's forty-odd from four role colours (ink,
+accent, dim and background). Apply writes one to the dongle; Save keeps it in
+a slot without changing anything now. Below that are the dongle's own slots,
+with Load, Rename, Delete and Export, and an Import that reads a file another
+dongle exported. Import stages the values and commits them in one write, so
+bringing a profile in never disturbs the settings you are looking at. A
+firmware without `pacman profile` simply gets no tab, and the rest of the page
+carries on.
+
+The page has its own light and dark, separate from the dongle's — the switch
+in the header is Auto, Light or Dark, and Auto follows the browser and
+remembers nothing.
+
+A serial port opens once, so a second tab trying for the same dongle would get
+a bare "Failed to open serial port." Tabs of the page tell each other before
+the picker is ever shown, and anything else holding it — another browser, a
+`screen` or `minicom` session — is named in the failure rather than left to
+look like broken hardware.
 
 Rebuilding `preview.js` needs emscripten (`brew install emscripten`); opening
 the page does not. WebSerial needs a secure context, which HTTPS-served Pages is, and a
@@ -416,7 +479,7 @@ boards/shields/pacman_adapter/
 └── widgets/
     ├── pacman.c                display device, palette, LVGL timer, WPM speed
     ├── action_button.c         swaps screens, cycles themes, mutes
-    ├── splash.c                the wordmark, the chase and the credit
+    ├── splash.c                the wordmark and the chase, or the picture
     ├── logo.c                  the dashboard's animated header
     ├── frames.c                the boxes the slots are drawn in
     ├── configuration.c         Kconfig into runtime settings
@@ -428,6 +491,7 @@ boards/shields/pacman_adapter/
     ├── modifier.c              /
     ├── sound.c                 the I2S amplifier, and what to play when
     ├── pacman_art.h            splash sprites (generated, see tools/sprites.py)
+    ├── splash_image.h          the image splash (generated, see tools/splash_image.py)
     ├── helpers/
     │   ├── display.c           the drawing engine: bitmaps, text, rectangles, themes, slots
     │   ├── fonts.h             six pixel fonts
@@ -442,6 +506,7 @@ tools/sim/                      host simulator for the game
 tools/uisim/                    host preview for the splash and the dashboard
 tools/sfxsim/                   renders the sounds to .wav on the host
 tools/sprites.py                regenerates the splash artwork
+tools/splash_image.py           turns tools/splash_art.png into the image splash
 tools/tunes.py                  regenerates the tunes
 ```
 

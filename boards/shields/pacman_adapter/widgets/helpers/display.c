@@ -76,6 +76,7 @@ static uint16_t wpm_font_1_color;
 static uint16_t wpm_font_bg_color;
 
 static DefaultScreen default_screen = GAME_SCREEN;
+static SplashStyle splash_style = SPLASH_STYLE_DRAWN;
 static DisplayOrientation display_orientation = DISPLAY_ORIENTATION_0;
 
 static SlotMode slot_mode;
@@ -491,6 +492,10 @@ void set_default_screen(DefaultScreen screen) {
     default_screen = screen;
 }
 
+void set_splash_style(SplashStyle style) {
+    splash_style = style;
+}
+
 void set_display_orientation(DisplayOrientation orientation) {
     display_orientation = orientation;
 }
@@ -672,6 +677,10 @@ void set_bt_bg_color(uint32_t color) {
 
 DefaultScreen get_default_screen() {
     return default_screen;
+}
+
+SplashStyle get_splash_style(void) {
+    return splash_style;
 }
 
 DisplayOrientation get_display_orientation() {
@@ -1034,6 +1043,44 @@ void render_filled_rectangle(uint8_t *buf_area, uint8_t x, uint8_t y, uint8_t wi
 
     PanelRect r = to_panel(x, y, width, height);
     write_panel_rect(&r, buf_area);
+}
+
+/*
+ * A run-length picture, handed to the panel a row at a time.  240x240 of
+ * 16-bit pixels is 115KB and there is no frame buffer to put it in, so the
+ * runs are decoded into one row and that row is written out before the next
+ * is started - which costs a display_write() per row and needs 480 bytes.
+ *
+ * Each byte is a palette index in its top three bits and a length less one in
+ * its bottom five, and no run crosses a row, so a full row is exactly the
+ * signal to flush.  A stream that disagrees with width and height draws what
+ * it has and stops rather than running off the end of either.
+ */
+void render_indexed_image(uint16_t *row_buf, const uint8_t *runs, size_t run_count,
+                          const uint16_t palette[], uint16_t x, uint16_t y, uint16_t width,
+                          uint16_t height) {
+    if (row_buf == NULL || runs == NULL) {
+        return;
+    }
+
+    uint16_t row = 0;
+    uint16_t col = 0;
+    PanelRect r = to_panel(x, y, width, 1);
+
+    for (size_t i = 0; i < run_count && row < height; i++) {
+        uint16_t color = swap_16_bit_color(palette[runs[i] >> 5]);
+        uint16_t len = (runs[i] & 0x1fu) + 1u;
+
+        while (len-- > 0 && col < width) {
+            row_buf[panel_offset(&r, col++, 0)] = color;
+        }
+        if (col == width) {
+            write_panel_rect(&r, (uint8_t *)row_buf);
+            col = 0;
+            row++;
+            r = to_panel(x, y + row, width, 1);
+        }
+    }
 }
 
 void print_rectangle(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y,

@@ -1,11 +1,14 @@
 /*
  * Pac-Man dongle - splash screen.
  *
- * What the panel shows while ZMK finishes coming up: the wordmark, Pac-Man
- * about to run into a ghost, and who to blame.  The status screen's timer
- * calls print_splash() every tick and it draws once - the panel keeps what it
- * was given, so there is nothing to hold up until the game or the menu takes
- * over and the buffers are handed back.
+ * What the panel shows while ZMK finishes coming up.  splash-style picks
+ * between two of them: the drawn one - the wordmark, Pac-Man about to run into
+ * a ghost, and who to blame, every colour of it a setting - and the picture in
+ * splash_image.h, which is a run-length poster with a palette of its own.
+ *
+ * The status screen's timer calls print_splash() every tick and it draws once
+ * - the panel keeps what it was given, so there is nothing to hold up until
+ * the game or the menu takes over and the buffers are handed back.
  *
  * SPDX-License-Identifier: MIT
  */
@@ -22,6 +25,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include "splash.h"
 #include "helpers/display.h"
 #include "pacman_art.h"
+#include "splash_image.h"
 
 /* the wordmark: six 10x13 glyphs, three times up, centred on the panel - six
  * of them at this pitch come to 185 of the 240, which is where the 27 is */
@@ -47,6 +51,7 @@ static const uint16_t created_by_scale = 2;
 static uint16_t *buf_glyph;  /* one scaled character, the biggest thing drawn */
 static uint16_t *buf_sprite; /* one row of Pac-Man or of the ghost */
 static uint8_t *buf_pellet;
+static uint16_t *buf_row;    /* one row of the picture, for the image style */
 
 static bool initialized_splash = false;
 
@@ -107,8 +112,29 @@ static void print_created_by(void) {
                  char_gap_pixels, ARRAY_SIZE(by_chars));
 }
 
+/*
+ * The picture, straight out of splash_image.h.  Its palette is the art's own
+ * rather than the splash colour settings: it is a photograph of a poster, and
+ * eight colours picked to look like one do not survive being reassigned.
+ */
+static void print_image(void) {
+    uint16_t palette[SPLASH_IMAGE_COLORS];
+
+    for (uint8_t i = 0; i < SPLASH_IMAGE_COLORS; i++) {
+        palette[i] = rgb888_to_rgb565(splash_image_palette[i]);
+    }
+    render_indexed_image(buf_row, splash_image_runs, ARRAY_SIZE(splash_image_runs), palette, 0, 0,
+                         SPLASH_IMAGE_WIDTH, SPLASH_IMAGE_HEIGHT);
+}
+
 void print_splash(void) {
     if (initialized_splash) {
+        return;
+    }
+
+    if (get_splash_style() == SPLASH_STYLE_IMAGE) {
+        print_image();
+        initialized_splash = true;
         return;
     }
 
@@ -124,7 +150,17 @@ void print_splash(void) {
  * check that every rotation comes out as the same picture turned */
 void reset_splash(void) { initialized_splash = false; }
 
+/*
+ * configure() has already run, so the style is settled and only the buffers
+ * the chosen splash actually draws from are allocated - the picture wants one
+ * row, the drawn one wants a glyph, a sprite row and a pellet.
+ */
 void zmk_widget_splash_init(void) {
+    if (get_splash_style() == SPLASH_STYLE_IMAGE) {
+        buf_row = k_malloc(SPLASH_IMAGE_WIDTH * sizeof(uint16_t));
+        return;
+    }
+
     buf_glyph = k_malloc(SCALED_BITMAP_BYTES(WORDMARK_FONT_W, WORDMARK_FONT_H, wordmark_scale));
     buf_sprite = k_malloc(SCALED_BITMAP_BYTES(splash_pac_width, 1, 1));
     buf_pellet = k_malloc(pellet_size * pellet_size * 2u);
@@ -143,7 +179,9 @@ void clean_up_splash(void) {
     k_free(buf_glyph);
     k_free(buf_sprite);
     k_free(buf_pellet);
+    k_free(buf_row);
     buf_glyph = NULL;
     buf_sprite = NULL;
     buf_pellet = NULL;
+    buf_row = NULL;
 }

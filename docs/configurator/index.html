@@ -5,17 +5,50 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pac-Man Dongle Configurator</title>
 <style>
-  :root {
+  /*
+   * Two palettes, and nothing between them: every colour below is a token, so
+   * the rules further down are written once and say the same thing in both.
+   * Which one is on is settled by data-theme on the root, which the snippet in
+   * the head sets before anything paints - the alternative, a media query in
+   * here, would flash the wrong one for as long as it takes the script at the
+   * bottom of the page to run.  Dark is what a browser with no script gets,
+   * because dark is what this page has always been.
+   */
+  :root, :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #0b0b12;
     --panel: #14141f;
     --edge: #262637;
+    --rule: #1c1c29;
+    --field: #0e0e17;
     --ink: #e8e8f0;
     --dim: #8a8aa0;
     --wall: #2121de;
+    --wall-hot: #2f2ff0;
+    --on-wall: #ffffff;
     --pac: #ffee00;
     --pellet: #ffb897;
     --warn: #ffb852;
     --bad: #ff5555;
+    --flash: #2a2a12;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f3f3ef;
+    --panel: #ffffff;
+    --edge: #d3d3dd;
+    --rule: #e7e7ee;
+    --field: #ffffff;
+    --ink: #16161d;
+    --dim: #5b5b70;
+    --wall: #2121de;
+    --wall-hot: #1a1ac4;
+    --on-wall: #ffffff;
+    --pac: #8a6a00;
+    --pellet: #a8442a;
+    --warn: #8a5a00;
+    --bad: #c62828;
+    --flash: #fff3bf;
   }
   * { box-sizing: border-box; }
   body {
@@ -51,8 +84,8 @@
   }
   button:hover:not(:disabled) { border-color: var(--pac); color: var(--pac); }
   button:disabled { opacity: .4; cursor: default; }
-  button.primary { background: var(--wall); border-color: var(--wall); }
-  button.primary:hover:not(:disabled) { background: #2f2ff0; color: #fff; border-color: #2f2ff0; }
+  button.primary { background: var(--wall); border-color: var(--wall); color: var(--on-wall); }
+  button.primary:hover:not(:disabled) { background: var(--wall-hot); color: var(--on-wall); border-color: var(--wall-hot); }
   main { padding: 24px; max-width: 1240px; margin: 0 auto; }
   /*
    * The panel stays put while the list moves.  The dashboard alone is forty
@@ -108,7 +141,7 @@
     gap: 14px;
     align-items: center;
     padding: 10px 16px;
-    border-bottom: 1px solid #1c1c29;
+    border-bottom: 1px solid var(--rule);
   }
   .row:last-child { border-bottom: none; }
   .row label { color: var(--ink); }
@@ -120,7 +153,7 @@
   }
   input[type=text], input[type=number], select {
     font: inherit;
-    background: #0e0e17;
+    background: var(--field);
     color: var(--ink);
     border: 1px solid var(--edge);
     border-radius: 4px;
@@ -185,20 +218,61 @@
   nav button.on { color: var(--pac); border-bottom-color: var(--pac); }
   .row.flash { animation: flash 1.4s ease-out; }
   @keyframes flash {
-    from { background: #2a2a12; }
+    from { background: var(--flash); }
     to { background: transparent; }
   }
   @media (max-width: 900px) {
     #work { grid-template-columns: minmax(0, 1fr); }
     #previewpanel { position: static; margin-bottom: 20px; }
   }
+  /* the three-way theme switch: auto follows the browser, the others do not */
+  #themepick { display: flex; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; }
+  #themepick button {
+    border: none; border-radius: 0; padding: 7px 11px; font-size: 12.5px;
+    color: var(--dim); background: none; letter-spacing: .04em;
+  }
+  #themepick button.on { background: var(--panel); color: var(--pac); }
+  .profile {
+    display: grid;
+    grid-template-columns: minmax(160px, 1.1fr) minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .profile:last-child { border-bottom: none; }
+  .profile .name { color: var(--ink); }
+  .profile.free .name { color: var(--dim); }
+  .profile .note { display: block; font-size: 12px; color: var(--dim); }
+  .profile .acts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  .profile .acts button { padding: 5px 10px; font-size: 13px; }
+  /* what a preset does to the panel, said in the only language that fits a row */
+  .swatches { display: flex; gap: 3px; flex-wrap: wrap; }
+  .swatches i {
+    width: 18px; height: 18px; border-radius: 3px; display: block;
+    border: 1px solid var(--edge);
+  }
+  #importfile { display: none; }
   footer { color: var(--dim); font-size: 13px; padding: 8px 0 40px; }
   footer a { color: var(--pellet); }
 </style>
+<script>
+/* Settled here rather than in the script at the foot of the page, so the
+ * first paint is already the right colour.  "auto" stores nothing and asks
+ * the browser instead. */
+try {
+  var pick = localStorage.getItem("pacman-configurator.theme");
+  if (pick !== "light" && pick !== "dark") {
+    pick = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  }
+  document.documentElement.dataset.theme = pick;
+} catch (e) { /* a browser that refuses storage still gets a page */ }
+</script>
 </head>
 <body>
 <header>
   <h1>Pac-Man dongle <span>configurator</span></h1>
+  <div id="themepick"></div>
   <button id="connect" class="primary">Connect</button>
   <button id="reload" disabled>Reload</button>
   <button id="resetall" disabled>Reset all</button>
@@ -240,18 +314,21 @@
     </section>
 
     <div id="panels"></div>
+    <input type="file" id="importfile" accept=".json,application/json">
   </div>
 
   <footer>
     <span id="count"></span>
-    Settings marked <span class="tag boot">next boot</span> are stored right
-    away but only drawn after the dongle restarts.
-    <span class="tag stored">stored</span> means flash has a value; anything
-    else is what the firmware was built with.
+    <span id="legend">
+      Settings marked <span class="tag boot">next boot</span> are stored right
+      away but only drawn after the dongle restarts.
+      <span class="tag stored">stored</span> means flash has a value; anything
+      else is what the firmware was built with.
+    </span>
   </footer>
 </main>
 
-<script src="preview.js?v=85c90eb583e3"></script>
+<script src="preview.js?v=9a567f34568e"></script>
 <script>
 "use strict";
 
@@ -271,7 +348,8 @@ const PROMPT_FALLBACK = "uart:~$";
  */
 const SCREENS = [
   { name: "Game",      match: (n) => /^game-/.test(n) },
-  { name: "Splash",    match: (n) => /^splash-(multi|logo|created-by|bg)/.test(n) },
+  /* every splash- setting bar the two the Timing section claims first */
+  { name: "Splash",    match: (n) => /^splash-/.test(n) },
   { name: "Dashboard", match: null },
 ];
 
@@ -286,6 +364,13 @@ const SECTIONS = [
   { name: "Layout", match: (n) => /^(screen|slot-mode|slot[1-6]|battery-slots|rotate)$/.test(n), panel: 2 },
   { name: "Sound",  match: (n) => /^(mute|volume|bass-floor|sample-rate|mute-threshold)$/.test(n), panel: null },
   { name: "Timing", match: (n) => /^(frame-interval|splash-frames|splash-interval|logo-interval|wpm-slow|wpm-fast|theme-threshold)$/.test(n), panel: null },
+  /*
+   * The last one holds no settings of its own - it is about all of them at
+   * once - so it takes `view` instead of a `match`, and sectionOf() can never
+   * land on it.  That is what keeps every setting reachable in exactly one
+   * place while this tab exists alongside them.
+   */
+  { name: "Profiles", match: null, panel: null, view: "profiles" },
 ];
 
 /* the screen the panel is showing, or null where it is not showing one */
@@ -319,6 +404,158 @@ const GROUPS = [
   ["Frame and menu",  /^(frame|menu-)/],
 ];
 
+/*
+ * The five that come with the page rather than with the dongle.  A preset is
+ * only ever a handful of colours - never a layout, never a timing - so
+ * applying one cannot leave a dongle needing a reboot to look like itself
+ * again, and a setting it does not mention keeps whatever it had.  Names are
+ * matched against whatever `pacman schema` reported, so a preset naming a
+ * colour this firmware has not got simply skips it.
+ */
+const PRESETS = [
+  {
+    name: "Arcade",
+    dash: { ink: "ffff00", accent: "2121de", dim: "555577", bg: "000000" },
+    about: "The cabinet: blue maze, black ground, the four ghosts as they were.",
+    values: {
+      "theme": "0",
+      "theme-primary": "ffb897", "theme-secondary": "2121de",
+      "theme-bg": "000000", "theme-bg-darker": "000000",
+      "game-bg": "000000", "game-wall": "2121de", "game-wall-fill": "000000",
+      "game-wall-flash": "ffffff", "game-house": "2121de", "game-door": "ffb8ff",
+      "game-pellet": "ffb897", "game-pac": "ffff00",
+      "game-ghost-0": "ff0000", "game-ghost-1": "ffb8ff",
+      "game-ghost-2": "00ffff", "game-ghost-3": "ffb852", "game-fright": "2121de",
+      "splash-logo": "ffff00", "splash-created-by": "ffb897", "splash-bg": "000000",
+      "splash-multi-0": "ff0000", "splash-multi-1": "ffb8ff",
+      "splash-multi-2": "00ffff", "splash-multi-3": "ffb852",
+      "logo-bg": "000000", "logo-font": "ffff00", "logo-accent": "2121de",
+    },
+  },
+  {
+    name: "Midnight",
+    dash: { ink: "7dd3fc", accent: "4338ca", dim: "3b4a6b", bg: "0b1020" },
+    about: "Indigo walls under a cold blue, for a desk that is already dark.",
+    values: {
+      "theme": "0",
+      "theme-primary": "7dd3fc", "theme-secondary": "4338ca",
+      "theme-bg": "0b1020", "theme-bg-darker": "070b16",
+      "game-bg": "0b1020", "game-wall": "4338ca", "game-wall-fill": "141a33",
+      "game-wall-flash": "7dd3fc", "game-house": "4338ca", "game-door": "a5b4fc",
+      "game-pellet": "7dd3fc", "game-pac": "e0e7ff",
+      "game-ghost-0": "f472b6", "game-ghost-1": "7dd3fc",
+      "game-ghost-2": "a78bfa", "game-ghost-3": "38bdf8", "game-fright": "1e1b4b",
+      "splash-logo": "7dd3fc", "splash-created-by": "a5b4fc", "splash-bg": "0b1020",
+      "splash-multi-0": "f472b6", "splash-multi-1": "7dd3fc",
+      "splash-multi-2": "a78bfa", "splash-multi-3": "38bdf8",
+      "logo-bg": "0b1020", "logo-font": "7dd3fc", "logo-accent": "4338ca",
+    },
+  },
+  {
+    name: "Amber CRT",
+    dash: { ink: "ffb000", accent: "cc8800", dim: "5c3800", bg: "140c00" },
+    about: "One colour and its shadows, the way a monochrome terminal had it.",
+    values: {
+      "theme": "0",
+      "theme-primary": "ffb000", "theme-secondary": "7a4a00",
+      "theme-bg": "140c00", "theme-bg-darker": "0a0600",
+      "game-bg": "140c00", "game-wall": "7a4a00", "game-wall-fill": "231400",
+      "game-wall-flash": "ffd980", "game-house": "7a4a00", "game-door": "ffb000",
+      "game-pellet": "ffb000", "game-pac": "ffd980",
+      "game-ghost-0": "ffb000", "game-ghost-1": "cc8800",
+      "game-ghost-2": "996600", "game-ghost-3": "ffd980", "game-fright": "3d2400",
+      "splash-logo": "ffb000", "splash-created-by": "cc8800", "splash-bg": "140c00",
+      "splash-multi-0": "ffb000", "splash-multi-1": "ffd980",
+      "splash-multi-2": "cc8800", "splash-multi-3": "996600",
+      "logo-bg": "140c00", "logo-font": "ffb000", "logo-accent": "7a4a00",
+    },
+  },
+  {
+    name: "Handheld",
+    dash: { ink: "9bbc0f", accent: "306230", dim: "25501f", bg: "0f380f" },
+    about: "Four greens and nothing else, after the grey brick that ran on AAs.",
+    values: {
+      "theme": "0",
+      "theme-primary": "9bbc0f", "theme-secondary": "306230",
+      "theme-bg": "0f380f", "theme-bg-darker": "081c08",
+      "game-bg": "0f380f", "game-wall": "306230", "game-wall-fill": "0f380f",
+      "game-wall-flash": "9bbc0f", "game-house": "306230", "game-door": "8bac0f",
+      "game-pellet": "8bac0f", "game-pac": "9bbc0f",
+      "game-ghost-0": "8bac0f", "game-ghost-1": "306230",
+      "game-ghost-2": "9bbc0f", "game-ghost-3": "6b8c1f", "game-fright": "143a14",
+      "splash-logo": "9bbc0f", "splash-created-by": "8bac0f", "splash-bg": "0f380f",
+      "splash-multi-0": "9bbc0f", "splash-multi-1": "8bac0f",
+      "splash-multi-2": "306230", "splash-multi-3": "6b8c1f",
+      "logo-bg": "0f380f", "logo-font": "9bbc0f", "logo-accent": "306230",
+    },
+  },
+  {
+    name: "Neon",
+    dash: { ink: "00e5ff", accent: "ff2ec4", dim: "5a2a70", bg: "08000f" },
+    about: "Magenta and cyan on near-black, loud enough to read across a room.",
+    values: {
+      "theme": "0",
+      "theme-primary": "ff2ec4", "theme-secondary": "00e5ff",
+      "theme-bg": "08000f", "theme-bg-darker": "040008",
+      "game-bg": "08000f", "game-wall": "ff2ec4", "game-wall-fill": "1a0020",
+      "game-wall-flash": "ffffff", "game-house": "ff2ec4", "game-door": "00e5ff",
+      "game-pellet": "00e5ff", "game-pac": "fff200",
+      "game-ghost-0": "ff2ec4", "game-ghost-1": "00e5ff",
+      "game-ghost-2": "b026ff", "game-ghost-3": "ff6b00", "game-fright": "2a0a3d",
+      "splash-logo": "ff2ec4", "splash-created-by": "00e5ff", "splash-bg": "08000f",
+      "splash-multi-0": "ff2ec4", "splash-multi-1": "00e5ff",
+      "splash-multi-2": "b026ff", "splash-multi-3": "fff200",
+      "logo-bg": "08000f", "logo-font": "ff2ec4", "logo-accent": "00e5ff",
+    },
+  },
+];
+
+/*
+ * Theme 0 - the one a preset chooses - means every colour is set on its own
+ * rather than derived from four, so a preset has to have an opinion about all
+ * forty-odd of the dashboard's.  Writing them out five times over would be a
+ * list to keep in step with settings_list.h by hand, so instead each colour is
+ * sorted into a role by what it paints and a preset carries one colour per
+ * role.  A colour added to the firmware lands in a role rather than falling
+ * out of every preset; anything the preset named itself keeps that name.
+ *
+ * The first pattern to match wins, and the last matches everything, so a
+ * setting always has exactly one role.
+ */
+const DASH_ROLES = [
+  ["bg",     /-bg(-[12])?$/],
+  ["dim",    /-unselected$|^bt-status-(not-ok|open)$/],
+  ["accent", /^frame(-1)?$|-percentage(-[12])?$|^(wpm|theme)-font-1$|^bt-status-ok$/],
+  ["ink",    /./],
+];
+
+/* the maze has its own colours and the four theme ones are its source, not it */
+function isDashColor(setting) {
+  return setting.kind === "color" &&
+         !/^game-|^theme-(primary|secondary|bg|bg-darker)$/.test(setting.name);
+}
+
+function roleOf(name) {
+  for (const [role, match] of DASH_ROLES) if (match.test(name)) return role;
+  return "ink";
+}
+
+function presetValues(preset) {
+  const values = Object.assign({}, preset.values);
+  for (const setting of settings) {
+    if (!isDashColor(setting) || values[setting.name] !== undefined) continue;
+    values[setting.name] = preset.dash[roleOf(setting.name)];
+  }
+  return values;
+}
+
+/* the few a swatch strip can show without becoming a colour chart */
+const PRESET_FACE = ["game-bg", "game-wall", "game-pac", "game-ghost-0"];
+
+/* what a profile file holds, and the version that says this page wrote it */
+const PROFILE_FILE = "pacman-dongle-profile";
+const PROFILE_FILE_VERSION = 1;
+
 /* seed 1 reaches this frame with all four ghosts out of the house and Pac-Man
  * in the open, which is the most of the palette anyone can click at once */
 const OPENING_FRAME = 354;
@@ -327,6 +564,8 @@ const FRAME_MS = 66; /* about 15 fps, which is the speed the dongle plays it */
 let port = null, writer = null, incoming = "", prompt = PROMPT_FALLBACK;
 let settings = [];
 let wasm = null, playing = null, screenIndex = 0, navIndex = 0;
+/* slots as the dongle last described them, and whether it knows the word at all */
+let profiles = [], profilesLive = false;
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -335,6 +574,70 @@ function say(text, kind) {
   const el = $("status");
   el.textContent = text;
   el.className = kind || "";
+}
+
+/* ------------------------------------------------------------------ */
+/* the page's own colours                                              */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Three choices, not two: "auto" stores nothing and follows the browser, and
+ * is what somebody who has never touched the switch gets.  The head settles
+ * the first paint from the same key; this half only has to keep up with a
+ * click, and with the browser changing its mind while auto is on.
+ */
+const THEME_KEY = "pacman-configurator.theme";
+const THEMES = [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]];
+
+function themeChoice() {
+  try {
+    const pick = localStorage.getItem(THEME_KEY);
+    return pick === "light" || pick === "dark" ? pick : "auto";
+  } catch (err) {
+    return "auto";
+  }
+}
+
+function systemTheme() {
+  try {
+    return matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  } catch (err) {
+    return "dark";
+  }
+}
+
+function applyTheme() {
+  const pick = themeChoice();
+  try {
+    document.documentElement.dataset.theme = pick === "auto" ? systemTheme() : pick;
+  } catch (err) {
+    /* a page that cannot be recoloured is still a page that works */
+  }
+  buildThemePick();
+}
+
+function setTheme(pick) {
+  try {
+    if (pick === "auto") localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, pick);
+  } catch (err) {
+    /* private windows refuse to remember; the click still takes effect */
+  }
+  applyTheme();
+}
+
+function buildThemePick() {
+  const strip = $("themepick");
+  const pick = themeChoice();
+  strip.textContent = "";
+  for (const [value, label] of THEMES) {
+    const button = document.createElement("button");
+    button.className = value === pick ? "on" : "";
+    button.textContent = label;
+    button.title = "Page colours: " + label.toLowerCase();
+    button.addEventListener("click", () => setTheme(value));
+    strip.append(button);
+  }
 }
 
 /* Zephyr paints errors with VT100 escapes; strip them rather than parse them. */
@@ -351,6 +654,7 @@ async function pump(reader) {
     }
   } catch (err) {
     say("Connection lost: " + err.message, "bad");
+    announce(false);
     setConnected(false);
   }
 }
@@ -368,9 +672,17 @@ async function exec(command, until) {
   const deadline = Date.now() + 5000;
   for (;;) {
     const text = clean(incoming);
-    if (until ? new RegExp("^" + until + "$", "m").test(text) : text.includes(prompt)) {
-      return text;
-    }
+    if (until && new RegExp("^" + until + "$", "m").test(text)) return text;
+    /*
+     * The prompt ends the wait even where a sentinel was asked for.  A reply
+     * that stops short of its `end` is what a firmware too old for the command
+     * sends - it prints its complaint and prompts again - and waiting the full
+     * five seconds for a sentinel that is never coming is the difference
+     * between noticing that and appearing to hang.  The sentinel is still
+     * tried first, so a complete reply is never cut short by a prompt that
+     * arrived in the same read.
+     */
+    if (text.includes(prompt)) return text;
     if (Date.now() > deadline) throw new Error("the dongle did not answer `" + command + "`");
     await sleep(15);
   }
@@ -412,6 +724,10 @@ async function loadSchema() {
   }
   if (!rows.length) throw new Error("`pacman schema` said nothing - is this the right firmware?");
   settings = rows;
+  await loadProfiles();
+  /* a reconnect to an older dongle must not leave the page on a tab it no
+   * longer draws a button for */
+  if (SECTIONS[navIndex].view === "profiles" && !profilesLive) navIndex = 0;
   render();
   buildNav();
   buildScreens();
@@ -543,6 +859,13 @@ function controlFor(setting) {
 function render() {
   const panels = $("panels");
   panels.textContent = "";
+
+  /* the tag legend is about rows the profiles list does not have */
+  $("legend").classList.toggle("hidden", SECTIONS[navIndex].view === "profiles");
+  if (SECTIONS[navIndex].view === "profiles") {
+    renderProfiles(panels);
+    return;
+  }
 
   const section = SECTIONS[navIndex];
   const mine = settings.filter((setting) => {
@@ -726,6 +1049,9 @@ function buildNav() {
   const strip = $("nav");
   strip.textContent = "";
   SECTIONS.forEach((section, i) => {
+    /* a firmware without `pacman profile` gets no tab for it rather than a
+     * tab that answers nothing */
+    if (section.view === "profiles" && !profilesLive) return;
     const button = document.createElement("button");
     button.className = i === navIndex ? "on" : "";
     button.textContent = section.name;
@@ -916,12 +1242,420 @@ function onScreenClick(event) {
   offerChoices(owners);
 }
 
+/* ------------------------------------------------------------------ */
+/* profiles, which live on the dongle                                  */
+/* ------------------------------------------------------------------ */
+
+/*
+ * `prompt` in this file is the dongle's shell prompt, a string.  The
+ * browser's dialog of the same name is therefore unreachable by name and has
+ * to be asked for through the window - which is worth a wrapper rather than a
+ * trap set for the next edit.
+ */
+function ask(question, suggestion) {
+  try {
+    return window.prompt(question, suggestion === undefined ? "" : suggestion);
+  } catch (err) {
+    return null;
+  }
+}
+
+function agreed(question) {
+  try {
+    return confirm(question);
+  } catch (err) {
+    return false;
+  }
+}
+
+/*
+ * A name is a shell argument before it is anything else, so it is cut down to
+ * what can be handed over in quotes and to what the firmware has room for.
+ */
+function cleanName(text) {
+  return String(text || "").replace(/[^A-Za-z0-9 _.-]/g, "").trim().slice(0, 23);
+}
+
+/*
+ * The tab-separated replies - `profile list` and `profile show` - end in a
+ * bare `end` exactly as `schema` does.  A reply without one came from a
+ * firmware that has never heard of the command, and saying so is the whole
+ * job: null means "not this dongle", not "something broke".
+ */
+function parseTable(text, command, columns) {
+  const lines = replyLines(text, command);
+  if (!lines.includes("end")) return null;
+
+  const rows = [];
+  for (const line of lines) {
+    if (line === "end") break;
+    const parts = line.split("\t");
+    if (parts.length === columns) rows.push(parts.map((part) => part.trim()));
+  }
+  return rows;
+}
+
+async function loadProfiles() {
+  profiles = [];
+  profilesLive = false;
+  try {
+    const rows = parseTable(await exec("pacman profile list", "end"), "pacman profile list", 3);
+    if (!rows) return;
+    profilesLive = true;
+    profiles = rows.map(([slot, name, size]) => ({
+      slot: Number(slot),
+      name: name === "-" ? "" : name,
+      size: Number(size) || 0,
+    }));
+  } catch (err) {
+    /* the settings still work without them, so this is not worth the status line */
+  }
+}
+
+/* what one profile holds, as setting name to the word the shell prints */
+async function profileValues(slot) {
+  const command = "pacman profile show " + slot;
+  const rows = parseTable(await exec(command, "end"), command, 2);
+  if (!rows) throw new Error("this dongle did not answer `" + command + "`");
+
+  const values = {};
+  for (const [name, value] of rows) values[name] = value;
+  return values;
+}
+
+/*
+ * One write per setting, because that is the only way in - and the reason a
+ * preset is colours and nothing else.  Anything the dongle refuses is counted
+ * rather than thrown, so one stale name in a file cannot abandon the other
+ * thirty halfway.
+ */
+async function writeValues(values, what) {
+  const names = Object.keys(values).filter((name) => settings.some((s) => s.name === name));
+  let done = 0, refused = 0;
+
+  for (const name of names) {
+    const setting = settings.find((s) => s.name === name);
+    const word = String(values[name]);
+    const command = "pacman set " + name + " " + word;
+    const reply = replyLines(await exec(command), command).join(" ");
+
+    if (/^(no setting|.*is not a value|.*out of range|could not)/i.test(reply)) {
+      refused++;
+      continue;
+    }
+    setting.value = word;
+    setting.stored = true;
+    done++;
+    say(what + "... " + done + " of " + names.length);
+  }
+
+  const skipped = Object.keys(values).length - names.length;
+  return { done, refused, skipped };
+}
+
+/*
+ * Staged and then committed rather than written a profile at a time, so an
+ * import is one flash write and - more to the point - leaves the dongle in
+ * front of you looking exactly as it did.  A profile is only on the panel
+ * once somebody loads it.
+ */
+async function stageValues(slot, name, values) {
+  const names = Object.keys(values).filter((n) => settings.some((s) => s.name === n));
+  if (!names.length) throw new Error("nothing in that file matches a setting this dongle has");
+
+  await exec("pacman profile stage");
+  let staged = 0;
+  for (const setting of names) {
+    const command = "pacman profile stage " + setting + " " + values[setting];
+    const reply = replyLines(await exec(command), command).join(" ");
+    if (!/^staged/i.test(reply)) continue;
+    staged++;
+    say("Writing “" + name + "”... " + staged + " of " + names.length);
+  }
+
+  const command = 'pacman profile commit ' + slot + ' "' + name + '"';
+  const reply = replyLines(await exec(command), command).join(" ");
+  if (!/^saved/i.test(reply)) throw new Error(reply || "the dongle would not write that profile");
+  return staged;
+}
+
+function firstFreeSlot() {
+  const free = profiles.find((profile) => !profile.name);
+  return free ? free.slot : 0;
+}
+
+function askSlot(what) {
+  const listing = profiles
+    .map((profile) => "  " + profile.slot + "  " + (profile.name || "(free)"))
+    .join("\n");
+  const answer = ask(what + "\n\n" + listing + "\n\nWhich slot?", String(firstFreeSlot()));
+  if (answer === null) return -1;
+
+  const slot = parseInt(String(answer).trim(), 10);
+  const target = profiles.find((profile) => profile.slot === slot);
+  if (!target) {
+    say("There is no slot " + answer + " on this dongle.", "bad");
+    return -1;
+  }
+  if (target.name && !agreed("Slot " + slot + " holds “" + target.name +
+                             "”. Write over it?")) {
+    return -1;
+  }
+  return slot;
+}
+
+/* the browser needs WebSerial, so a detached anchor is enough to save a file */
+function download(filename, text) {
+  try {
+    const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
+  } catch (err) {
+    say("Could not save the file: " + err.message, "bad");
+    return false;
+  }
+}
+
+/* everything a file has to carry for another dongle to be able to read it */
+function profileFile(name, values) {
+  return JSON.stringify({ [PROFILE_FILE]: PROFILE_FILE_VERSION, name, settings: values }, null, 2);
+}
+
+function readProfileFile(text) {
+  const file = JSON.parse(text);
+  if (file[PROFILE_FILE] !== PROFILE_FILE_VERSION || !file.settings ||
+      typeof file.settings !== "object") {
+    throw new Error("that is not a profile this page wrote");
+  }
+  return { name: cleanName(file.name) || "Imported", values: file.settings };
+}
+
+/* ---- what the buttons do ---- */
+
+async function guardAction(fn) {
+  try {
+    await fn();
+  } catch (err) {
+    say(err.message, "bad");
+  }
+  await loadProfiles();
+  render();
+}
+
+async function applyPreset(preset) {
+  say("Applying “" + preset.name + "”...");
+  const { done, refused } = await writeValues(presetValues(preset),
+                                              "Applying “" + preset.name + "”");
+  await guardPreviewAsync("showing the preset", rebootPreview);
+  say("“" + preset.name + "” is on the dongle: " + done + " colours written" +
+      (refused ? ", " + refused + " it would not take" : "") + ".", "good");
+}
+
+async function savePreset(preset) {
+  const slot = askSlot("Keep “" + preset.name + "” on the dongle as a profile.");
+  if (slot < 0) return;
+  const staged = await stageValues(slot, preset.name, presetValues(preset));
+  say("“" + preset.name + "” saved to slot " + slot + " (" + staged + " settings).",
+      "good");
+}
+
+async function saveCurrent(slot) {
+  const name = cleanName(ask("Call this profile:", "Slot " + slot));
+  if (!name) return;
+
+  const command = 'pacman profile save ' + slot + ' "' + name + '"';
+  const reply = replyLines(await exec(command), command).join(" ");
+  if (!/^saved/i.test(reply)) throw new Error(reply || "the dongle would not write that profile");
+  say("Everything the dongle is set to now is slot " + slot + ", as “" + name + "”.",
+      "good");
+}
+
+async function loadProfile(profile) {
+  const command = "pacman profile load " + profile.slot;
+  const reply = replyLines(await exec(command), command).join(" ");
+  if (!/^loaded/i.test(reply)) throw new Error(reply || "the dongle would not read that profile");
+
+  await loadSchema();
+  say("“" + profile.name + "” is on the dongle. " + reply, "good");
+}
+
+async function renameProfile(profile) {
+  const name = cleanName(ask("Call it:", profile.name));
+  if (!name || name === profile.name) return;
+
+  const command = 'pacman profile rename ' + profile.slot + ' "' + name + '"';
+  const reply = replyLines(await exec(command), command).join(" ");
+  if (!/^renamed/i.test(reply)) throw new Error(reply || "the dongle would not rename it");
+  say("Slot " + profile.slot + " is now “" + name + "”.", "good");
+}
+
+async function deleteProfile(profile) {
+  if (!agreed("Forget “" + profile.name + "”? The settings on the dongle stay as they " +
+              "are; only the saved copy goes.")) {
+    return;
+  }
+  const command = "pacman profile delete " + profile.slot;
+  const reply = replyLines(await exec(command), command).join(" ");
+  if (!/^deleted/i.test(reply)) throw new Error(reply || "the dongle would not forget it");
+  say("Slot " + profile.slot + " is free again.", "good");
+}
+
+async function exportProfile(profile) {
+  const values = await profileValues(profile.slot);
+  const filename = (profile.name.replace(/[^A-Za-z0-9_-]+/g, "-").toLowerCase() || "profile") +
+                   ".json";
+  if (download(filename, profileFile(profile.name, values))) {
+    say("Saved " + filename + " - " + Object.keys(values).length + " settings.", "good");
+  }
+}
+
+async function importProfile(text) {
+  const { name, values } = readProfileFile(text);
+  const slot = askSlot("Put “" + name + "” on the dongle.");
+  if (slot < 0) return;
+
+  const staged = await stageValues(slot, name, values);
+  say("“" + name + "” is in slot " + slot + " with " + staged +
+      " settings. Load it to put it on the panel.", "good");
+}
+
+/* ---- the tab ---- */
+
+function actionButton(label, title, fn) {
+  const button = document.createElement("button");
+  button.textContent = label;
+  button.title = title;
+  button.addEventListener("click", () => guardAction(fn));
+  return button;
+}
+
+function presetRow(preset) {
+  const row = document.createElement("div");
+  row.className = "profile";
+
+  const label = document.createElement("div");
+  const name = document.createElement("span");
+  name.className = "name";
+  name.textContent = preset.name;
+  const about = document.createElement("span");
+  about.className = "note";
+  about.textContent = preset.about;
+  label.append(name, about);
+
+  const swatches = document.createElement("div");
+  swatches.className = "swatches";
+  const face = PRESET_FACE.map((name) => [name, preset.values[name]])
+    .concat([["dashboard ink", preset.dash.ink], ["dashboard accent", preset.dash.accent]]);
+  for (const [what, color] of face) {
+    if (!color) continue;
+    const chip = document.createElement("i");
+    chip.style.background = "#" + color;
+    chip.title = what;
+    swatches.append(chip);
+  }
+
+  const acts = document.createElement("div");
+  acts.className = "acts";
+  acts.append(
+    actionButton("Apply", "Write these colours to the dongle now",
+                 () => applyPreset(preset)),
+    actionButton("Save to dongle", "Keep it as a profile without changing anything now",
+                 () => savePreset(preset)));
+
+  row.append(label, swatches, acts);
+  return row;
+}
+
+function profileRow(profile) {
+  const row = document.createElement("div");
+  row.className = "profile" + (profile.name ? "" : " free");
+
+  const label = document.createElement("div");
+  const name = document.createElement("span");
+  name.className = "name";
+  name.textContent = profile.name || "Slot " + profile.slot + ", free";
+  const note = document.createElement("span");
+  note.className = "note";
+  note.textContent = profile.name
+    ? profile.size + (profile.size === 1 ? " setting" : " settings") + ", in slot " + profile.slot
+    : "nothing saved here";
+  label.append(name, note);
+
+  const acts = document.createElement("div");
+  acts.className = "acts";
+  if (profile.name) {
+    acts.append(
+      actionButton("Load", "Put these settings back on the dongle", () => loadProfile(profile)),
+      actionButton("Export", "Save it as a file", () => exportProfile(profile)),
+      actionButton("Rename", "Change what it is called", () => renameProfile(profile)),
+      actionButton("Delete", "Forget it", () => deleteProfile(profile)));
+  } else {
+    acts.append(actionButton("Save what is set now", "Snapshot every setting into this slot",
+                             () => saveCurrent(profile.slot)));
+  }
+
+  row.append(label, document.createElement("div"), acts);
+  return row;
+}
+
+function panelSection(title) {
+  const section = document.createElement("section");
+  const heading = document.createElement("h2");
+  heading.textContent = title;
+  const body = document.createElement("div");
+  body.className = "rows";
+  section.append(heading, body);
+  return { section, body };
+}
+
+function renderProfiles(panels) {
+  const used = profiles.filter((profile) => profile.name).length;
+  $("count").textContent = used + " of " + profiles.length + " slots used. ";
+
+  const presets = panelSection("Presets, from this page");
+  for (const preset of PRESETS) presets.body.append(presetRow(preset));
+  panels.append(presets.section);
+
+  const saved = panelSection("Saved on the dongle");
+  for (const profile of profiles) saved.body.append(profileRow(profile));
+
+  const importing = document.createElement("div");
+  importing.className = "profile";
+  const label = document.createElement("div");
+  const name = document.createElement("span");
+  name.className = "name";
+  name.textContent = "From a file";
+  const note = document.createElement("span");
+  note.className = "note";
+  note.textContent = "a profile someone exported, from this dongle or another";
+  label.append(name, note);
+  const acts = document.createElement("div");
+  acts.className = "acts";
+  const pick = document.createElement("button");
+  pick.textContent = "Import";
+  pick.title = "Read a profile file into a slot";
+  pick.addEventListener("click", () => $("importfile").click());
+  acts.append(pick);
+  importing.append(label, document.createElement("div"), acts);
+  saved.body.append(importing);
+
+  panels.append(saved.section);
+}
+
 function setConnected(on) {
   $("connect").textContent = on ? "Disconnect" : "Connect";
   $("reload").disabled = !on;
   $("resetall").disabled = !on;
   $("intro").classList.toggle("hidden", on);
   if (!on) {
+    profiles = [];
+    profilesLive = false;
+    if (SECTIONS[navIndex].view === "profiles") navIndex = 0;
+    $("nav").textContent = "";
     $("panels").textContent = "";
     $("count").textContent = "";
     $("picked").textContent = "";
@@ -931,12 +1665,77 @@ function setConnected(on) {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* one connection at a time                                            */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A serial port opens once.  The second tab to try gets a bare "Failed to
+ * open serial port." from the browser, which reads like a broken dongle
+ * rather than like the tab two windows over - so both halves are answered
+ * here: tabs of this page tell each other over a channel before the picker is
+ * ever shown, and anything else holding the port - another browser, a screen
+ * or minicom session - is named in the failure that comes back.
+ */
+const BUS_NAME = "pacman-configurator";
+let bus = null, holding = false, answers = 0;
+const busId = Math.random().toString(36).slice(2);
+
+function openBus() {
+  try {
+    bus = new BroadcastChannel(BUS_NAME);
+  } catch (err) {
+    return; /* one tab is still perfectly able to use the page */
+  }
+  bus.onmessage = (event) => {
+    const message = event.data || {};
+    if (message.from === busId) return;
+    if (message.what === "who" && holding) bus.postMessage({ what: "mine", from: busId });
+    if (message.what === "mine") answers++;
+  };
+}
+
+async function heldByAnotherTab() {
+  if (!bus) return false;
+  answers = 0;
+  bus.postMessage({ what: "who", from: busId });
+  /* long enough for a tab that is awake to answer, short enough not to be felt */
+  await sleep(250);
+  return answers > 0;
+}
+
+function announce(mine) {
+  holding = mine;
+  if (bus && mine) bus.postMessage({ what: "mine", from: busId });
+}
+
+/* a port the browser will not open is nearly always one somebody else has */
+function openFailure(err) {
+  const text = (err && err.message) || String(err);
+  if (err && err.name === "NotFoundError") return "No port was picked.";
+  if (/failed to open|access denied|busy|in use/i.test(text)) {
+    return "That port is already open somewhere else - another tab of this page, another " +
+           "browser, or a terminal such as screen, minicom or the Arduino monitor. Close " +
+           "that connection and try again.";
+  }
+  return "Connecting failed: " + text;
+}
+
 async function connect() {
   if (!("serial" in navigator)) {
     say("This browser has no WebSerial. Chrome, Edge or Opera on desktop can talk to the dongle; " +
         "Firefox and Safari cannot.", "bad");
     return;
   }
+  if (await heldByAnotherTab()) {
+    if (!agreed("Another tab of this page already has a dongle open.\n\nA serial port only " +
+                "opens once, so this tab will not be able to talk to the same one. Try " +
+                "anyway?")) {
+      say("Left alone - another tab of this page is holding a dongle.", "bad");
+      return;
+    }
+  }
+
   try {
     say("Pick the dongle's serial port...");
     port = await navigator.serial.requestPort();
@@ -956,10 +1755,13 @@ async function connect() {
     await exec("shell echo off").catch(() => {});
     await exec("shell colors off").catch(() => {});
 
+    announce(true);
     setConnected(true);
     await loadSchema();
   } catch (err) {
-    say("Connecting failed: " + (err.message || String(err)), "bad");
+    say(openFailure(err), "bad");
+    announce(false);
+    port = null;
     setConnected(false);
   }
 }
@@ -971,6 +1773,7 @@ async function disconnect() {
   } finally {
     writer = null;
     port = null;
+    announce(false);
     setConnected(false);
     say("Disconnected.");
   }
@@ -1027,6 +1830,37 @@ $("resetall").addEventListener("click", async () => {
     say(err.message, "bad");
   }
 });
+
+$("importfile").addEventListener("change", async (event) => {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = "";
+  if (!file) return;
+  await guardAction(async () => importProfile(await file.text()));
+});
+
+applyTheme();
+/* while the switch says auto, the browser is allowed to change its mind */
+try {
+  matchMedia("(prefers-color-scheme: light)")
+    .addEventListener("change", () => { if (themeChoice() === "auto") applyTheme(); });
+} catch (err) {
+  /* an older browser simply keeps whatever it started with */
+}
+
+openBus();
+try {
+  /* unplugging the dongle is not a disconnect the reader always notices */
+  navigator.serial.addEventListener("disconnect", (event) => {
+    if (!port || event.target !== port) return;
+    say("The dongle was unplugged.", "bad");
+    writer = null;
+    port = null;
+    announce(false);
+    setConnected(false);
+  });
+} catch (err) {
+  /* no WebSerial, which the line below is about to say out loud */
+}
 
 if (!("serial" in navigator)) {
   say("This browser has no WebSerial. Chrome, Edge or Opera on desktop can talk to the dongle; " +

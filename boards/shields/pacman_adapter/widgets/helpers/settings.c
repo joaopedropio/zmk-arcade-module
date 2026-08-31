@@ -28,6 +28,7 @@ static const char *const slot_mode_labels[] = {"2-slot", "4-slot", "5-slot", "6-
 static const char *const slot_labels[] = {"connectivity", "layer",   "theme", "wpm",
                                           "modifiers",    "battery", "empty", NULL};
 static const char *const rotate_labels[] = {"0", "90", "180", "270", NULL};
+static const char *const splash_style_labels[] = {"drawn", "image", NULL};
 
 /* the labels are indexes into display.h's enums, so they have to end together */
 _Static_assert(ARRAY_SIZE(screen_labels) == STATUS_SCREEN + 2, "screen labels out of step");
@@ -35,6 +36,8 @@ _Static_assert(ARRAY_SIZE(slot_mode_labels) == SLOT_MODE_6 + 2, "slot mode label
 _Static_assert(ARRAY_SIZE(slot_labels) == SLOT_NAME_NONE + 2, "slot labels out of step");
 _Static_assert(ARRAY_SIZE(rotate_labels) == DISPLAY_ORIENTATION_270 + 2,
                "rotation labels out of step");
+_Static_assert(ARRAY_SIZE(splash_style_labels) == SPLASH_STYLE_IMAGE + 2,
+               "splash style labels out of step");
 
 static uint32_t values[PACMAN_SETTING_COUNT];
 
@@ -59,6 +62,7 @@ static void apply_slot_5(uint32_t v) { set_slot_5((SlotName)v); }
 static void apply_slot_6(uint32_t v) { set_slot_6((SlotName)v); }
 static void apply_battery_slots(uint32_t v) { set_battery_slots((uint8_t)v); }
 static void apply_rotate(uint32_t v) { set_display_orientation((DisplayOrientation)v); }
+static void apply_splash_style(uint32_t v) { set_splash_style((SplashStyle)v); }
 static void apply_mute(uint32_t v) { pacman_sound_set_mute(v != 0); }
 static void apply_theme(uint32_t v) { set_theme_number((uint8_t)v); }
 static void apply_volume(uint32_t v) { pacman_sound_set_volume((uint8_t)v); }

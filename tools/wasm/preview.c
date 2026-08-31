@@ -120,6 +120,7 @@ static void apply_slot_5(uint32_t v) { set_slot_5((SlotName)v); }
 static void apply_slot_6(uint32_t v) { set_slot_6((SlotName)v); }
 static void apply_battery_slots(uint32_t v) { set_battery_slots((uint8_t)v); }
 static void apply_rotate(uint32_t v) { set_display_orientation((DisplayOrientation)v); }
+static void apply_splash_style(uint32_t v) { set_splash_style((SplashStyle)v); }
 static void apply_theme(uint32_t v) { set_theme_number((uint8_t)v); }
 static void apply_game_palette(uint32_t v) { (void)v; reload_game_palette(); }
 

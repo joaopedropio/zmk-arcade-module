@@ -11,6 +11,13 @@
  * That is what the configurator page reads, so the page describes itself from
  * whatever firmware it is talking to and cannot drift out of step with it.
  *
+ * `pacman profile` keeps named sets of all of it on the dongle.  Its replies
+ * are a wire format too: `list` and `show` print tab-separated columns closed
+ * by a bare `end`, and everything that writes answers with a sentence whose
+ * first word is what it did - saved, loaded, renamed, deleted, staged,
+ * cleared.  Anything else the page is reading is a failure, which saves both
+ * ends from a list of error strings to keep in step.
+ *
  * Not everything can be shown before that reboot, and the shell says which
  * rather than pretending: the slot widgets each size and allocate a scratch
  * bitmap from the slot they were handed at init, so moving one means building
@@ -23,11 +30,13 @@
 #include <zephyr/shell/shell.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <zmk/display.h>
 
 #include "action_button.h"
+#include "helpers/profiles.h"
 #include "helpers/settings.h"
 
 /*
@@ -217,6 +226,204 @@ static int cmd_reset(const struct shell *sh, size_t argc, char **argv) {
     return 0;
 }
 
+/* ------------------------------------------------------------------ */
+/* profiles                                                            */
+/* ------------------------------------------------------------------ */
+
+static int slot_arg(const struct shell *sh, const char *word) {
+    char *end;
+    long slot = strtol(word, &end, 10);
+
+    if (*word == '\0' || *end != '\0' || !pacman_profile_slot_valid((int)slot)) {
+        shell_error(sh, "there is no profile slot %s; they run 0 to %d", word,
+                    PACMAN_PROFILE_SLOTS - 1);
+        return -EINVAL;
+    }
+    return (int)slot;
+}
+
+/*
+ * Every slot, used or not, because the page offering somewhere to save has to
+ * know how many there are and which are free.  A free one prints "-" for its
+ * name, the same way the schema spells a column with nothing in it.
+ */
+static int cmd_profile_list(const struct shell *sh, size_t argc, char **argv) {
+    ARG_UNUSED(argc);
+    ARG_UNUSED(argv);
+
+    for (int slot = 0; slot < PACMAN_PROFILE_SLOTS; slot++) {
+        char name[PACMAN_PROFILE_NAME_LEN];
+        int size = pacman_profile_name(slot, name, sizeof(name));
+
+        if (size < 0) {
+            shell_print(sh, "%d\t-\t0", slot);
+            continue;
+        }
+        shell_print(sh, "%d\t%s\t%d", slot, name, size);
+    }
+    shell_print(sh, "end");
+    return 0;
+}
+
+static void print_entry(pacman_setting_id id, uint32_t value, void *ctx) {
+    const struct shell *sh = ctx;
+    char text[PACMAN_SETTING_VALUE_LEN];
+
+    shell_print(sh, "%s\t%s", pacman_settings_describe(id)->name,
+                pacman_settings_format(id, value, text, sizeof(text)));
+}
+
+static int cmd_profile_show(const struct shell *sh, size_t argc, char **argv) {
+    ARG_UNUSED(argc);
+
+    int slot = slot_arg(sh, argv[1]);
+    if (slot < 0) {
+        return slot;
+    }
+
+    int rc = pacman_profile_read(slot, print_entry, (void *)sh);
+    if (rc < 0) {
+        shell_error(sh, "profile %d %s", slot, rc == -ENOENT ? "is empty" : "would not read");
+        return rc;
+    }
+    shell_print(sh, "end");
+    return 0;
+}
+
+static int cmd_profile_save(const struct shell *sh, size_t argc, char **argv) {
+    ARG_UNUSED(argc);
+
+    int slot = slot_arg(sh, argv[1]);
+    if (slot < 0) {
+        return slot;
+    }
+
+    int rc = pacman_profile_save(slot, argv[2]);
+    if (rc) {
+        shell_error(sh, "profile %d would not be written (%d)", slot, rc);
+        return rc;
+    }
+    shell_print(sh, "saved %d settings to profile %d as \"%s\"", PACMAN_SETTING_COUNT, slot,
+                argv[2]);
+    return 0;
+}
+
+static int cmd_profile_load(const struct shell *sh, size_t argc, char **argv) {
+    ARG_UNUSED(argc);
+
+    int slot = slot_arg(sh, argv[1]);
+    if (slot < 0) {
+        return slot;
+    }
+
+    bool reboot = false;
+    int moved = pacman_profile_load(slot, &reboot);
+    if (moved < 0) {
+        shell_error(sh, "profile %d %s", slot, moved == -ENOENT ? "is empty" : "would not read");
+        return moved;
+    }
+
+    apply();
+    shell_print(sh, "loaded profile %d; %d settings moved%s", slot, moved,
+                reboot ? ", and the layout needs a restart to show" : "");
+    return 0;
+}
+
+static int cmd_profile_rename(const struct shell *sh, size_t argc, char **argv) {
+    ARG_UNUSED(argc);
+
+    int slot = slot_arg(sh, argv[1]);
+    if (slot < 0) {
+        return slot;
+    }
+
+    int rc = pacman_profile_rename(slot, argv[2]);
+    if (rc) {
+        shell_error(sh, "profile %d %s", slot, rc == -ENOENT ? "is empty" : "would not be written");
+        return rc;
+    }
+    shell_print(sh, "renamed profile %d to \"%s\"", slot, argv[2]);
+    return 0;
+}
+
+static int cmd_profile_delete(const struct shell *sh, size_t argc, char **argv) {
+    ARG_UNUSED(argc);
+
+    int slot = slot_arg(sh, argv[1]);
+    if (slot < 0) {
+        return slot;
+    }
+
+    int rc = pacman_profile_delete(slot);
+    if (rc) {
+        shell_error(sh, "profile %d would not be forgotten (%d)", slot, rc);
+        return rc;
+    }
+    shell_print(sh, "deleted profile %d", slot);
+    return 0;
+}
+
+/*
+ * An import arrives a value at a time, so it is held in RAM and written once:
+ * `stage` with nothing after it throws away whatever a half-finished one left
+ * behind, `stage <setting> <value>` adds to it, and `commit` is the single
+ * flash write.  Nothing is on the panel until a `load` afterwards, which is
+ * what lets a profile be imported without disturbing the dongle in front of
+ * you.
+ */
+static int cmd_profile_stage(const struct shell *sh, size_t argc, char **argv) {
+    if (argc == 1) {
+        pacman_profile_stage_clear();
+        shell_print(sh, "cleared what was staged");
+        return 0;
+    }
+    if (argc != 3) {
+        shell_error(sh, "stage takes a setting and a value, or nothing at all");
+        return -EINVAL;
+    }
+
+    int id = pacman_settings_find(argv[1]);
+    if (id < 0) {
+        shell_error(sh, "no setting called \"%s\"", argv[1]);
+        return -ENOENT;
+    }
+
+    int64_t value = pacman_settings_parse(id, argv[2]);
+    if (value < 0) {
+        shell_error(sh, "\"%s\" is not a value for %s", argv[2], argv[1]);
+        return -EINVAL;
+    }
+
+    int rc = pacman_profile_stage(id, (uint32_t)value);
+    if (rc) {
+        shell_error(sh, "could not stage %s (%d)", argv[1], rc);
+        return rc;
+    }
+    shell_print(sh, "staged %s %s", argv[1], argv[2]);
+    return 0;
+}
+
+static int cmd_profile_commit(const struct shell *sh, size_t argc, char **argv) {
+    ARG_UNUSED(argc);
+
+    int slot = slot_arg(sh, argv[1]);
+    if (slot < 0) {
+        return slot;
+    }
+
+    int rc = pacman_profile_commit(slot, argv[2]);
+    if (rc == -ENODATA) {
+        shell_error(sh, "nothing has been staged to write");
+        return rc;
+    }
+    if (rc) {
+        shell_error(sh, "profile %d would not be written (%d)", slot, rc);
+        return rc;
+    }
+    shell_print(sh, "saved profile %d as \"%s\"", slot, argv[2]);
+    return 0;
+}
+
 static void setting_names(size_t idx, struct shell_static_entry *entry) {
     entry->syntax = idx < PACMAN_SETTING_COUNT ? pacman_settings_describe(idx)->name : NULL;
     entry->handler = NULL;
@@ -227,6 +434,25 @@ static void setting_names(size_t idx, struct shell_static_entry *entry) {
 SHELL_DYNAMIC_CMD_CREATE(setting_name_list, setting_names);
 
 SHELL_STATIC_SUBCMD_SET_CREATE(
+    profile_subcmds,
+    SHELL_CMD_ARG(list, NULL, "Every slot, tab separated, for the configurator page",
+                  cmd_profile_list, 1, 0),
+    SHELL_CMD_ARG(show, NULL, "show <slot> - what one profile holds, tab separated",
+                  cmd_profile_show, 2, 0),
+    SHELL_CMD_ARG(save, NULL, "save <slot> <name> - the settings as they stand", cmd_profile_save,
+                  3, 0),
+    SHELL_CMD_ARG(load, NULL, "load <slot> - put a profile's settings back", cmd_profile_load, 2,
+                  0),
+    SHELL_CMD_ARG(rename, NULL, "rename <slot> <name>", cmd_profile_rename, 3, 0),
+    SHELL_CMD_ARG(delete, NULL, "delete <slot> - forget it", cmd_profile_delete, 2, 0),
+    SHELL_CMD_ARG(stage, &setting_name_list,
+                  "stage [<setting> <value>] - build a profile to commit, or clear one",
+                  cmd_profile_stage, 1, 2),
+    SHELL_CMD_ARG(commit, NULL, "commit <slot> <name> - write what was staged", cmd_profile_commit,
+                  3, 0),
+    SHELL_SUBCMD_SET_END);
+
+SHELL_STATIC_SUBCMD_SET_CREATE(
     pacman_subcmds,
     SHELL_CMD_ARG(get, &setting_name_list, "Print every setting, or just the one named", cmd_get, 1,
                   1),
@@ -235,6 +461,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
                   cmd_reset, 2, 0),
     SHELL_CMD_ARG(schema, NULL, "Every setting, tab separated, for the configurator page",
                   cmd_schema, 1, 0),
+    SHELL_CMD(profile, &profile_subcmds, "Named sets of every setting, kept on the dongle", NULL),
     SHELL_SUBCMD_SET_END);
 
 SHELL_CMD_REGISTER(pacman, &pacman_subcmds, "What the Pac-Man dongle remembers", NULL);

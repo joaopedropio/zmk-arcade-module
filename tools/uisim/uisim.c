@@ -195,8 +195,19 @@ int main(int argc, char **argv) {
     print_splash();
     write_ppm(dir, "splash");
 
-    /* and the dashboard: its frames, and the header a few steps into its lap */
+    /* and the other splash-style, which draws a picture instead and has to
+     * come out of the same rotation check the drawn one does */
     clean_up_splash();
+    set_splash_style(SPLASH_STYLE_IMAGE);
+    zmk_widget_splash_init();
+    failures += check_rotations();
+    reset_splash();
+    print_splash();
+    write_ppm(dir, "splash-image");
+    clean_up_splash();
+    set_splash_style(SPLASH_STYLE_DRAWN);
+
+    /* and the dashboard: its frames, and the header a few steps into its lap */
     logo_animation_init();
     zmk_widget_output_status_init();
     zmk_widget_peripheral_battery_status_init();

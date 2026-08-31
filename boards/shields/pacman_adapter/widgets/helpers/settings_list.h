@@ -58,6 +58,7 @@
     X(GAME_GHOST_2,          "game-ghost-2",          COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_GHOST_2_COLOR)   \
     X(GAME_GHOST_3,          "game-ghost-3",          COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_GHOST_3_COLOR)   \
     X(GAME_FRIGHT,           "game-fright",           COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_FRIGHT_COLOR)   \
+    X(SPLASH_STYLE,          "splash-style",          ENUM,   0,     SPLASH_STYLE_IMAGE,      splash_style_labels, apply_splash_style,        false, false, CONFIG_PACMAN_SPLASH_STYLE)   \
     X(SPLASH_MULTI_0,        "splash-multi-0",        COLOR,  0,     0xffffff,                NULL,              apply_splash_multi,          false, true,  CONFIG_PACMAN_SPLASH_MULTICOLOR_0)   \
     X(SPLASH_MULTI_1,        "splash-multi-1",        COLOR,  0,     0xffffff,                NULL,              apply_splash_multi,          false, true,  CONFIG_PACMAN_SPLASH_MULTICOLOR_1)   \
     X(SPLASH_MULTI_2,        "splash-multi-2",        COLOR,  0,     0xffffff,                NULL,              apply_splash_multi,          false, true,  CONFIG_PACMAN_SPLASH_MULTICOLOR_2)   \

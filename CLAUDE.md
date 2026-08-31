@@ -71,6 +71,22 @@ ZMK main uses hardware model v2, so the board is `nice_nano@2.0.0/nrf52840/zmk`,
 never `nice_nano_v2` — the README's `build.yaml` snippet is the GitHub Actions
 path, which is a different thing.
 
+That command alone builds a dongle with no shell, and so with no `pacman`
+command, no profiles and nothing for the configurator to talk to: `PACMAN_SHELL`
+depends on `SHELL`, so `shell.c` and `helpers/profiles.c` are simply not
+compiled. Add the console snippet, and put the USB identity on the command line
+rather than in a `.conf` — snippet config is merged after the keyboard's and
+would win:
+
+```sh
+  ... -d build/cyg_dongle -S cdc-acm-console -- \
+  ... -DCONFIG_USB_DEVICE_PRODUCT='"Cygnus"' -DCONFIG_USB_DEVICE_PID=0x615E
+```
+
+Check rather than assume — `grep ^CONFIG_PACMAN_SHELL= build/cyg_dongle/zephyr/.config`.
+Without the shell the image links byte for byte the same as one built before any
+shell-side change, so a clean build says nothing about code it never saw.
+
 ## Where things live
 
 ```
@@ -83,12 +99,14 @@ boards/shields/pacman_adapter/
     ├── sound.c              the I2S driver side of the synth
     ├── action_button.c      screens, themes, mute
     ├── splash.c logo.c frames.c theme.c configuration.c shell.c
+    ├── splash_image.h       the other splash, run-length, from tools/splash_art.png
     ├── battery_status.c output_status.c layer_status.c wpm.c modifier.c
     ├── helpers/display.c    the drawing engine: bitmaps, text, rects, slots
     ├── helpers/settings.c   flash-backed settings; settings_list.h is the list
+    ├── helpers/profiles.c   named sets of all of them, one flash key apiece
     └── game/                pacman_core.c, pacman_render.c, pacman_sfx.c
 src/ include/ dts/           the zmk,behavior-dongle-action behaviour
-tools/                       the four host harnesses and two generators
+tools/                       the four host harnesses and three generators
 tools/wasm/                  the renderer built for the browser, by emscripten
 docs/configurator/           the WebSerial settings page, served by GitHub Pages
 ```
@@ -99,12 +117,18 @@ may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
 
 ## Things that bite
 
-- **`pacman_art.h` and `pacman_tunes.h` are generated.** Edit `tools/sprites.py`
-  or `tools/tunes.py` and regenerate; hand-editing the headers loses the change.
+- **`pacman_art.h`, `pacman_tunes.h` and `splash_image.h` are generated.** Edit
+  `tools/sprites.py`, `tools/tunes.py` or `tools/splash_art.png` and regenerate;
+  hand-editing the headers loses the change.
   ```sh
   python3 tools/tunes.py > boards/shields/pacman_adapter/widgets/game/pacman_tunes.h
   python3 tools/sprites.py > boards/shields/pacman_adapter/widgets/pacman_art.h
+  python3 tools/splash_image.py > boards/shields/pacman_adapter/widgets/splash_image.h
   ```
+  The picture is at most eight flat colours, run-length encoded three bits of
+  palette index to five of length, and no run crosses a row - which is what
+  lets the decoder hand the panel one finished row at a time instead of
+  needing the 115KB frame buffer this shield has not got.
 - **The geometry constants are load-bearing and documented where they live** —
   `PM_TILE` in `pacman_core.h`, `PM_WALL_LINE`/`PM_WALL_INSET`/`PM_WALL_R`/
   `PM_BORDER_GAP`/`PM_SPRITE` in `pacman_render.h`. Read those comments before
@@ -153,7 +177,27 @@ may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
   thread, off the queue that has to repaint next.
 - **`pacman schema` is a wire format.** The configurator page parses those
   tab-separated columns, so adding a setting is free but adding or reordering a
-  column breaks the page.
+  column breaks the page. `pacman profile list` and `pacman profile show` are
+  two more of them, closed by the same bare `end`; everything else under
+  `profile` answers with a sentence whose first word is what it did - saved,
+  loaded, renamed, deleted, staged, cleared - and the page treats anything else
+  as a failure, so neither end keeps a list of error strings.
+- **A profile is one flash key, not one per setting** - the opposite of what
+  the settings themselves do, because a profile is only ever written whole and
+  eighty keys apiece would spend the storage partition on entries nothing reads
+  separately. The blob is made safe to grow the other way: each value is
+  written down beside the hash of its setting's name, so adding to or
+  reordering `settings_list.h` leaves every stored profile readable. Renaming a
+  setting drops it from existing profiles, which is the honest outcome. An
+  import arrives a value at a time over the shell, so `stage` fills a RAM copy
+  and `commit` is the single write.
+- **Theme 0 is not derived.** With `CONFIG_PACMAN_USE_COMPLETE_CUSTOM_THEME`
+  on - which is the default - theme 0 paints the dashboard from the individual
+  colour settings, and `theme-primary` and its three companions do nothing.
+  They only feed themes 1..N. So anything meaning to recolour the whole panel
+  has to set the forty-six dashboard colours, which is what the configurator's
+  presets do by sorting them into four roles rather than listing them five
+  times over.
 - **The configurator's preview is the real renderer**, compiled by
   `tools/wasm/build.sh` and committed as `docs/configurator/preview.js`. Change
   any drawing code - the game, the splash, a widget - and that file is stale

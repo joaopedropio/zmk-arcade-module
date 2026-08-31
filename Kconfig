@@ -19,6 +19,17 @@ config PACMAN_SHELL
       comes with it.  On a dongle that means a CDC ACM endpoint over the USB
       it is already plugged into.
 
+config PACMAN_PROFILE_SLOTS
+    int "How many profiles the dongle can hold"
+    depends on PACMAN_SHELL
+    default 5
+    range 1 16
+    help
+      A profile is every setting at once under a name, written to flash so it
+      travels with the dongle rather than with the browser that made it.  Each
+      one costs about seven hundred bytes of the storage partition when it is
+      used, and nothing while the slot is empty.
+
 config PACMAN_ROTATE_DISPLAY
     int "Rotate the display (0, 90, 180 or 270)"
     default 0
@@ -339,6 +350,14 @@ config PACMAN_SPLASH_BG_COLOR
 config PACMAN_SPLASH_CREATED_BY_COLOR
     string ""
     default "ffb897"
+
+config PACMAN_SPLASH_STYLE
+    string "Which splash goes up at boot"
+    default "drawn"
+    help
+      "drawn" builds it out of the wordmark and the sprites, so every colour
+      in it is a setting.  "image" puts up the picture in splash_image.h
+      instead, which brings its own eight colours and ignores those settings.
 
 config PACMAN_SPLASH_FRAMES
     int "Ticks the splash screen stays up"

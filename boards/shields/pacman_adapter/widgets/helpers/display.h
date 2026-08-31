@@ -109,6 +109,16 @@ typedef enum {
     STATUS_SCREEN,
 } DefaultScreen;
 
+/*
+ * Which splash goes up at boot: the one drawn from the wordmark and the
+ * sprites, whose every colour is a setting, or the picture in splash_image.h,
+ * which carries its own eight and ignores them.
+ */
+typedef enum {
+    SPLASH_STYLE_DRAWN,
+    SPLASH_STYLE_IMAGE,
+} SplashStyle;
+
 typedef enum {
     DISPLAY_ORIENTATION_0,
     DISPLAY_ORIENTATION_90,
@@ -126,6 +136,7 @@ typedef enum {
     ((size_t)(width) * (scale) * (height) * (scale) * sizeof(uint16_t))
 
 Character int_to_num_char(uint8_t i);
+uint16_t rgb888_to_rgb565(uint32_t color);
 
 void print_container(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t scale);
 void fill_buffer_color(uint8_t *buf, size_t buf_size, uint32_t color);
@@ -136,8 +147,10 @@ void print_bitmap(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, 
 void print_bitmap_multicolor(uint16_t *scaled_bitmap, Character c, uint16_t x, uint16_t y, uint16_t scale, const uint16_t colors[], FontSize font_size);
 void print_rectangle(uint8_t *buf_frame, uint16_t start_x, uint16_t end_x, uint16_t start_y, uint16_t end_y, uint16_t color, uint16_t scale);
 void render_filled_rectangle(uint8_t *buf_area, uint8_t x, uint8_t y, uint8_t width, uint8_t height);
+void render_indexed_image(uint16_t *row_buf, const uint8_t *runs, size_t run_count, const uint16_t palette[], uint16_t x, uint16_t y, uint16_t width, uint16_t height);
 
 void set_default_screen(DefaultScreen screen);
+void set_splash_style(SplashStyle style);
 void set_display_orientation(DisplayOrientation orientation);
 void set_battery_slots(uint8_t slots);
 void set_splash_logo_multicolor(uint32_t color0, uint32_t color1, uint32_t color2, uint32_t color3);
@@ -185,6 +198,7 @@ void set_bt_status_open_color(uint32_t color);
 void set_bt_status_bg_color(uint32_t color);
 
 DefaultScreen get_default_screen();
+SplashStyle get_splash_style(void);
 DisplayOrientation get_display_orientation();
 uint8_t get_battery_slots(void);
 uint16_t get_splash_logo_multicolor_0(void);
