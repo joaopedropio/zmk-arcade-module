@@ -402,6 +402,51 @@ check(splash.differ && !splash.blank,
       `and draws a different splash for each style` +
       (splash.blank ? " (the image came out blank)" : ""));
 
+/*
+ * A widget can only be in one slot.  The firmware does not refuse the second
+ * one - get_slot_by_name() returns the first slot holding it, so the other is
+ * never drawn into - which makes it the page's job to keep that state out of
+ * reach.  Choosing a widget that is elsewhere has to move it, not copy it,
+ * and the slot it left has to take what the destination was showing.
+ */
+const oneSlot = await vm.runInContext(`(async () => {
+  setNav(1);
+  const slot = (n) => settings.find((s) => s.name === "slot" + n);
+  const widgets = slot(1).labels.filter((w) => w !== "empty");
+
+  /* set up through setSlot too - the fixture already has a widget in slot5,
+     and parking one with setValue would make the duplicate this is about */
+  await setSlot(slot(1), widgets[0]);
+  await setSlot(slot(2), widgets[1]);
+  const legalSetup = duplicateSlots().length === 0;
+
+  /* now ask slot2 for what slot1 is holding */
+  const freed = slot(2).value;
+  await setSlot(slot(2), widgets[0]);
+  const moved = slot(2).value === widgets[0] && slot(1).value === freed;
+  const stillLegal = duplicateSlots().length === 0;
+
+  /* empty is a blank slot, not a widget: it may repeat */
+  await setSlot(slot(1), "empty");
+  await setSlot(slot(2), "empty");
+  const emptiesAllowed = slot(1).value === "empty" && slot(2).value === "empty" &&
+                         duplicateSlots().length === 0;
+
+  /* and a dongle already holding a duplicate has to be named rather than drawn */
+  for (let i = 1; i <= 6; i++) slot(i).value = "empty";
+  slot(1).value = widgets[0];
+  slot(2).value = widgets[0];
+  const spotted = duplicateSlots();
+  return { legalSetup, moved, stillLegal, emptiesAllowed, spotted, freed };
+})()`, ctx);
+check(oneSlot.legalSetup && oneSlot.moved && oneSlot.stillLegal,
+      "picking a widget another slot has moves it rather than duplicating it" +
+      (oneSlot.moved ? "" : " (it did not move)"));
+check(oneSlot.emptiesAllowed, "but any number of slots may be empty");
+check(oneSlot.spotted.length === 1 && /slot1 and slot2/.test(oneSlot.spotted[0]),
+      `a dongle already holding a duplicate is named: ${oneSlot.spotted}`);
+
+
 /* ------------------------------------------------------------------ */
 /* the page's own two colour schemes                                   */
 /* ------------------------------------------------------------------ */

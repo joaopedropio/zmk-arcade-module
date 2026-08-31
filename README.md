@@ -109,6 +109,15 @@ of the maze in miniature, a ring of pellets with Pac-Man running it and a ghost
 a few steps behind. Batteries take the strip along the bottom, one, two or
 three of them per `PACMAN_BATTERY_SLOTS`.
 
+**A widget goes in one slot only.** Nothing refuses the second one, which is
+what makes it worth saying: `get_slot_by_name()` returns the first slot holding
+a widget, so every widget that asks draws into that one and the other slot is
+never drawn into at all — it keeps whatever the frame left there, and reads as
+a slot that is broken rather than as a setting that was ignored. Only `empty`
+may repeat, being a blank slot rather than a widget. The configurator keeps the
+state out of reach: choosing a widget that is somewhere else moves it, and the
+slot it came from takes whatever the destination was showing.
+
 `PACMAN_DEFAULT_SCREEN` decides which of the last two comes up after the
 splash. Themes are the eleven colour schemes in `helpers/display.c`; the first
 is yours to set with `PACMAN_THEME_*`, and the choice is remembered across

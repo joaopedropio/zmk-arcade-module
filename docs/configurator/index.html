@@ -733,10 +733,24 @@ async function loadSchema() {
   buildScreens();
   await guardPreviewAsync("drawing the screen", rebootPreview);
   showChrome();
+
+  const clashes = duplicateSlots();
+  if (clashes.length) {
+    say("Connected. " + rows.length + " settings. " + clashes.join(", ") +
+        " hold the same widget, and only the first of each is drawn - pick something " +
+        "else for one of them under Layout.", "bad");
+    return;
+  }
   say("Connected. " + rows.length + " settings.", "good");
 }
 
-async function setValue(setting, word, control) {
+/*
+ * `quiet` writes the value and stops there, leaving the redraw and the status
+ * line to whoever is doing the next one.  Moving a widget between slots is two
+ * writes that only make sense together - the panel in between has the widget
+ * in neither slot - so the first of them goes quietly.
+ */
+async function setValue(setting, word, quiet) {
   try {
     const text = await exec("pacman set " + setting.name + " " + word);
     const reply = replyLines(text, "pacman set " + setting.name + " " + word).join(" ");
@@ -746,6 +760,9 @@ async function setValue(setting, word, control) {
     }
     setting.value = word;
     setting.stored = true;
+    syncControls(setting);
+    if (quiet) return true;
+
     if (setting.live) {
       guardPreview("redrawing after a change", () => {
         pushSetting(setting);
@@ -755,13 +772,72 @@ async function setValue(setting, word, control) {
     } else {
       await guardPreviewAsync("showing the new layout", rebootPreview);
     }
-    syncControls(setting);
     say(reply || (setting.name + " set"), "good");
     return true;
   } catch (err) {
     say(err.message, "bad");
     return false;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* one widget, one slot                                                */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A widget can only be in one slot.  Nothing in the firmware refuses the
+ * second one - get_slot_by_name() simply returns the first slot holding it,
+ * so every widget that asks draws into that one and the other slot is never
+ * drawn into at all.  It stays whatever the frame left there, which reads as
+ * a slot that did not work rather than as a setting that was ignored.
+ *
+ * So the page makes it unreachable instead of complaining about it: choosing
+ * a widget that is somewhere else moves it, and the slot it came from takes
+ * whatever this one was showing.  Picking a widget for a slot is then always
+ * a move, which is what it looks like on screen anyway.  `empty` is exempt -
+ * it is a blank slot, not a widget, and any number of slots may be blank.
+ */
+const SLOT_SETTING = /^slot[1-6]$/;
+const SLOT_EMPTY = "empty";
+
+function slotSettings() {
+  return settings.filter((setting) => SLOT_SETTING.test(setting.name));
+}
+
+/* the other slot already showing this widget, if there is one */
+function slotHolding(word, except) {
+  if (word === SLOT_EMPTY) return null;
+  return slotSettings().find((s) => s !== except && s.value === word) || null;
+}
+
+async function setSlot(setting, word) {
+  const displaced = slotHolding(word, setting);
+  if (!displaced) return setValue(setting, word);
+
+  const freed = setting.value;
+  if (!(await setValue(displaced, freed, true))) return false;
+  if (!(await setValue(setting, word))) return false;
+
+  say("Moved " + word + " to " + setting.name + ", so " + displaced.name + " now shows " +
+      freed + " - a widget can only be in one slot.", "good");
+  return true;
+}
+
+/*
+ * A dongle can already be in the state this page will not let you reach: the
+ * shell takes the second slot without a word, and so did every build before
+ * the page knew better.  Saying which two is more use than quietly drawing one
+ * of them.
+ */
+function duplicateSlots() {
+  const seen = new Map();
+  const clashes = [];
+  for (const setting of slotSettings()) {
+    if (setting.value === SLOT_EMPTY) continue;
+    if (seen.has(setting.value)) clashes.push(seen.get(setting.value) + " and " + setting.name);
+    else seen.set(setting.value, setting.name);
+  }
+  return clashes;
 }
 
 function groupOf(name) {
@@ -803,7 +879,7 @@ function controlFor(setting) {
 
     const commit = async (word, from) => {
       if (!/^[0-9a-fA-F]{6}$/.test(word)) return;
-      if (await setValue(setting, word.toLowerCase(), from)) {
+      if (await setValue(setting, word.toLowerCase())) {
         swatch.value = "#" + word;
         text.value = word.toLowerCase();
       }
@@ -822,7 +898,9 @@ function controlFor(setting) {
       select.append(option);
     }
     select.value = setting.value;
-    select.addEventListener("change", () => setValue(setting, select.value, select));
+    select.addEventListener("change", () => SLOT_SETTING.test(setting.name)
+      ? setSlot(setting, select.value)
+      : setValue(setting, select.value));
     wrap.append(select);
     return wrap;
   }
@@ -842,16 +920,16 @@ function controlFor(setting) {
     slider.max = setting.max;
     slider.value = setting.value;
     slider.addEventListener("change", async () => {
-      if (await setValue(setting, slider.value, slider)) number.value = slider.value;
+      if (await setValue(setting, slider.value)) number.value = slider.value;
     });
     number.addEventListener("change", async () => {
-      if (await setValue(setting, number.value, number)) slider.value = number.value;
+      if (await setValue(setting, number.value)) slider.value = number.value;
     });
     wrap.append(slider, number);
     return wrap;
   }
 
-  number.addEventListener("change", () => setValue(setting, number.value, number));
+  number.addEventListener("change", () => setValue(setting, number.value));
   wrap.append(number);
   return wrap;
 }

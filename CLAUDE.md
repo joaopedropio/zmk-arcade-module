@@ -170,6 +170,12 @@ may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
   the speaker and repaint the maze. A theme change is the one case that forces
   the colours through, because there the stored value has not moved but what is
   on the panel has.
+- **A widget goes in one slot only, and nothing enforces it.**
+  `get_slot_by_name()` returns the first slot holding a widget, so a second
+  slot set to the same one is never drawn into - it keeps whatever the frame
+  left there. `empty` is the exception, being a blank slot rather than a
+  widget. The firmware takes the duplicate silently; the configurator is where
+  it is kept out of reach, by moving the widget rather than copying it.
 - **Anything that draws belongs on the display queue.** The shell runs on its
   own thread, so `pacman set` submits the repaint to `zmk_display_work_q()`
   rather than painting where it stands; two threads on the same SPI bus is a
