@@ -18,6 +18,8 @@ typedef enum {
     PACMAN_GAME_PACMAN = 0,
     PACMAN_GAME_SHOOTER,
     PACMAN_GAME_BOMBER,
+    PACMAN_GAME_FIGHTER,
+    PACMAN_GAME_COMMANDO,
 } PacmanGame;
 
 /* called once from the custom status screen */

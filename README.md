@@ -2,7 +2,7 @@
 
 A self-playing arcade cabinet for the
 [snake dongle](https://github.com/joaopedropio/snake-dongle) hardware: a ZMK
-module that turns the dongle's 240x240 ST7789V panel into one of three
+module that turns the dongle's 240x240 ST7789V panel into one of five
 games.  Nobody drives any of them.
 
 **Pac-Man** hunts pellets on his own, runs for a power pellet when he is
@@ -25,10 +25,30 @@ blast would break, proves a way out before it lets go of it, keeps its distance
 from the things wandering the board, and leaves through the door under one of
 the bricks once it has cleared them.
 
+**Street Fighter** — after
+[the 1991 game of that name](https://en.wikipedia.org/wiki/Street_Fighter_II) —
+puts two of them on a stage with a health bar each and a clock over the top,
+and lets them get on with it. Both sides run the same pilot off different
+numbers, so one match is a nervy long-range fighter against somebody who will
+not stop walking forward and the next is two brawlers. The punch, the sweep and
+the fireball beat guarding, crouching and jumping in a ring, and none of that
+is a table: a punch is chest high and a sweep is along the floor, so a crouch
+goes under one and is caught by the other because of where the two rectangles
+are.
+
+**Metal Slug** — after
+[the 1996 game of that name](https://en.wikipedia.org/wiki/Metal_Slug) — runs a
+trooper right along a ridge that never ends, shooting what comes the other way,
+putting a grenade on anything standing on a ledge its rifle cannot reach, and
+jumping the holes. One hit is one life. It works out when to jump by winding
+its own arc forward over the ground in front of it rather than by counting
+pixels to the edge, and it leaves the ground as late as it still can.
+
 <img src="docs/demo.gif" width="320" alt="The splash screen, then Pac-Man playing itself on the dongle display"/> <img src="docs/shooter.gif" width="320" alt="The ship turning and thrusting its way through a field of meteors"/> <img src="docs/bomber.gif" width="320" alt="The bomber blowing its way through a field of soft brick"/>
+<img src="docs/fighter.gif" width="320" alt="Two fighters trading punches, sweeps and fireballs on a stage"/> <img src="docs/commando.gif" width="320" alt="A trooper running right along a ridge, shooting and jumping holes"/>
 
 Which one plays is the `game` setting, changed from the shell or the
-configurator without reflashing; all three are always built, and each keeps its
+configurator without reflashing; all five are always built, and each keeps its
 place while the others are on the panel.
 
 Same idea (and the same hardware definition) as the
@@ -137,12 +157,15 @@ Swap in your own by replacing `tools/splash_art.png` and regenerating:
 python3 tools/splash_image.py > boards/shields/pacman_adapter/widgets/splash_image.h
 ```
 
-**The game** owns the whole panel, and is the maze, the shooter or the brick
-field depending on `game`. The shooter puts its score across the top, the lives
-it has left beside it as small ships, and whatever pickup is running along the
-bottom; the brick field keeps a band across the top for its score, the clock on
-the board and how many bombs and how much reach the bomber has; everything else
-is playfield.
+**The game** owns the whole panel, and is the maze, the shooter, the brick
+field, the ring or the ridge depending on `game`. The shooter puts its score
+across the top, the lives it has left beside it as small ships, and whatever
+pickup is running along the bottom; the brick field keeps a band across the top
+for its score, the clock on the board and how many bombs and how much reach the
+bomber has; the ring puts a health bar at each end of the top with the round
+clock between them and the rounds each fighter has taken underneath; the ridge
+keeps a band for the score, the grenades in hand and the lives left. Everything
+else is playfield.
 
 **The dashboard** is a grid of slots: `PACMAN_INFO_SLOT_MODE` picks the layout
 and `PACMAN_INFO_SLOT_1` … `_6` say what goes in each one — `connectivity`,
@@ -193,7 +216,7 @@ ones worth knowing about; the rest colour the dashboard and are listed in
 | `CONFIG_PACMAN_ROTATE_DISPLAY` | `0` | Panel rotation: 0, 90, 180 or 270. Only the rotation you pick is compiled in. |
 | `CONFIG_PACMAN_FRAME_INTERVAL` | `33` | Milliseconds per frame (33 ≈ 30 fps). |
 | `CONFIG_PACMAN_DEFAULT_SCREEN` | `game` | Which screen comes up after the splash. |
-| `CONFIG_PACMAN_DEFAULT_GAME` | `pacman` | Which game the game screen plays: `pacman`, `shooter` or `bomber`. |
+| `CONFIG_PACMAN_DEFAULT_GAME` | `pacman` | Which game the game screen plays: `pacman`, `shooter`, `bomber`, `fighter` or `commando`. |
 | `CONFIG_PACMAN_SPLASH_STYLE` | `drawn` | Which splash: `drawn` from the wordmark and sprites, or the `image` in `splash_image.h`. |
 | `CONFIG_PACMAN_SOUND` | `y` | Drive the I2S amplifier at all. `n` compiles the whole sound path out. |
 | `CONFIG_PACMAN_SOUND_VOLUME` | `80` | How loud, 0 to 100. 100 is unity; a limiter catches the peaks. |
@@ -221,7 +244,12 @@ ones worth knowing about; the rest colour the dashboard and are listed in
 | `CONFIG_PACMAN_METEOR_COLOR` / `_EDGE_` | `5a5f7a` / `a3adc9` | Meteor fill and rim. |
 | `CONFIG_PACMAN_BLAST_COLOR` | `ff5a2b` | A meteor coming apart. |
 | `CONFIG_PACMAN_POWERUP_COLOR` | `39ff9e` | A pickup, and the shield it grants. |
-| `CONFIG_PACMAN_HUD_COLOR` | `ffee00` | Score and lives. |
+| `CONFIG_PACMAN_HUD_COLOR` | `ffee00` | Score and lives, on every panel that has one. |
+
+The brick field, the ring and the ridge colour the same way and are left out of
+the table only for its width: `PACMAN_FLOOR_COLOR` and its neighbours in
+`Kconfig` are the board, `PACMAN_RING_*` and `PACMAN_FIGHTER_*` the stage and
+the two fighters, and `PACMAN_SKY_*` through `PACMAN_CRATE_COLOR` the ridge.
 
 Colours are plain `rrggbb` strings (a leading `#` or `0x` is fine) and are
 converted to RGB565 once at boot.
@@ -568,23 +596,104 @@ hundred bombs. Over 200k frames it clears 94 boards, breaks 2795 walls and
 loses a life about every 2400 frames, almost always to something walking into
 it — which is what the enemies are for.
 
+The ring is the one place here where two things of the same shape have to be
+told apart, and everything about it follows from that. Each fighter is a dozen
+rectangles rather than a blob — legs that stride, a belt, a head carried
+forward of the middle and a headband streaming out behind it, which is the only
+thing on a symmetrical sprite that says which way it is facing. The limb that
+is out gets its own dirty rectangle, ten pixels tall and as long as the reach:
+a box around a fighter and its extended foot is two and a half thousand pixels
+and changes on every frame of a sweep, which was two thirds of everything this
+game drew.
+
+Neither side is played by a person, and neither is played by a table. The three
+attacks and the three answers beat each other in a ring, and the ring is in the
+geometry: a punch is a rectangle at chest height, a sweep is one along the
+floor, a fireball travels at chest height, and a crouch is a shorter fighter —
+so a crouch goes under a punch and is caught by a sweep because of where the
+rectangles are and not because anything says so. What each pilot chooses comes
+from three numbers drawn once a match: how close it likes to stand, how readily
+it guards, and how much it wants the big attack.
+
+The number that decides whether any of that is worth watching is how long an
+attack has to have been coming before the other one may notice it. It is three
+frames — one more than a punch spends winding up — so a punch is seen only once
+it is already dangerous and lands on anybody who was not already guarding,
+while a sweep is seen with a frame to spare and is the one that gets blocked.
+At one frame both are answerable, both are blocked about half the time, and two
+fighters stand there trading nothing for a whole round; the first version did
+exactly that. The second thing worth its own paragraph is the beat between one
+attack and the next, on top of the attack's own recovery: without it a fighter
+swings on every frame it can, which means it is never in a state that could put
+a guard up, which means neither of them ever guards. Over 200k frames the two
+of them play 164 matches and 370 rounds, every one of them decided on the floor
+— the clock has yet to end one, which is what it is there for.
+
+The ridge is the only one where the world is bigger than the screen, and that
+is a drawing problem before it is anything else. A scrolling background painted
+the obvious way is the whole panel every frame, for ever, and the panel carries
+a few thousand pixels. So it is not painted as a picture that slides: it is two
+hundred and forty columns, each of which remembers the outline it had last
+frame, and only the columns whose outline actually moved are redrawn — and of
+those, only the rows between where it was and where it is now. A column under a
+flat hilltop, or over a flat stretch of ground, looks exactly the same after
+the scroll as before it and costs nothing at all. That is why the hills have
+flat tops and why there is no grass, no scattered rock and no gradient in the
+sky: detail here has to be locked to the panel or to a sprite, and never to the
+world. The sun is locked to the panel, which is exactly what a distant sun
+does.
+
+The ground is generated a chunk at a time as the camera reaches it and thrown
+away behind, so there is no level and nothing to run out of. Three rules keep
+what comes out playable: a hole is never next to a hole, the ground either side
+of a hole is the same height, and no two chunks differ by more than one step.
+Between them they mean every gap can be jumped and every wall can be climbed,
+so the run only ever ends because something shot it.
+
+The trooper leaves the ground for two reasons and no others: there is something
+in front too high to walk into, or waiting one more frame would mean the jump
+no longer lands. The second is decided by winding its own movement forward over
+the ground in front of it — the same function that then moves it, so what it
+proves and what happens are the same arithmetic — rather than by a take-off
+distance, which would be the same answer whatever the far side looked like. Two
+things after that were bought with lives. A step down is walked down rather
+than fallen off, because a trooper in the air cannot jump and a step
+immediately before a hole meant walking into the hole with no say in the
+matter. And an enemy round in the air is answered by jumping it, the rifle
+being no use once it has been fired: two frames of rising already puts the feet
+above the line the round is on. Without that second one the run ended every
+thirteen seconds and always the same way. Over 200k frames it covers about half
+a million pixels of ground, destroys 2014 of them and loses a life about every
+630 frames.
+
 What it costs, per game:
 
-| | Pac-Man | Space Shooter | Bomberman |
-|---|---|---|---|
-| flash | 7.4 KB | 8.1 KB | 9.6 KB |
-| RAM | 671 bytes | 932 bytes | 2.5 KB |
-| SPI traffic | ~3600 pixels/frame ≈ 7 KB/frame, about 210 KB/s at 30 fps | ~4000 pixels/frame ≈ 7.8 KB/frame, about 235 KB/s | ~1900 pixels/frame ≈ 3.7 KB/frame, about 110 KB/s |
-| LVGL widgets | none — the status screen is an empty `lv_obj` | none | none |
+| | Pac-Man | Space Shooter | Bomberman | Street Fighter | Metal Slug |
+|---|---|---|---|---|---|
+| flash | 7.4 KB | 8.1 KB | 9.6 KB | 7.4 KB | 6.9 KB |
+| RAM | 671 bytes | 932 bytes | 2.5 KB | 299 bytes | 1.0 KB |
+| SPI traffic, pixels/frame | ~3600 | ~4000 | ~1900 | ~1950 | ~1780 |
+| and on the wire at 30 fps | ~210 KB/s | ~235 KB/s | ~110 KB/s | ~115 KB/s | ~105 KB/s |
+| LVGL widgets | none — the status screen is an empty `lv_obj` | none | none | none | none |
 
-The brick field is the dearest of the three in memory and the cheapest on the
-wire, and both for the same reason: it is a board rather than a playfield. The
-board, what is hidden under it, what is burning, the two maps the pilot plans
-against and the record of what each cell looked like last frame are all one
-byte or two per cell, which is where the two and a half kilobytes go; and
+The brick field is the dearest of the five in memory and among the cheapest on
+the wire, and both for the same reason: it is a board rather than a playfield.
+The board, what is hidden under it, what is burning, the two maps the pilot
+plans against and the record of what each cell looked like last frame are all
+one byte or two per cell, which is where the two and a half kilobytes go; and
 because it is a board, most of it is standing still on any given frame, so what
 actually goes down the bus is the dozen cells that changed and the two sprites
 walking over them.
+
+The ring is the cheapest of the lot at both, and the ridge is the surprise. A
+fight is two sprites on a stage that never moves, so there is almost nothing to
+send; a scrolling world ought to be the whole panel every frame, and would be
+fifty-seven thousand pixels if it were painted as a picture that slides. It is
+painted as two hundred and forty columns instead, each of which remembers the
+outline it had last frame, and a column under a flat hilltop or over a flat
+stretch of ground looks exactly the same after the scroll as before it. The
+kilobyte is the ridge itself - a ring of chunk heights three screens long,
+generated ahead of the camera and thrown away behind it.
 
 Flash and RAM are the core and the renderer only, built `-Os` for a Cortex-M4;
 the pixels are what the simulator counts over a two-hour soak. On top of all
@@ -659,7 +768,7 @@ It runs at priority 3, above ZMK's display thread — underneath it, a full
 
 ## Trying it without flashing
 
-Both game cores and both renderers are plain C with no Zephyr or LVGL
+Every game core and every renderer is plain C with no Zephyr or LVGL
 dependencies, so they build and run on a host. The simulator blits into a
 240x240 buffer, checks the invariants every frame (nobody inside a wall,
 nobody off the panel, and the incremental redraw always matching a full
@@ -671,16 +780,22 @@ tools/sim/build.sh /tmp/pacman-sim
 /tmp/pacman-sim 640 2 /tmp/frames 40          # frames, every-nth, dir, from, speed
 /tmp/pacman-sim shooter 3000                  # another game, same arguments
 /tmp/pacman-sim bomber 3000                   # and the third
+/tmp/pacman-sim fighter 3000                  # the fourth
+/tmp/pacman-sim commando 3000                 # and the fifth
 ```
 
 The game name goes in front and may be left out, in which case it is the maze.
 Balance changes want a longer run: over 200k frames each game prints what it
-did and what killed it, which for the brick field is boards cleared, bricks
-broken and enemies destroyed against a breakdown of how the bomber died.
+did and what killed it — for the brick field, boards cleared, bricks broken and
+enemies destroyed against a breakdown of how the bomber died; for the ring,
+rounds and matches against whether they were decided on the floor or on the
+clock; for the ridge, ground covered and the longest run against what took each
+life.
 
 `docs/demo.gif` is those frames at 15 fps — which is the speed the dongle plays
-it — with the splash held in front for the first two seconds; `docs/shooter.gif`
-and `docs/bomber.gif` are the same for the other two.
+it — with the splash held in front for the first two seconds; `docs/shooter.gif`,
+`docs/bomber.gif`, `docs/fighter.gif` and `docs/commando.gif` are the same for
+the other four.
 
 The splash and the dashboard have their own harness, which stubs Zephyr out and
 points the drawing helpers at a plain frame buffer. It shows the layout and the
@@ -735,6 +850,10 @@ boards/shields/pacman_adapter/
         ├── shooter_render.c    turned hull, meteor shapes, starfield, readout
         ├── bomber_core.c       board, bombs, chains, enemies, and where to put the next one
         ├── bomber_render.c     brick and pillar, flame arms, sprites, readout
+        ├── fighter_core.c      two pilots, the three attacks and the three answers, rounds
+        ├── fighter_render.c    the stage, the fighters limb by limb, bars and clock
+        ├── commando_core.c     the ridge as it is generated, the trooper, what shoots back
+        ├── commando_render.c   the scrolling world as columns, sprites, readout
         ├── pacman_sfx.c        the polyphonic synth
         └── pacman_tunes.h      the tunes (generated, see tools/tunes.py)
 src/, include/, dts/            the zmk,behavior-dongle-action behaviour

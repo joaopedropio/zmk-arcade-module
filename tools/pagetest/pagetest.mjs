@@ -487,8 +487,8 @@ const games = await (async () => {
     const b = m._preview_framebuffer() >> 1;
     return { known, frame: Array.from(m.HEAPU16.subarray(b, b + m._preview_panel() ** 2)).join(",") };
   };
-  const drawn = [await shot(0), await shot(1), await shot(2)];
-  const names = ["the maze", "the shooter", "the brick field"];
+  const drawn = [await shot(0), await shot(1), await shot(2), await shot(3), await shot(4)];
+  const names = ["the maze", "the shooter", "the brick field", "the ring", "the ridge"];
   return {
     known: drawn.every((g) => g.known === 1),
     /* every game draws a different panel, and none of them draws a flat one */
@@ -498,7 +498,7 @@ const games = await (async () => {
     colours: drawn.map((g) => new Set(g.frame.split(",")).size),
   };
 })();
-check(games.known, "preview.js knows all three games");
+check(games.known, "preview.js knows all five games");
 check(games.same.length === 0 && games.colours.every((n) => n >= 4),
       `and each of them draws its own panel, in ${games.colours.join("/")} colours` +
       (games.same.length ? ` (${games.same[0]})` : ""));

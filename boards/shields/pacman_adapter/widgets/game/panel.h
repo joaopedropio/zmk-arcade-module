@@ -1,16 +1,17 @@
 /*
  * Pac-Man dongle - what the games agree on about the panel.
  *
- * The maze, the shooter and the crossing are separate games with separate
- * cores, but they share one square screen and one way of reaching it: the size
- * of that screen, the buffer a rectangle is staged in on its way out, and the
- * call that pushes it.  Those live here rather than in any one game's header,
- * so no game has to include another's to know how big the panel is.
+ * The maze, the shooter, the brick field, the ring and the ridge are separate
+ * games with separate cores, but they share one square screen and one way of
+ * reaching it: the size of that screen, the buffer a rectangle is staged in on
+ * its way out, and the call that pushes it.  Those live here rather than in any
+ * one game's header, so no game has to include another's to know how big the
+ * panel is.
  *
- * Two of the three stamp sprites into a rectangle instead of asking each pixel
- * what is on it, and both of them have a readout to write, so the rectangle
- * being painted and the letters that go in it are here as well.  The maze
- * fills its band its own way and uses none of that.
+ * Four of the five stamp sprites into a rectangle instead of asking each pixel
+ * what is on it, and all four have a readout to write, so the rectangle being
+ * painted and the letters that go in it are here as well.  The maze fills its
+ * band its own way and uses none of that.
  *
  * Portable C, like everything else under game/.
  *
@@ -27,7 +28,7 @@
 /*
  * One staging band, shared.  A renderer paints a rectangle into this and hands
  * it to pm_blit(); only one game is ever running, so a buffer each would be
- * fifteen kilobytes of a dongle's RAM spent on the games nobody is watching.
+ * fifty kilobytes of a dongle's RAM spent on the games nobody is watching.
  *
  * The size is the largest of what the renderers ask for, and each of them
  * asserts its own maximum against it rather than trusting this number - so

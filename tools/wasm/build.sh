@@ -51,6 +51,10 @@ emcc -O2 -std=c11 -Wall \
     "$widgets/game/shooter_render.c" \
     "$widgets/game/bomber_core.c" \
     "$widgets/game/bomber_render.c" \
+    "$widgets/game/fighter_core.c" \
+    "$widgets/game/fighter_render.c" \
+    "$widgets/game/commando_core.c" \
+    "$widgets/game/commando_render.c" \
     "$widgets/helpers/display.c" \
     "$widgets/splash.c" \
     "$widgets/logo.c" \

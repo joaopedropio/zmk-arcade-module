@@ -346,7 +346,7 @@ try {
   </footer>
 </main>
 
-<script src="preview.js?v=2975ddcd883c"></script>
+<script src="preview.js?v=2608cfadc25a"></script>
 <script>
 "use strict";
 
@@ -420,11 +420,11 @@ function screenOf(name) {
 const UNOFFERED = /^theme$/;
 
 /*
- * The first pattern to match wins, so the maze and the brick field name their
- * own colours and the shooter takes whatever game- is left.  Written that way
- * round because those two lists are finished and the shooter's is the one
+ * The first pattern to match wins, so four of the five games name their own
+ * colours and the shooter takes whatever game- is left.  Written that way
+ * round because those four lists are finished and the shooter's is the one
  * likely to grow: a colour added to it lands in its own group rather than
- * under the wrong game.  `game-hud` is the score on two of the three panels
+ * under the wrong game.  `game-hud` is the score on four of the five panels
  * and falls to the shooter's group, which is where a reader will find it
  * soonest.
  */
@@ -432,6 +432,8 @@ const GROUPS = [
   ["Which game",      /^game$/],
   ["The maze",        /^game-(bg|wall|house|door|pellet|pac|ghost|fright)/],
   ["The brick field", /^game-(floor|solid|brick|bomb|flame|foe|pickup|exit)/],
+  ["The ring",        /^game-(ring|fighter|spark|fireball|health)/],
+  ["The ridge",       /^game-(sky|hill|ground|hero|grunt|shot|grenade|boom|crate)/],
   ["The starfield",   /^game-/],
   ["Layout",          /^(screen$|slot|battery-slots$|rotate$)/],
   ["Sound",           /^(mute$|volume$|bass-floor$|sample-rate$)/],
@@ -448,7 +450,7 @@ const GROUPS = [
 
 /*
  * The five that come with the page rather than with the dongle.  Each has an
- * opinion about all three games, because which one plays is a setting like any
+ * opinion about all five games, because which one plays is a setting like any
  * other and a look that only recoloured the maze would leave a dongle playing
  * one of the others looking exactly as it did.  A preset is only ever a
  * handful of colours - never a layout, never a timing, and never which game -
@@ -481,6 +483,15 @@ const PRESETS = [
       "game-flame-hot": "ffff00", "game-bomber": "ffff00", "game-bomber-trim": "000000",
       "game-foe": "ff0000", "game-foe-eye": "ffffff", "game-pickup": "00ffff",
       "game-exit": "ffb8ff",
+      "game-ring": "000000", "game-ring-crowd": "2121de", "game-ring-floor": "ffb897",
+      "game-fighter-0": "ffffff", "game-fighter-0-trim": "ff0000",
+      "game-fighter-1": "ffff00", "game-fighter-1-trim": "2121de",
+      "game-spark": "ffffff", "game-fireball": "00ffff",
+      "game-health": "ffff00", "game-health-lost": "ff0000",
+      "game-sky": "000000", "game-hill": "2121de", "game-ground": "ffb897",
+      "game-ground-edge": "ffff00", "game-hero": "ffffff", "game-hero-trim": "2121de",
+      "game-grunt": "ff0000", "game-grunt-trim": "000000", "game-shot": "ffff00",
+      "game-grenade": "6d6dff", "game-boom": "ffb852", "game-crate": "00ffff",
       "splash-logo": "ffff00", "splash-created-by": "ffb897", "splash-bg": "000000",
       "splash-multi-0": "ff0000", "splash-multi-1": "ffb8ff",
       "splash-multi-2": "00ffff", "splash-multi-3": "ffb852",
@@ -509,6 +520,15 @@ const PRESETS = [
       "game-flame-hot": "e0e7ff", "game-bomber": "7dd3fc", "game-bomber-trim": "0b1020",
       "game-foe": "f472b6", "game-foe-eye": "e0e7ff", "game-pickup": "a78bfa",
       "game-exit": "38bdf8",
+      "game-ring": "0b1020", "game-ring-crowd": "1e1b4b", "game-ring-floor": "4338ca",
+      "game-fighter-0": "e0e7ff", "game-fighter-0-trim": "f472b6",
+      "game-fighter-1": "7dd3fc", "game-fighter-1-trim": "4338ca",
+      "game-spark": "e0e7ff", "game-fireball": "a78bfa",
+      "game-health": "7dd3fc", "game-health-lost": "f472b6",
+      "game-sky": "0b1020", "game-hill": "1e1b4b", "game-ground": "141a33",
+      "game-ground-edge": "4338ca", "game-hero": "e0e7ff", "game-hero-trim": "38bdf8",
+      "game-grunt": "f472b6", "game-grunt-trim": "070b16", "game-shot": "7dd3fc",
+      "game-grenade": "070b16", "game-boom": "a78bfa", "game-crate": "38bdf8",
       "splash-logo": "7dd3fc", "splash-created-by": "a5b4fc", "splash-bg": "0b1020",
       "splash-multi-0": "f472b6", "splash-multi-1": "7dd3fc",
       "splash-multi-2": "a78bfa", "splash-multi-3": "38bdf8",
@@ -537,6 +557,15 @@ const PRESETS = [
       "game-flame-hot": "ffd980", "game-bomber": "ffd980", "game-bomber-trim": "140c00",
       "game-foe": "cc8800", "game-foe-eye": "ffd980", "game-pickup": "ffb000",
       "game-exit": "ffd980",
+      "game-ring": "140c00", "game-ring-crowd": "3d2400", "game-ring-floor": "7a4a00",
+      "game-fighter-0": "ffd980", "game-fighter-0-trim": "ffb000",
+      "game-fighter-1": "cc8800", "game-fighter-1-trim": "7a4a00",
+      "game-spark": "ffd980", "game-fireball": "ffb000",
+      "game-health": "ffb000", "game-health-lost": "7a4a00",
+      "game-sky": "140c00", "game-hill": "3d2400", "game-ground": "231400",
+      "game-ground-edge": "7a4a00", "game-hero": "ffd980", "game-hero-trim": "cc8800",
+      "game-grunt": "cc8800", "game-grunt-trim": "140c00", "game-shot": "ffd980",
+      "game-grenade": "0a0600", "game-boom": "ffb000", "game-crate": "ffd980",
       "splash-logo": "ffb000", "splash-created-by": "cc8800", "splash-bg": "140c00",
       "splash-multi-0": "ffb000", "splash-multi-1": "ffd980",
       "splash-multi-2": "cc8800", "splash-multi-3": "996600",
@@ -565,6 +594,15 @@ const PRESETS = [
       "game-flame-hot": "9bbc0f", "game-bomber": "9bbc0f", "game-bomber-trim": "0f380f",
       "game-foe": "8bac0f", "game-foe-eye": "0f380f", "game-pickup": "9bbc0f",
       "game-exit": "9bbc0f",
+      "game-ring": "0f380f", "game-ring-crowd": "143a14", "game-ring-floor": "306230",
+      "game-fighter-0": "9bbc0f", "game-fighter-0-trim": "0f380f",
+      "game-fighter-1": "6b8c1f", "game-fighter-1-trim": "081c08",
+      "game-spark": "9bbc0f", "game-fireball": "8bac0f",
+      "game-health": "9bbc0f", "game-health-lost": "306230",
+      "game-sky": "0f380f", "game-hill": "143a14", "game-ground": "306230",
+      "game-ground-edge": "8bac0f", "game-hero": "9bbc0f", "game-hero-trim": "0f380f",
+      "game-grunt": "6b8c1f", "game-grunt-trim": "081c08", "game-shot": "9bbc0f",
+      "game-grenade": "081c08", "game-boom": "8bac0f", "game-crate": "9bbc0f",
       "splash-logo": "9bbc0f", "splash-created-by": "8bac0f", "splash-bg": "0f380f",
       "splash-multi-0": "9bbc0f", "splash-multi-1": "8bac0f",
       "splash-multi-2": "306230", "splash-multi-3": "6b8c1f",
@@ -593,6 +631,15 @@ const PRESETS = [
       "game-flame-hot": "fff200", "game-bomber": "00e5ff", "game-bomber-trim": "08000f",
       "game-foe": "ff2ec4", "game-foe-eye": "ffffff", "game-pickup": "00e5ff",
       "game-exit": "fff200",
+      "game-ring": "08000f", "game-ring-crowd": "2a0a3d", "game-ring-floor": "b026ff",
+      "game-fighter-0": "00e5ff", "game-fighter-0-trim": "ff2ec4",
+      "game-fighter-1": "fff200", "game-fighter-1-trim": "b026ff",
+      "game-spark": "ffffff", "game-fireball": "ff2ec4",
+      "game-health": "00e5ff", "game-health-lost": "ff2ec4",
+      "game-sky": "08000f", "game-hill": "2a0a3d", "game-ground": "1a0020",
+      "game-ground-edge": "b026ff", "game-hero": "00e5ff", "game-hero-trim": "ff2ec4",
+      "game-grunt": "ff2ec4", "game-grunt-trim": "08000f", "game-shot": "fff200",
+      "game-grenade": "040008", "game-boom": "ff6b00", "game-crate": "00e5ff",
       "splash-logo": "ff2ec4", "splash-created-by": "00e5ff", "splash-bg": "08000f",
       "splash-multi-0": "ff2ec4", "splash-multi-1": "00e5ff",
       "splash-multi-2": "b026ff", "splash-multi-3": "fff200",
@@ -659,6 +706,11 @@ const SHOOTER_OPENING_FRAME = 300;
  * the same frame - it is the frame of the first nine hundred that shows the
  * most distinct colours at once, which is how it was picked */
 const BOMBER_OPENING_FRAME = 118;
+/* the ring, on the frame with the most of its palette on it: both fighters
+ * mid-exchange with a bar that has moved and a round already on the card */
+const FIGHTER_OPENING_FRAME = 127;
+/* and the ridge, with a step, a hole and the trooper over one of them */
+const COMMANDO_OPENING_FRAME = 71;
 const FRAME_MS = 66; /* about 15 fps, which is the speed the dongle plays it */
 
 let port = null, writer = null, incoming = "", prompt = PROMPT_FALLBACK;
@@ -1355,7 +1407,10 @@ function setNav(index) {
  * nothing like each other - so the strip below picks by name rather than
  * counting, and a game whose word this page has never heard of gets the maze's.
  */
-const OPENINGS = { pacman: OPENING_FRAME, shooter: SHOOTER_OPENING_FRAME, bomber: BOMBER_OPENING_FRAME };
+const OPENINGS = {
+  pacman: OPENING_FRAME, shooter: SHOOTER_OPENING_FRAME, bomber: BOMBER_OPENING_FRAME,
+  fighter: FIGHTER_OPENING_FRAME, commando: COMMANDO_OPENING_FRAME,
+};
 
 function openingFrame() {
   const game = settings.find((setting) => setting.name === "game");

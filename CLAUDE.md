@@ -1,11 +1,14 @@
 # Working on this repo
 
 A ZMK module for the [snake dongle](https://github.com/joaopedropio/snake-dongle):
-the `pacman_adapter` shield turns the dongle's 240x240 ST7789V into one of three
+the `pacman_adapter` shield turns the dongle's 240x240 ST7789V into one of five
 self-playing games - a Pac-Man in a maze, an Asteroids-shaped Space Shooter with
-a triangle that turns and thrusts freely, or a Bomberman-shaped brick field
-where a bomber blows its way through soft wall and leaves by the door under one
-of them - chosen by the `game` setting - with sound out of a MAX98357A. Everything is drawn straight to the
+a triangle that turns and thrusts freely, a Bomberman-shaped brick field where a
+bomber blows its way through soft wall and leaves by the door under one of them,
+a Street Fighter-shaped ring where two fighters trade punches, sweeps and
+fireballs over three rounds, or a Metal Slug-shaped ridge a trooper runs right
+along for ever, shooting and jumping the holes - chosen by the `game` setting -
+with sound out of a MAX98357A. Everything is drawn straight to the
 panel — there are no LVGL objects and no full frame buffer, only dirty
 rectangles pushed over SPI, so the usual LVGL advice does not apply here.
 
@@ -18,6 +21,8 @@ the change before claiming it works; flashing is the slow path.
 tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim 3000
 tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim shooter 3000
 tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim bomber 3000
+tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim fighter 3000
+tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim commando 3000
 ```
 Any game core and its renderer, blitting into a 240x240 buffer. Every frame
 it checks that nobody is inside a wall (or off the panel) and that the
@@ -118,7 +123,8 @@ boards/shields/pacman_adapter/
     └── game/                panel.c (the shared band and the 5x7 font),
                              pacman_core.c, pacman_render.c, shooter_core.c,
                              shooter_render.c, bomber_core.c, bomber_render.c,
-                             pacman_sfx.c
+                             fighter_core.c, fighter_render.c,
+                             commando_core.c, commando_render.c, pacman_sfx.c
 src/ include/ dts/           the zmk,behavior-dongle-action behaviour
 tools/                       the four host harnesses and three generators
 tools/wasm/                  the renderer built for the browser, by emscripten
@@ -204,6 +210,54 @@ translation unit per pixel is a millisecond of every frame.
   proved the flames stop about once in a hundred bombs. Together those three are
   every time it blew itself up; `deaths: blown up=…` in the soak is the
   instrument, and it should read 0.
+- **The ring is one number and one beat.** `FG_REACTION` is how long an attack
+  has to have been coming before the other one may notice it, and at three - one
+  more than a punch spends winding up - a punch lands on anybody who was not
+  already guarding while a sweep is answerable. At one, both are, both are
+  blocked about half the time, and a round is two fighters trading nothing;
+  `rounds ended: on the clock=` in the soak is the instrument. `FG_POISE` is the
+  other half: without a pause between one attack and the next a fighter swings
+  on every frame it is able to, which means it is never in a state that could
+  put a guard up, which means neither of them ever guards. And whatever a swing
+  is worth has to be taken *with* the swing, before either is applied - reading
+  it back afterwards charges a trade at the price of a punch, because applying
+  the first one has already put the other into a flinch, and it does it to the
+  same fighter every time.
+- **The ring's ring is geometry, not a table.** A punch is a rectangle at
+  `FG_HIGH_Y`, a sweep one at `FG_LOW_Y`, a crouch is a shorter fighter and a
+  jump is a fighter further up; which of the three answers beats which of the
+  three attacks falls out of whether two rectangles overlap. The two
+  `_Static_assert`s in `fighter_core.h` are what hold it: move `FG_HIGH_Y` under
+  `FG_CROUCH_H` and crouching stops working without a line of code changing.
+  `FG_HOP_LEAD` is derived the same way, from `FG_RISE()` rather than by taste.
+- **Nothing in the ridge may be drawn at a world position.** The panel carries a
+  few thousand pixels a frame and a scrolling background is fifty-seven
+  thousand, so `commando_render.c` keeps the outline of each of the 240 columns
+  and repaints only the columns whose outline moved - and only the rows between
+  where it was and where it is. A column under a flat hilltop or over flat
+  ground is free. Grass, a rock on the ground, a rounded hill or a gradient in
+  the sky would each give every column a new look every frame and cost twenty
+  times the lot. Detail belongs to the panel (the sun, the readout) or to a
+  sprite. `CM_SKIN` is how far below the surface a column stops being plain
+  ground, and it is the same number in `draw_column()` and in `span_of()`
+  because being a pixel out there is a run of stale pixels.
+- **The ridge's generator is three rules, applied forward.** A hole is never
+  next to a hole, the ground either side of a hole is the same height, and no
+  two chunks differ by more than one step - so every gap can be jumped and every
+  wall climbed, and the pilot never has to deal with terrain it cannot pass.
+  They are applied in `make_chunk()` as the chunk is made, because a rule about
+  a chunk and its neighbour is trivial when the neighbour is already decided and
+  a recursion when it is not.
+- **Two things in the ridge were bought with lives.** A step down is walked down
+  rather than fallen off: a trooper in the air cannot jump, so a step
+  immediately before a hole meant walking into the hole with no say in it. And
+  an enemy round already in the air is answered by jumping it - the rifle is no
+  use once it has been fired - which `CM_DUCK` and its `_Static_assert` size
+  from the arc. Without the second the run ended every thirteen seconds and
+  always the same way; `deaths: shot=` in the soak is the instrument. The jump
+  itself is proved by winding `body_step()` forward over the ground ahead, which
+  is the same function that then moves the trooper, and it is taken as late as
+  it still lands rather than as early as it can.
 - **There are no waves in the shooter and nothing counts them.** Meteors are
   topped up whenever there is room, weighted by what they cost to draw rather
   than by how many there are, so the frame stays about the same price whatever
@@ -217,29 +271,30 @@ translation unit per pixel is a millisecond of every frame.
   `_Static_assert`s its own widest blit against `PM_BAND_PX`. One buffer is
   safe only because one game runs at a time — never tick two.
 - **The renderers work two opposite ways round.** `pacman_render.c` asks each
-  pixel what is on it; `shooter_render.c` and `bomber_render.c` clear a
-  rectangle and stamp the sprites reaching into it, in a fixed order. Either
+  pixel what is on it; the other four clear a rectangle and stamp the sprites
+  reaching into it, in a fixed order. Either
   way, a rectangle has to be composed from game state alone and never from what
   is already on the panel — that is exactly what `tools/sim`'s repaint check
   compares, and it is what catches a sprite that forgot to say it moved. The
-  brick field adds one rule to that: most of what changes there is the ground,
-  so every cell keeps one number for what it looked like last frame and only
-  the cells whose number moved are repainted. Anything that can change a cell
+  brick field and the ridge add one rule to that: most of what changes in either
+  is the ground, so the brick field keeps one number per cell and the ridge one
+  per screen column for what it looked like last frame, and only the ones whose
+  number moved are repainted. Anything that can change a cell or a column
   without anything moving — a wall coming down, a pickup appearing under it, a
   fuse pulsing, a flame narrowing, the board flashing — has to be in
-  `cell_look()` or that cell goes stale.
+  `cell_look()`, or in the ridge's pair of column arrays, or it goes stale.
 - **Switching games repaints all of them.** `pacman_set_game()` only says
   which one the timer ticks; each renderer remembers what it last put on the
   panel, and the idle ones have had the others drawing over them ever since.
   That is why `repaint_all()` and not `game.redraw`, in `pacman_start()`, the
   palette reload and the periodic full redraw alike. No game is reset, so the
   maze comes back mid-level.
-- **A preset has to have an opinion about all three games.** Theme 0 already
-  makes the dashboard's colours count one at a time; across the three palettes
+- **A preset has to have an opinion about all five games.** Theme 0 already
+  makes the dashboard's colours count one at a time; across the five palettes
   it is the same bargain, and a preset that stopped at the maze would leave a
-  dongle on either of the others looking exactly as it did. `tools/pagetest`
+  dongle on any of the others looking exactly as it did. `tools/pagetest`
   drives the preview from `presetValues(PRESETS[0])` and fails if any of the
-  three comes out blank or draws another's panel.
+  five comes out blank or draws another's panel.
 - **The sound thread runs above ZMK's display thread** (priority 3 against 5).
   Below it, a full repaint starves the amplifier. The game timer and the sound
   thread talk only through atomics.
@@ -247,9 +302,9 @@ translation unit per pixel is a millisecond of every frame.
   same `zmk,behavior-dongle-action`, defined twice.
 - **Every game is silent by design.** Only a keyboard connecting or
   dropping makes a sound. Do not add per-event sounds back; a dongle that chirps
-  at every pellet is a dongle you unplug, and the shooter and the brick field
-  were never given any for the same reason — a bomb going off every two seconds
-  would have been the worst of the three.
+  at every pellet is a dongle you unplug, and the four games after the maze were
+  never given any for the same reason — a bomb going off every two seconds, or a
+  rifle five times a second, would have been the worst of them.
 - **Disconnects are inferred from a peripheral battery level of 0**, because the
   central never sees the split connection event.
 - **Kconfig is a default, not the value.** `configure()` is two calls:

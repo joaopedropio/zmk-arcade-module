@@ -123,10 +123,11 @@ config PACMAN_DEFAULT_GAME
     string "Which game the panel plays"
     default "pacman"
     help
-      "pacman" is the maze, "shooter" is the meteors and "bomber" is the brick
-      field.  All of them are self-playing animations on the same panel and any
-      of them can be chosen later from the shell or the configurator, so this
-      is only what a freshly flashed dongle comes up on.
+      "pacman" is the maze, "shooter" is the meteors, "bomber" is the brick
+      field, "fighter" is the two of them on a stage and "commando" is the run
+      along the ridge.  All of them are self-playing animations on the same
+      panel and any of them can be chosen later from the shell or the
+      configurator, so this is only what a freshly flashed dongle comes up on.
 
 # ------------------------------------------------------------------
 # The maze's colours.
@@ -294,6 +295,113 @@ config PACMAN_PICKUP_COLOR
 config PACMAN_EXIT_COLOR
     string "Colour of the way out (rrggbb)"
     default "ffd400"
+
+# ------------------------------------------------------------------
+# The ring's colours.  The one place on this dongle where telling two
+# of the same shape apart is the whole point, so the two fighters get
+# a body and a trim each rather than a colour and a shade of it - and
+# the stage behind them is deliberately quiet, because everything
+# worth looking at happens in the forty pixels above the floor.
+# ------------------------------------------------------------------
+
+config PACMAN_RING_COLOR
+    string "Colour of the backdrop above the stage (rrggbb)"
+    default "2a1a4a"
+
+config PACMAN_RING_CROWD_COLOR
+    string "Colour of the wall behind the stage (rrggbb)"
+    default "53306b"
+
+config PACMAN_RING_FLOOR_COLOR
+    string "Colour of the stage itself (rrggbb)"
+    default "8a5a2b"
+
+config PACMAN_FIGHTER_0_COLOR
+    string "First fighter's colour (rrggbb)"
+    default "f2f2f2"
+
+config PACMAN_FIGHTER_0_TRIM_COLOR
+    string "Its headband, belt and guard (rrggbb)"
+    default "d42a2a"
+
+config PACMAN_FIGHTER_1_COLOR
+    string "Second fighter's colour (rrggbb)"
+    default "ffcf3f"
+
+config PACMAN_FIGHTER_1_TRIM_COLOR
+    string "Its headband, belt and guard (rrggbb)"
+    default "1e73ff"
+
+config PACMAN_SPARK_COLOR
+    string "Colour of a hit landing, and of the stage flashing (rrggbb)"
+    default "fff4c2"
+
+config PACMAN_FIREBALL_COLOR
+    string "Fireball colour (rrggbb)"
+    default "4fd8ff"
+
+config PACMAN_HEALTH_COLOR
+    string "Colour of what is left of a health bar (rrggbb)"
+    default "ffe000"
+
+config PACMAN_HEALTH_LOST_COLOR
+    string "Colour of what is draining out of one (rrggbb)"
+    default "d03020"
+
+# ------------------------------------------------------------------
+# The ridge's colours.  Split by what can be walked on and what
+# cannot: the ground and its lit top are two settings rather than one
+# and a shade, because on a night raid the lit top is the only thing
+# separating the ridge from the dark it is standing in.
+# ------------------------------------------------------------------
+
+config PACMAN_SKY_COLOR
+    string "Sky colour over the ridge (rrggbb)"
+    default "2c4a72"
+
+config PACMAN_HILL_COLOR
+    string "Colour of the skyline behind it (rrggbb)"
+    default "3f5f4a"
+
+config PACMAN_GROUND_COLOR
+    string "Colour of the ground the trooper runs on (rrggbb)"
+    default "6b5233"
+
+config PACMAN_GROUND_EDGE_COLOR
+    string "Colour of the lit top of it (rrggbb)"
+    default "9e8b52"
+
+config PACMAN_HERO_COLOR
+    string "Trooper colour (rrggbb)"
+    default "d8e0c0"
+
+config PACMAN_HERO_TRIM_COLOR
+    string "Its helmet and rifle (rrggbb)"
+    default "2f6b2f"
+
+config PACMAN_GRUNT_COLOR
+    string "Enemy colour (rrggbb)"
+    default "c44a3a"
+
+config PACMAN_GRUNT_TRIM_COLOR
+    string "Its cap and weapon (rrggbb)"
+    default "2a1a14"
+
+config PACMAN_SHOT_COLOR
+    string "Colour of a round in the air (rrggbb)"
+    default "ffe066"
+
+config PACMAN_GRENADE_COLOR
+    string "Grenade colour (rrggbb)"
+    default "4a4a4a"
+
+config PACMAN_BOOM_COLOR
+    string "Colour of something going off (rrggbb)"
+    default "ff7a1f"
+
+config PACMAN_CRATE_COLOR
+    string "Colour of a crate of grenades (rrggbb)"
+    default "00c8b4"
 
 # ------------------------------------------------------------------
 # Splash screen and dashboard.  The dashboard is a grid of slots; each

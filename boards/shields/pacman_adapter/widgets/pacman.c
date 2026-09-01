@@ -31,6 +31,8 @@
 #include "pacman.h"
 #include "sound.h"
 #include "game/bomber_render.h"
+#include "game/commando_render.h"
+#include "game/fighter_render.h"
 #include "game/pacman_render.h"
 #include "game/shooter_render.h"
 
@@ -40,6 +42,8 @@ static const struct device *display_dev;
 static pm_game game;
 static ss_game shooter;
 static bb_game bomber;
+static fg_game fighter;
+static cm_game commando;
 static uint8_t playing = PACMAN_GAME_PACMAN;
 static bool running;
 static bool paused;
@@ -68,6 +72,8 @@ static void repaint_all(void) {
     game.redraw = true;
     shooter.redraw = true;
     bomber.redraw = true;
+    fighter.redraw = true;
+    commando.redraw = true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -188,6 +194,43 @@ void pacman_reload_palette(void) {
     b.hud = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HUD));
 
     bb_render_set_palette(&b);
+
+    fg_palette f;
+    fg_render_default_palette(&f);
+
+    f.sky = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_RING));
+    f.crowd = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_RING_CROWD));
+    f.floor = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_RING_FLOOR));
+    f.body[0] = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FIGHTER_0));
+    f.trim[0] = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FIGHTER_0_TRIM));
+    f.body[1] = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FIGHTER_1));
+    f.trim[1] = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FIGHTER_1_TRIM));
+    f.spark = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_SPARK));
+    f.fireball = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FIREBALL));
+    f.health = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HEALTH));
+    f.health_lost = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HEALTH_LOST));
+    f.hud = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HUD));
+
+    fg_render_set_palette(&f);
+
+    cm_palette c;
+    cm_render_default_palette(&c);
+
+    c.sky = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_SKY));
+    c.hill = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HILL));
+    c.ground = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_GROUND));
+    c.edge = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_GROUND_EDGE));
+    c.hero = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HERO));
+    c.hero_trim = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HERO_TRIM));
+    c.grunt = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_GRUNT));
+    c.grunt_trim = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_GRUNT_TRIM));
+    c.shot = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_SHOT));
+    c.grenade = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_GRENADE));
+    c.boom = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_BOOM));
+    c.crate = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_CRATE));
+    c.hud = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HUD));
+
+    cm_render_set_palette(&c);
     repaint_all();
 }
 
@@ -197,7 +240,7 @@ void pacman_reload_palette(void) {
  * repaint, because whichever takes the panel next inherits another's pixels.
  */
 void pacman_set_game(uint8_t which) {
-    playing = which <= PACMAN_GAME_BOMBER ? which : PACMAN_GAME_PACMAN;
+    playing = which <= PACMAN_GAME_COMMANDO ? which : PACMAN_GAME_PACMAN;
     repaint_all();
 }
 
@@ -226,6 +269,8 @@ static void apply_wpm(uint8_t wpm) {
     pm_set_speed(&game, speed, speed);
     ss_set_speed(&shooter, speed);
     bb_set_speed(&bomber, speed);
+    fg_set_speed(&fighter, speed);
+    cm_set_speed(&commando, speed);
 #else
     ARG_UNUSED(wpm);
 #endif
@@ -282,6 +327,16 @@ static void pacman_timer_cb(lv_timer_t *timer) {
         bb_render_frame(&bomber);
         return;
     }
+    if (playing == PACMAN_GAME_FIGHTER) {
+        fg_step(&fighter);
+        fg_render_frame(&fighter);
+        return;
+    }
+    if (playing == PACMAN_GAME_COMMANDO) {
+        cm_step(&commando);
+        cm_render_frame(&commando);
+        return;
+    }
     pm_step(&game);
     pm_render_frame(&game);
 }
@@ -303,6 +358,10 @@ void zmk_widget_pacman_init(void) {
     ss_set_speed(&shooter, 4);
     bb_init(&bomber, seed);
     bb_set_speed(&bomber, 4);
+    fg_init(&fighter, seed);
+    fg_set_speed(&fighter, 4);
+    cm_init(&commando, seed);
+    cm_set_speed(&commando, 4);
 
     /* after the inits, which would otherwise clear the repaint they ask for */
     pacman_reload_palette();

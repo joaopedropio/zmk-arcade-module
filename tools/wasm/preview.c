@@ -30,6 +30,10 @@
 #include "battery_status.h"
 #include "bomber_core.h"
 #include "bomber_render.h"
+#include "commando_core.h"
+#include "commando_render.h"
+#include "fighter_core.h"
+#include "fighter_render.h"
 #include "frames.h"
 #include "helpers/display.h"
 #include "helpers/profiles.h"
@@ -54,6 +58,8 @@ static uint16_t fb[PANEL][PANEL];
 static pm_game game;
 static ss_game shooter;
 static bb_game bomber;
+static fg_game fighter;
+static cm_game commando;
 /* which of them the game screen is showing, as the `game` setting says */
 static int playing;
 static uint32_t values[PACMAN_SETTING_COUNT];
@@ -147,9 +153,49 @@ static void reload_game_palette(void) {
     b.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
 
     bb_render_set_palette(&b);
+
+    fg_palette f;
+    fg_render_default_palette(&f);
+
+    f.sky = pm_rgb565(values[PACMAN_SETTING_GAME_RING]);
+    f.crowd = pm_rgb565(values[PACMAN_SETTING_GAME_RING_CROWD]);
+    f.floor = pm_rgb565(values[PACMAN_SETTING_GAME_RING_FLOOR]);
+    f.body[0] = pm_rgb565(values[PACMAN_SETTING_GAME_FIGHTER_0]);
+    f.trim[0] = pm_rgb565(values[PACMAN_SETTING_GAME_FIGHTER_0_TRIM]);
+    f.body[1] = pm_rgb565(values[PACMAN_SETTING_GAME_FIGHTER_1]);
+    f.trim[1] = pm_rgb565(values[PACMAN_SETTING_GAME_FIGHTER_1_TRIM]);
+    f.spark = pm_rgb565(values[PACMAN_SETTING_GAME_SPARK]);
+    f.fireball = pm_rgb565(values[PACMAN_SETTING_GAME_FIREBALL]);
+    f.health = pm_rgb565(values[PACMAN_SETTING_GAME_HEALTH]);
+    f.health_lost = pm_rgb565(values[PACMAN_SETTING_GAME_HEALTH_LOST]);
+    f.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
+
+    fg_render_set_palette(&f);
+
+    cm_palette c;
+    cm_render_default_palette(&c);
+
+    c.sky = pm_rgb565(values[PACMAN_SETTING_GAME_SKY]);
+    c.hill = pm_rgb565(values[PACMAN_SETTING_GAME_HILL]);
+    c.ground = pm_rgb565(values[PACMAN_SETTING_GAME_GROUND]);
+    c.edge = pm_rgb565(values[PACMAN_SETTING_GAME_GROUND_EDGE]);
+    c.hero = pm_rgb565(values[PACMAN_SETTING_GAME_HERO]);
+    c.hero_trim = pm_rgb565(values[PACMAN_SETTING_GAME_HERO_TRIM]);
+    c.grunt = pm_rgb565(values[PACMAN_SETTING_GAME_GRUNT]);
+    c.grunt_trim = pm_rgb565(values[PACMAN_SETTING_GAME_GRUNT_TRIM]);
+    c.shot = pm_rgb565(values[PACMAN_SETTING_GAME_SHOT]);
+    c.grenade = pm_rgb565(values[PACMAN_SETTING_GAME_GRENADE]);
+    c.boom = pm_rgb565(values[PACMAN_SETTING_GAME_BOOM]);
+    c.crate = pm_rgb565(values[PACMAN_SETTING_GAME_CRATE]);
+    c.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
+
+    cm_render_set_palette(&c);
+
     game.redraw = true;
     shooter.redraw = true;
     bomber.redraw = true;
+    fighter.redraw = true;
+    commando.redraw = true;
 }
 
 /*
@@ -177,6 +223,8 @@ static void apply_game(uint32_t v) {
     game.redraw = 1;
     shooter.redraw = 1;
     bomber.redraw = 1;
+    fighter.redraw = 1;
+    commando.redraw = 1;
 }
 
 static void apply_theme_colors(uint32_t v) {
@@ -317,9 +365,15 @@ EMSCRIPTEN_KEEPALIVE void preview_reset(uint32_t seed) {
     ss_set_speed(&shooter, 4);
     bb_init(&bomber, seed ? seed : 1u);
     bb_set_speed(&bomber, 4);
+    fg_init(&fighter, seed ? seed : 1u);
+    fg_set_speed(&fighter, 4);
+    cm_init(&commando, seed ? seed : 1u);
+    cm_set_speed(&commando, 4);
     game.redraw = true;
     shooter.redraw = true;
     bomber.redraw = true;
+    fighter.redraw = true;
+    commando.redraw = true;
 }
 
 /* one tick of whatever the current screen does over time */
@@ -333,6 +387,16 @@ EMSCRIPTEN_KEEPALIVE void preview_step(void) {
         if (playing == PACMAN_GAME_BOMBER) {
             bb_step(&bomber);
             bb_render_frame(&bomber);
+            return;
+        }
+        if (playing == PACMAN_GAME_FIGHTER) {
+            fg_step(&fighter);
+            fg_render_frame(&fighter);
+            return;
+        }
+        if (playing == PACMAN_GAME_COMMANDO) {
+            cm_step(&commando);
+            cm_render_frame(&commando);
             return;
         }
         pm_step(&game);
@@ -359,6 +423,16 @@ EMSCRIPTEN_KEEPALIVE void preview_render(void) {
         if (playing == PACMAN_GAME_BOMBER) {
             bomber.redraw = true;
             bb_render_frame(&bomber);
+            return;
+        }
+        if (playing == PACMAN_GAME_FIGHTER) {
+            fighter.redraw = true;
+            fg_render_frame(&fighter);
+            return;
+        }
+        if (playing == PACMAN_GAME_COMMANDO) {
+            commando.redraw = true;
+            cm_render_frame(&commando);
             return;
         }
         game.redraw = true;
