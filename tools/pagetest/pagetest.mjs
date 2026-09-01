@@ -465,7 +465,7 @@ check(splash.differ && !splash.blank,
  * Which game the panel plays is a setting like any other, and the fixture
  * predates it as well, so the module is driven directly here too.  The colours
  * come out of a preset rather than being written in this file: a preset that
- * stopped at the maze would leave the shooter drawing black on black, and this
+ * stopped at the maze would leave the others drawing black on black, and this
  * is where that shows up rather than on somebody's desk.
  */
 const games = await (async () => {
@@ -487,14 +487,21 @@ const games = await (async () => {
     const b = m._preview_framebuffer() >> 1;
     return { known, frame: Array.from(m.HEAPU16.subarray(b, b + m._preview_panel() ** 2)).join(",") };
   };
-  const maze = await shot(0), shooter = await shot(1);
-  return { known: shooter.known === 1, differ: maze.frame !== shooter.frame,
-           colours: new Set(shooter.frame.split(",")).size };
+  const drawn = [await shot(0), await shot(1), await shot(2)];
+  const names = ["the maze", "the shooter", "the brick field"];
+  return {
+    known: drawn.every((g) => g.known === 1),
+    /* every game draws a different panel, and none of them draws a flat one */
+    same: drawn.map((g, i) => [i, drawn.findIndex((o) => o.frame === g.frame)])
+               .filter(([i, first]) => first !== i)
+               .map(([i, first]) => `${names[i]} drew ${names[first]}`),
+    colours: drawn.map((g) => new Set(g.frame.split(",")).size),
+  };
 })();
-check(games.known, "preview.js knows the game setting");
-check(games.differ && games.colours >= 4,
-      `and the shooter draws its own panel in ${games.colours} colours` +
-      (games.differ ? "" : " (it drew the maze)"));
+check(games.known, "preview.js knows all three games");
+check(games.same.length === 0 && games.colours.every((n) => n >= 4),
+      `and each of them draws its own panel, in ${games.colours.join("/")} colours` +
+      (games.same.length ? ` (${games.same[0]})` : ""));
 
 /*
  * A mode only has so many slots, and it drops them from the top: 2-slot is

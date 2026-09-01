@@ -123,10 +123,10 @@ config PACMAN_DEFAULT_GAME
     string "Which game the panel plays"
     default "pacman"
     help
-      "pacman" is the maze; "shooter" is the meteors.  Both are self-playing
-      animations on the same panel and either can be chosen later from the
-      shell or the configurator, so this is only what a freshly flashed dongle
-      comes up on.
+      "pacman" is the maze, "shooter" is the meteors and "bomber" is the brick
+      field.  All of them are self-playing animations on the same panel and any
+      of them can be chosen later from the shell or the configurator, so this
+      is only what a freshly flashed dongle comes up on.
 
 # ------------------------------------------------------------------
 # The maze's colours.
@@ -234,6 +234,66 @@ config PACMAN_POWERUP_COLOR
 config PACMAN_HUD_COLOR
     string "Score and lives colour (rrggbb)"
     default "ffee00"
+
+# ------------------------------------------------------------------
+# The bomber's colours.  Three families again, and here they are what
+# the board is made of rather than what stands on it: ground, hard
+# wall and soft wall have to be told apart at a glance, because which
+# of the two walls is in the way is the whole of what the bomber is
+# deciding.  The flame is the one thing allowed to shout.
+# ------------------------------------------------------------------
+
+config PACMAN_FLOOR_COLOR
+    string "Colour of ground a bomb has cleared (rrggbb)"
+    default "1c6b2a"
+
+config PACMAN_SOLID_COLOR
+    string "Pillar and border colour (rrggbb)"
+    default "9aa2ad"
+
+config PACMAN_BRICK_COLOR
+    string "Soft wall colour (rrggbb)"
+    default "b5561e"
+
+config PACMAN_BRICK_EDGE_COLOR
+    string "Colour of the joints between its bricks (rrggbb)"
+    default "6e2f10"
+
+config PACMAN_BOMB_COLOR
+    string "Bomb colour (rrggbb)"
+    default "14161c"
+
+config PACMAN_FLAME_COLOR
+    string "Blast colour (rrggbb)"
+    default "ff6a00"
+
+config PACMAN_FLAME_HOT_COLOR
+    string "Colour of the core of a blast, and of a lit fuse (rrggbb)"
+    default "ffe066"
+
+config PACMAN_BOMBER_COLOR
+    string "Bomber colour (rrggbb)"
+    default "f2f2f2"
+
+config PACMAN_BOMBER_TRIM_COLOR
+    string "Colour of its visor, which is the way it is facing (rrggbb)"
+    default "1e73ff"
+
+config PACMAN_FOE_COLOR
+    string "Enemy colour (rrggbb)"
+    default "e23b6d"
+
+config PACMAN_FOE_EYE_COLOR
+    string "Enemy eye colour (rrggbb)"
+    default "ffffff"
+
+config PACMAN_PICKUP_COLOR
+    string "Colour of whatever was under a soft wall (rrggbb)"
+    default "00d2ff"
+
+config PACMAN_EXIT_COLOR
+    string "Colour of the way out (rrggbb)"
+    default "ffd400"
 
 # ------------------------------------------------------------------
 # Splash screen and dashboard.  The dashboard is a grid of slots; each

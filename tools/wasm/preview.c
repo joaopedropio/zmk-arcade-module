@@ -28,6 +28,8 @@
 
 #include "action_button.h"
 #include "battery_status.h"
+#include "bomber_core.h"
+#include "bomber_render.h"
 #include "frames.h"
 #include "helpers/display.h"
 #include "helpers/profiles.h"
@@ -51,7 +53,8 @@
 static uint16_t fb[PANEL][PANEL];
 static pm_game game;
 static ss_game shooter;
-/* which of the two the game screen is showing, as the `game` setting says */
+static bb_game bomber;
+/* which of them the game screen is showing, as the `game` setting says */
 static int playing;
 static uint32_t values[PACMAN_SETTING_COUNT];
 static int screen; /* 0 game, 1 splash, 2 dashboard */
@@ -124,8 +127,29 @@ static void reload_game_palette(void) {
     s.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
 
     ss_render_set_palette(&s);
+
+    bb_palette b;
+    bb_render_default_palette(&b);
+
+    b.floor = pm_rgb565(values[PACMAN_SETTING_GAME_FLOOR]);
+    b.solid = pm_rgb565(values[PACMAN_SETTING_GAME_SOLID]);
+    b.brick = pm_rgb565(values[PACMAN_SETTING_GAME_BRICK]);
+    b.brick_edge = pm_rgb565(values[PACMAN_SETTING_GAME_BRICK_EDGE]);
+    b.bomb = pm_rgb565(values[PACMAN_SETTING_GAME_BOMB]);
+    b.flame = pm_rgb565(values[PACMAN_SETTING_GAME_FLAME]);
+    b.flame_hot = pm_rgb565(values[PACMAN_SETTING_GAME_FLAME_HOT]);
+    b.bomber = pm_rgb565(values[PACMAN_SETTING_GAME_BOMBER]);
+    b.bomber_trim = pm_rgb565(values[PACMAN_SETTING_GAME_BOMBER_TRIM]);
+    b.foe = pm_rgb565(values[PACMAN_SETTING_GAME_FOE]);
+    b.foe_eye = pm_rgb565(values[PACMAN_SETTING_GAME_FOE_EYE]);
+    b.pickup = pm_rgb565(values[PACMAN_SETTING_GAME_PICKUP]);
+    b.door = pm_rgb565(values[PACMAN_SETTING_GAME_EXIT]);
+    b.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
+
+    bb_render_set_palette(&b);
     game.redraw = true;
     shooter.redraw = true;
+    bomber.redraw = true;
 }
 
 /*
@@ -152,6 +176,7 @@ static void apply_game(uint32_t v) {
     playing = (int)v;
     game.redraw = 1;
     shooter.redraw = 1;
+    bomber.redraw = 1;
 }
 
 static void apply_theme_colors(uint32_t v) {
@@ -290,8 +315,11 @@ EMSCRIPTEN_KEEPALIVE void preview_reset(uint32_t seed) {
     pm_set_speed(&game, 4, 4);
     ss_init(&shooter, seed ? seed : 1u);
     ss_set_speed(&shooter, 4);
+    bb_init(&bomber, seed ? seed : 1u);
+    bb_set_speed(&bomber, 4);
     game.redraw = true;
     shooter.redraw = true;
+    bomber.redraw = true;
 }
 
 /* one tick of whatever the current screen does over time */
@@ -300,6 +328,11 @@ EMSCRIPTEN_KEEPALIVE void preview_step(void) {
         if (playing == PACMAN_GAME_SHOOTER) {
             ss_step(&shooter);
             ss_render_frame(&shooter);
+            return;
+        }
+        if (playing == PACMAN_GAME_BOMBER) {
+            bb_step(&bomber);
+            bb_render_frame(&bomber);
             return;
         }
         pm_step(&game);
@@ -321,6 +354,11 @@ EMSCRIPTEN_KEEPALIVE void preview_render(void) {
         if (playing == PACMAN_GAME_SHOOTER) {
             shooter.redraw = true;
             ss_render_frame(&shooter);
+            return;
+        }
+        if (playing == PACMAN_GAME_BOMBER) {
+            bomber.redraw = true;
+            bb_render_frame(&bomber);
             return;
         }
         game.redraw = true;

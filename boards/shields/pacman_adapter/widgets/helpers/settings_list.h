@@ -45,7 +45,7 @@
     X(THEME_BG,              "theme-bg",              COLOR,  0,     0xffffff,                NULL,              apply_theme_colors,          true,  false, CONFIG_PACMAN_THEME_BG_COLOR)   \
     X(THEME_BG_DARKER,       "theme-bg-darker",       COLOR,  0,     0xffffff,                NULL,              apply_theme_colors,          true,  false, CONFIG_PACMAN_THEME_BG_DARKER_COLOR)   \
     X(THEME,                 "theme",                 NUMBER, 0,     0,                       NULL,              apply_theme,                 true,  false, "0")   \
-    X(GAME,                  "game",                  ENUM,   0,     PACMAN_GAME_SHOOTER,     game_labels,       apply_game,                  true,  false, CONFIG_PACMAN_DEFAULT_GAME)   \
+    X(GAME,                  "game",                  ENUM,   0,     PACMAN_GAME_BOMBER,      game_labels,       apply_game,                  true,  false, CONFIG_PACMAN_DEFAULT_GAME)   \
     X(GAME_BG,               "game-bg",               COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_BG_COLOR)   \
     X(GAME_WALL,             "game-wall",             COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_WALL_COLOR)   \
     X(GAME_WALL_FILL,        "game-wall-fill",        COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_WALL_FILL_COLOR)   \
@@ -69,6 +69,19 @@
     X(GAME_METEOR_EDGE,      "game-meteor-edge",      COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_METEOR_EDGE_COLOR)   \
     X(GAME_BLAST,            "game-blast",            COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_BLAST_COLOR)   \
     X(GAME_POWERUP,          "game-powerup",          COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_POWERUP_COLOR)   \
+    X(GAME_FLOOR,              "game-floor",            COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_FLOOR_COLOR)   \
+    X(GAME_SOLID,              "game-solid",            COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_SOLID_COLOR)   \
+    X(GAME_BRICK,              "game-brick",            COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_BRICK_COLOR)   \
+    X(GAME_BRICK_EDGE,         "game-brick-edge",       COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_BRICK_EDGE_COLOR)   \
+    X(GAME_BOMB,               "game-bomb",             COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_BOMB_COLOR)   \
+    X(GAME_FLAME,              "game-flame",            COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_FLAME_COLOR)   \
+    X(GAME_FLAME_HOT,          "game-flame-hot",        COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_FLAME_HOT_COLOR)   \
+    X(GAME_BOMBER,             "game-bomber",           COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_BOMBER_COLOR)   \
+    X(GAME_BOMBER_TRIM,        "game-bomber-trim",      COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_BOMBER_TRIM_COLOR)   \
+    X(GAME_FOE,                "game-foe",              COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_FOE_COLOR)   \
+    X(GAME_FOE_EYE,            "game-foe-eye",          COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_FOE_EYE_COLOR)   \
+    X(GAME_PICKUP,             "game-pickup",           COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_PICKUP_COLOR)   \
+    X(GAME_EXIT,               "game-exit",             COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_EXIT_COLOR)   \
     X(GAME_HUD,              "game-hud",              COLOR,  0,     0xffffff,                NULL,              apply_game_palette,          true,  false,  CONFIG_PACMAN_HUD_COLOR)   \
     X(SPLASH_STYLE,          "splash-style",          ENUM,   0,     SPLASH_STYLE_IMAGE,      splash_style_labels, apply_splash_style,        false, false, CONFIG_PACMAN_SPLASH_STYLE)   \
     X(SPLASH_MULTI_0,        "splash-multi-0",        COLOR,  0,     0xffffff,                NULL,              apply_splash_multi,          false, true,  CONFIG_PACMAN_SPLASH_MULTICOLOR_0)   \

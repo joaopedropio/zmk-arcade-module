@@ -2,8 +2,8 @@
 
 A self-playing arcade cabinet for the
 [snake dongle](https://github.com/joaopedropio/snake-dongle) hardware: a ZMK
-module that turns the dongle's 240x240 ST7789V panel into one of two games.
-Nobody drives either of them.
+module that turns the dongle's 240x240 ST7789V panel into one of three
+games.  Nobody drives any of them.
 
 **Pac-Man** hunts pellets on his own, runs for a power pellet when he is
 cornered and chases the blue ghosts, while the four ghosts use the classic
@@ -17,11 +17,19 @@ meteors into smaller meteors, flies around the ones it cannot break in time,
 and chases the pickups they leave behind. There is nothing to clear: meteors
 keep arriving as fast as they are destroyed.
 
-<img src="docs/demo.gif" width="320" alt="The splash screen, then Pac-Man playing itself on the dongle display"/> <img src="docs/shooter.gif" width="320" alt="The ship turning and thrusting its way through a field of meteors"/>
+**Bomberman** — after
+[the 1983 game of that name](https://en.wikipedia.org/wiki/Bomberman) — walks a
+field of pillars and soft brick, drops bombs that burst in a cross, and gets
+out of the way before they do. It picks where to put each one by what the
+blast would break, proves a way out before it lets go of it, keeps its distance
+from the things wandering the board, and leaves through the door under one of
+the bricks once it has cleared them.
+
+<img src="docs/demo.gif" width="320" alt="The splash screen, then Pac-Man playing itself on the dongle display"/> <img src="docs/shooter.gif" width="320" alt="The ship turning and thrusting its way through a field of meteors"/> <img src="docs/bomber.gif" width="320" alt="The bomber blowing its way through a field of soft brick"/>
 
 Which one plays is the `game` setting, changed from the shell or the
-configurator without reflashing; both are always built, and each keeps its
-place while the other is on the panel.
+configurator without reflashing; all three are always built, and each keeps its
+place while the others are on the panel.
 
 Same idea (and the same hardware definition) as the
 [snake module](https://github.com/joaopedropio/snake-module), just a different game.
@@ -129,10 +137,12 @@ Swap in your own by replacing `tools/splash_art.png` and regenerating:
 python3 tools/splash_image.py > boards/shields/pacman_adapter/widgets/splash_image.h
 ```
 
-**The game** owns the whole panel, and is either the maze or the shooter
-depending on `game`. The shooter puts its score across the top, the lives it
-has left beside it as small ships, and whatever pickup is running along the
-bottom; everything else is playfield.
+**The game** owns the whole panel, and is the maze, the shooter or the brick
+field depending on `game`. The shooter puts its score across the top, the lives
+it has left beside it as small ships, and whatever pickup is running along the
+bottom; the brick field keeps a band across the top for its score, the clock on
+the board and how many bombs and how much reach the bomber has; everything else
+is playfield.
 
 **The dashboard** is a grid of slots: `PACMAN_INFO_SLOT_MODE` picks the layout
 and `PACMAN_INFO_SLOT_1` … `_6` say what goes in each one — `connectivity`,
@@ -183,7 +193,7 @@ ones worth knowing about; the rest colour the dashboard and are listed in
 | `CONFIG_PACMAN_ROTATE_DISPLAY` | `0` | Panel rotation: 0, 90, 180 or 270. Only the rotation you pick is compiled in. |
 | `CONFIG_PACMAN_FRAME_INTERVAL` | `33` | Milliseconds per frame (33 ≈ 30 fps). |
 | `CONFIG_PACMAN_DEFAULT_SCREEN` | `game` | Which screen comes up after the splash. |
-| `CONFIG_PACMAN_DEFAULT_GAME` | `pacman` | Which game the game screen plays: `pacman` or `shooter`. |
+| `CONFIG_PACMAN_DEFAULT_GAME` | `pacman` | Which game the game screen plays: `pacman`, `shooter` or `bomber`. |
 | `CONFIG_PACMAN_SPLASH_STYLE` | `drawn` | Which splash: `drawn` from the wordmark and sprites, or the `image` in `splash_image.h`. |
 | `CONFIG_PACMAN_SOUND` | `y` | Drive the I2S amplifier at all. `n` compiles the whole sound path out. |
 | `CONFIG_PACMAN_SOUND_VOLUME` | `80` | How loud, 0 to 100. 100 is unity; a limiter catches the peaks. |
@@ -514,21 +524,74 @@ the readout is repainted when its words change rather than every frame, since
 anything passing underneath re-stamps it on its way. What carries the motion
 is the ship and the meteors, which is where it belongs.
 
+The brick field is the maze's lattice with the shooter's way of drawing, and
+its own problem on top: the board is what changes. A pillar sits on every
+even/even cell and never moves, everything between them starts as soft brick,
+and each blast takes exactly one cell of any wall it reaches — so the corridors
+open a cell at a time and nothing about the layout can be worked out once and
+kept. Every cell keeps one number saying what it looked like last frame — what
+is in it, whether it is burning and which way the flame runs out of it, how far
+the fuse on top of it has burnt, whether the board is flashing — and the frame
+repaints the cells whose number moved plus the boxes the bomber and the
+enemies are in. A flame is drawn as bars running towards whichever neighbours
+are alight, so an arm ends squarely at the wall that stopped it instead of
+spilling into it.
+
+Nobody is playing it, and what replaces a player is two maps and one question.
+The first map says how many frames each cell has before it is on fire, walked
+out from every live bomb with the chains settled first — a bomb inside another
+bomb's arms goes off with it, so a fuse is not what the bomb was dropped with.
+The second says how soon an enemy could be standing in each cell, walked out
+from all of them at once and deliberately blind to which way any of them is
+facing, because a drifter has not chosen yet and a hunter changes its mind the
+moment it can see down a corridor. Then one breadth-first search of the board,
+timed in frames rather than in steps, prices every cell it can reach by what a
+bomb dropped there would break, less what it costs to walk there, plus what it
+is worth to be somewhere nothing can reach. The cell underfoot is in that list
+like any other, which is what makes "drop one here" and "go somewhere better"
+one comparison instead of two rules that can disagree.
+
+Three things in that were bought with deaths rather than reasoned out. A bomb
+is never dropped without a route out being found first, and the route has to
+end somewhere no bomb on the board reaches rather than somewhere merely quiet —
+but proving the route and then standing still for the frame the drop costs
+spends the only slack the route had, and working it out again from scratch on
+the next frame gives a different answer, because by then every other fuse has
+moved on too. The route is now proved against a clock a cell's walking ahead of
+the real one and the step it found is the step actually taken, and between them
+those two are every time this thing blew itself up. The third is that a chain
+is worked out completely before any of it is applied: a blast stops at a brick,
+so a bomb whose arm is walked after the brick in front of it has already come
+down reaches a cell further than the map said it would, which put the bomber
+one cell beyond where it had proved the flames would stop about once in a
+hundred bombs. Over 200k frames it clears 94 boards, breaks 2795 walls and
+loses a life about every 2400 frames, almost always to something walking into
+it — which is what the enemies are for.
+
 What it costs, per game:
 
-| | Pac-Man | Space Shooter |
-|---|---|---|
-| flash | 7.4 KB | 8.1 KB |
-| RAM | 671 bytes | 932 bytes |
-| SPI traffic | ~3600 pixels/frame ≈ 7 KB/frame, about 210 KB/s at 30 fps | ~4000 pixels/frame ≈ 7.8 KB/frame, about 235 KB/s |
-| LVGL widgets | none — the status screen is an empty `lv_obj` | none |
+| | Pac-Man | Space Shooter | Bomberman |
+|---|---|---|---|
+| flash | 7.4 KB | 8.1 KB | 9.6 KB |
+| RAM | 671 bytes | 932 bytes | 2.5 KB |
+| SPI traffic | ~3600 pixels/frame ≈ 7 KB/frame, about 210 KB/s at 30 fps | ~4000 pixels/frame ≈ 7.8 KB/frame, about 235 KB/s | ~1900 pixels/frame ≈ 3.7 KB/frame, about 110 KB/s |
+| LVGL widgets | none — the status screen is an empty `lv_obj` | none | none |
+
+The brick field is the dearest of the three in memory and the cheapest on the
+wire, and both for the same reason: it is a board rather than a playfield. The
+board, what is hidden under it, what is burning, the two maps the pilot plans
+against and the record of what each cell looked like last frame are all one
+byte or two per cell, which is where the two and a half kilobytes go; and
+because it is a board, most of it is standing still on any given frame, so what
+actually goes down the bus is the dozen cells that changed and the two sprites
+walking over them.
 
 Flash and RAM are the core and the renderer only, built `-Os` for a Cortex-M4;
-the pixels are what the simulator counts over a two-hour soak. On top of both
-sits the 10.3 KB band a rectangle is staged in before it goes down the SPI
-bus, which lives in `game/panel.h` rather than in either renderer: only one
-game is ever running, and a buffer each would be ten kilobytes spent on the
-game nobody is watching. A fifth of what a 20 MHz link carries, either way.
+the pixels are what the simulator counts over a two-hour soak. On top of all
+three sits the 10.3 KB band a rectangle is staged in before it goes down the
+SPI bus, which lives in `game/panel.h` rather than in any one renderer: only
+one game is ever running, and a buffer each would be thirty kilobytes spent on
+the games nobody is watching. A fifth of what a 20 MHz link carries at worst.
 
 ## Sound
 
@@ -552,11 +615,12 @@ Those pins are `i2s0_default` and the `pacman_amp` node in
 differs. `CONFIG_PACMAN_SOUND=n` compiles all of it out, and so does leaving
 the amplifier out of the devicetree.
 
-**Both games are silent.** Munching, dying and clearing the maze all went out
+**Every game is silent.** Munching, dying and clearing the maze all went out
 of the speaker once, and none of it was worth hearing on a loop for hours at a
 desk — a dongle that chirps every time a pellet is eaten is a dongle you
-unplug, and one that fires a laser every third second is worse. The shooter
-was therefore never given any. What is left is the one thing the dongle knows that you cannot see:
+unplug, and one that fires a laser every third second is worse. Neither the
+shooter nor the brick field was therefore given any, and a bomb going off every
+two seconds would have been the worst of the three. What is left is the one thing the dongle knows that you cannot see:
 two soft chime notes rising a fifth when a keyboard half reports in, D5 up to
 A5, and the same two falling when one goes away. Each note takes 110 ms to
 reach level and the second enters while the first is still ringing, so the pair
@@ -605,14 +669,18 @@ repaint) and can dump PPM frames:
 tools/sim/build.sh /tmp/pacman-sim
 /tmp/pacman-sim 3000                          # 100 seconds, invariants only
 /tmp/pacman-sim 640 2 /tmp/frames 40          # frames, every-nth, dir, from, speed
-/tmp/pacman-sim shooter 3000                  # the other game, same arguments
+/tmp/pacman-sim shooter 3000                  # another game, same arguments
+/tmp/pacman-sim bomber 3000                   # and the third
 ```
 
 The game name goes in front and may be left out, in which case it is the maze.
+Balance changes want a longer run: over 200k frames each game prints what it
+did and what killed it, which for the brick field is boards cleared, bricks
+broken and enemies destroyed against a breakdown of how the bomber died.
 
 `docs/demo.gif` is those frames at 15 fps — which is the speed the dongle plays
 it — with the splash held in front for the first two seconds; `docs/shooter.gif`
-is the same for the other game.
+and `docs/bomber.gif` are the same for the other two.
 
 The splash and the dashboard have their own harness, which stubs Zephyr out and
 points the drawing helpers at a plain frame buffer. It shows the layout and the
@@ -660,15 +728,17 @@ boards/shields/pacman_adapter/
     │   ├── fonts.h             six pixel fonts
     │   └── settings.c          the theme and the mute, remembered across reboots
     └── game/
-        ├── panel.h/.c          the panel size and the band both games blit through
+        ├── panel.h/.c          the panel size, the band every game blits through, the 5x7 font
         ├── pacman_core.c       maze, Pac-Man's pathfinding, ghost AI, rounds
         ├── pacman_render.c     sprites, tiles and dirty-rectangle blitting
         ├── shooter_core.c      meteors, pickups, and the ship's own flying and aim
         ├── shooter_render.c    turned hull, meteor shapes, starfield, readout
+        ├── bomber_core.c       board, bombs, chains, enemies, and where to put the next one
+        ├── bomber_render.c     brick and pillar, flame arms, sprites, readout
         ├── pacman_sfx.c        the polyphonic synth
         └── pacman_tunes.h      the tunes (generated, see tools/tunes.py)
 src/, include/, dts/            the zmk,behavior-dongle-action behaviour
-tools/sim/                      host simulator for both games
+tools/sim/                      host simulator for every game
 tools/uisim/                    host preview for the splash and the dashboard
 tools/sfxsim/                   renders the sounds to .wav on the host
 tools/sprites.py                regenerates the splash artwork
@@ -680,7 +750,8 @@ tools/tunes.py                  regenerates the tunes
 
 Hardware definition, dongle action behaviour and the general shape of the
 module come from [snake-module](https://github.com/joaopedropio/snake-module)
-by João Pedro. Pac-Man is © Bandai Namco, and Space Shooter belongs to its own
-authors; both of these are hobby homages running on a keyboard dongle.
+by João Pedro. Pac-Man is © Bandai Namco, Bomberman is © Konami, and Space
+Shooter belongs to its own authors; all three of these are hobby homages
+running on a keyboard dongle.
 
 MIT licensed.

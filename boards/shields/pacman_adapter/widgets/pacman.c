@@ -1,16 +1,16 @@
 /*
- * Pac-Man dongle widget - ZMK/LVGL glue for both games.
+ * Pac-Man dongle widget - ZMK/LVGL glue for the games.
  *
  * The games themselves live in widgets/game/ and know nothing about Zephyr.
- * This file owns the display device, turns the stored colours into their two
+ * This file owns the display device, turns the stored colours into their
  * palettes, ticks whichever one is chosen from an LVGL timer and (optionally)
  * speeds it up while you type.  The colours, the tick and the typing
  * thresholds all come from helpers/settings.h rather than straight from
  * Kconfig, so the shell can change them without a rebuild.
  *
- * Both games are always built and both keep their state, so switching between
- * them is a repaint rather than a restart: come back to the maze and it is
- * where you left it.  What that costs is the two structs; what it saves is
+ * All of them are always built and all of them keep their state, so switching
+ * between them is a repaint rather than a restart: come back to the maze and
+ * it is where you left it.  What that costs is the structs; what it saves is
  * having to decide, at build time, which one somebody will want.
  *
  * SPDX-License-Identifier: MIT
@@ -30,6 +30,7 @@
 #include "helpers/settings.h"
 #include "pacman.h"
 #include "sound.h"
+#include "game/bomber_render.h"
 #include "game/pacman_render.h"
 #include "game/shooter_render.h"
 
@@ -38,6 +39,7 @@ LOG_MODULE_REGISTER(pacman, LOG_LEVEL_INF);
 static const struct device *display_dev;
 static pm_game game;
 static ss_game shooter;
+static bb_game bomber;
 static uint8_t playing = PACMAN_GAME_PACMAN;
 static bool running;
 static bool paused;
@@ -49,7 +51,7 @@ static uint32_t frames;
 
 #if PACMAN_ROTATION == 90 || PACMAN_ROTATION == 180 || PACMAN_ROTATION == 270
 #define PACMAN_ROTATED 1
-/* whatever the widest blit either renderer stages, which is panel.h's band */
+/* whatever the widest blit any renderer stages, which is panel.h's band */
 static uint8_t rot_buf[PM_BAND_PX * 2];
 #endif
 
@@ -58,13 +60,14 @@ static uint8_t rot_buf[PM_BAND_PX * 2];
 #define PACMAN_FULL_REDRAW_FRAMES 1800
 
 /*
- * Both games are told to repaint, never only the one that is running: each
- * renderer remembers what it last put on the panel, and the one that is idle
- * has had the other drawing over it ever since.
+ * Every game is told to repaint, never only the one that is running: each
+ * renderer remembers what it last put on the panel, and the ones that are idle
+ * have had the others drawing over them ever since.
  */
-static void repaint_both(void) {
+static void repaint_all(void) {
     game.redraw = true;
     shooter.redraw = true;
+    bomber.redraw = true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -122,10 +125,10 @@ void pm_blit(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t *pixe
 /* ------------------------------------------------------------------ */
 /* colours                                                             */
 /*
- * Both palettes are rebuilt rather than patched: every colour is one settings
+ * Every palette is rebuilt rather than patched: each colour is one settings
  * entry, and reading all of them back costs less than tracking which one moved
- * - and less than working out which of the two games it belonged to.  Called
- * again whenever the shell changes any of them.
+ * - and less than working out which game it belonged to.  Called again
+ * whenever the shell changes any of them.
  */
 void pacman_reload_palette(void) {
     pm_palette p;
@@ -164,17 +167,38 @@ void pacman_reload_palette(void) {
     s.hud = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HUD));
 
     ss_render_set_palette(&s);
-    repaint_both();
+
+    bb_palette b;
+    bb_render_default_palette(&b);
+
+    b.floor = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FLOOR));
+    b.solid = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_SOLID));
+    b.brick = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_BRICK));
+    b.brick_edge = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_BRICK_EDGE));
+    b.bomb = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_BOMB));
+    b.flame = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FLAME));
+    b.flame_hot = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FLAME_HOT));
+    b.bomber = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_BOMBER));
+    b.bomber_trim = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_BOMBER_TRIM));
+    b.foe = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FOE));
+    b.foe_eye = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FOE_EYE));
+    b.pickup = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_PICKUP));
+    b.door = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_EXIT));
+    /* the readout is the same job on either panel, so it is the same colour */
+    b.hud = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HUD));
+
+    bb_render_set_palette(&b);
+    repaint_all();
 }
 
 /*
- * Switching games only says which one the timer ticks.  Neither is reset - the
- * maze is still mid-level when it comes back - but both are told to repaint,
- * because whichever takes the panel next is inheriting the other one's pixels.
+ * Switching games only says which one the timer ticks.  None of them is reset
+ * - the maze is still mid-level when it comes back - but all are told to
+ * repaint, because whichever takes the panel next inherits another's pixels.
  */
 void pacman_set_game(uint8_t which) {
-    playing = which <= PACMAN_GAME_SHOOTER ? which : PACMAN_GAME_PACMAN;
-    repaint_both();
+    playing = which <= PACMAN_GAME_BOMBER ? which : PACMAN_GAME_PACMAN;
+    repaint_all();
 }
 
 /* ------------------------------------------------------------------ */
@@ -201,6 +225,7 @@ static void apply_wpm(uint8_t wpm) {
     }
     pm_set_speed(&game, speed, speed);
     ss_set_speed(&shooter, speed);
+    bb_set_speed(&bomber, speed);
 #else
     ARG_UNUSED(wpm);
 #endif
@@ -244,12 +269,17 @@ static void pacman_timer_cb(lv_timer_t *timer) {
 
     if (++frames >= PACMAN_FULL_REDRAW_FRAMES) {
         frames = 0;
-        repaint_both();
+        repaint_all();
     }
 
     if (playing == PACMAN_GAME_SHOOTER) {
         ss_step(&shooter);
         ss_render_frame(&shooter);
+        return;
+    }
+    if (playing == PACMAN_GAME_BOMBER) {
+        bb_step(&bomber);
+        bb_render_frame(&bomber);
         return;
     }
     pm_step(&game);
@@ -271,8 +301,10 @@ void zmk_widget_pacman_init(void) {
     pm_set_speed(&game, 4, 4);
     ss_init(&shooter, seed);
     ss_set_speed(&shooter, 4);
+    bb_init(&bomber, seed);
+    bb_set_speed(&bomber, 4);
 
-    /* after the two inits, which would otherwise clear the repaint it asks for */
+    /* after the inits, which would otherwise clear the repaint they ask for */
     pacman_reload_palette();
 
     pacman_wpm_init();
@@ -284,7 +316,7 @@ void zmk_widget_pacman_init(void) {
 void pacman_start(void) {
     running = true;
     paused = false;
-    repaint_both();
+    repaint_all();
 }
 
 void pacman_stop(void) {
@@ -294,7 +326,7 @@ void pacman_stop(void) {
 void pacman_toggle_pause(void) {
     paused = !paused;
     if (!paused) {
-        repaint_both();
+        repaint_all();
     }
 }
 
