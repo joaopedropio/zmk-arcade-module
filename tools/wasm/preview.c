@@ -36,6 +36,8 @@
 #include "logo.h"
 #include "modifier.h"
 #include "output_status.h"
+#include "frogger_core.h"
+#include "frogger_render.h"
 #include "pacman_core.h"
 #include "pacman_render.h"
 #include "pacman.h"
@@ -51,7 +53,8 @@
 static uint16_t fb[PANEL][PANEL];
 static pm_game game;
 static ss_game shooter;
-/* which of the two the game screen is showing, as the `game` setting says */
+static fr_game crossing;
+/* which of them the game screen is showing, as the `game` setting says */
 static int playing;
 static uint32_t values[PACMAN_SETTING_COUNT];
 static int screen; /* 0 game, 1 splash, 2 dashboard */
@@ -124,8 +127,28 @@ static void reload_game_palette(void) {
     s.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
 
     ss_render_set_palette(&s);
+
+    fr_palette f;
+    fr_render_default_palette(&f);
+
+    f.water = pm_rgb565(values[PACMAN_SETTING_GAME_WATER]);
+    f.road = pm_rgb565(values[PACMAN_SETTING_GAME_ROAD]);
+    f.bank = pm_rgb565(values[PACMAN_SETTING_GAME_BANK]);
+    f.hedge = pm_rgb565(values[PACMAN_SETTING_GAME_HEDGE]);
+    f.frog = pm_rgb565(values[PACMAN_SETTING_GAME_FROG]);
+    f.frog_eye = pm_rgb565(values[PACMAN_SETTING_GAME_FROG_EYE]);
+    f.log = pm_rgb565(values[PACMAN_SETTING_GAME_LOG]);
+    f.turtle = pm_rgb565(values[PACMAN_SETTING_GAME_TURTLE]);
+    f.car = pm_rgb565(values[PACMAN_SETTING_GAME_CAR]);
+    f.truck = pm_rgb565(values[PACMAN_SETTING_GAME_TRUCK]);
+    f.splat = pm_rgb565(values[PACMAN_SETTING_GAME_SPLAT]);
+    f.fly = pm_rgb565(values[PACMAN_SETTING_GAME_FLY]);
+    f.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
+
+    fr_render_set_palette(&f);
     game.redraw = true;
     shooter.redraw = true;
+    crossing.redraw = true;
 }
 
 /*
@@ -152,6 +175,7 @@ static void apply_game(uint32_t v) {
     playing = (int)v;
     game.redraw = 1;
     shooter.redraw = 1;
+    crossing.redraw = 1;
 }
 
 static void apply_theme_colors(uint32_t v) {
@@ -290,8 +314,11 @@ EMSCRIPTEN_KEEPALIVE void preview_reset(uint32_t seed) {
     pm_set_speed(&game, 4, 4);
     ss_init(&shooter, seed ? seed : 1u);
     ss_set_speed(&shooter, 4);
+    fr_init(&crossing, seed ? seed : 1u);
+    fr_set_speed(&crossing, 4);
     game.redraw = true;
     shooter.redraw = true;
+    crossing.redraw = true;
 }
 
 /* one tick of whatever the current screen does over time */
@@ -300,6 +327,11 @@ EMSCRIPTEN_KEEPALIVE void preview_step(void) {
         if (playing == PACMAN_GAME_SHOOTER) {
             ss_step(&shooter);
             ss_render_frame(&shooter);
+            return;
+        }
+        if (playing == PACMAN_GAME_FROGGER) {
+            fr_step(&crossing);
+            fr_render_frame(&crossing);
             return;
         }
         pm_step(&game);
@@ -321,6 +353,11 @@ EMSCRIPTEN_KEEPALIVE void preview_render(void) {
         if (playing == PACMAN_GAME_SHOOTER) {
             shooter.redraw = true;
             ss_render_frame(&shooter);
+            return;
+        }
+        if (playing == PACMAN_GAME_FROGGER) {
+            crossing.redraw = true;
+            fr_render_frame(&crossing);
             return;
         }
         game.redraw = true;

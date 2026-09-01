@@ -123,10 +123,10 @@ config PACMAN_DEFAULT_GAME
     string "Which game the panel plays"
     default "pacman"
     help
-      "pacman" is the maze; "shooter" is the meteors.  Both are self-playing
-      animations on the same panel and either can be chosen later from the
-      shell or the configurator, so this is only what a freshly flashed dongle
-      comes up on.
+      "pacman" is the maze, "shooter" is the meteors and "frogger" is the road
+      and the river.  All three are self-playing animations on the same panel
+      and any of them can be chosen later from the shell or the configurator,
+      so this is only what a freshly flashed dongle comes up on.
 
 # ------------------------------------------------------------------
 # The maze's colours.
@@ -234,6 +234,66 @@ config PACMAN_POWERUP_COLOR
 config PACMAN_HUD_COLOR
     string "Score and lives colour (rrggbb)"
     default "ffee00"
+    help
+      Shared with the crossing, which puts the same two things in the same
+      place - so a palette only has to have an opinion about it once.
+
+# ------------------------------------------------------------------
+# The crossing's colours.  Four of them are the board itself and the
+# rest are what moves on it; the board's four are the ones to get
+# right, because water that does not read as water is a game about a
+# frog hopping into a blue rectangle.  Shades between them - ripples,
+# grain, windows, a sinking turtle - are derived from these rather
+# than stored, so there is nothing here that can disagree with itself.
+# ------------------------------------------------------------------
+
+config PACMAN_WATER_COLOR
+    string "River colour (rrggbb)"
+    default "1030a8"
+
+config PACMAN_ROAD_COLOR
+    string "Road colour, and the two readout bands (rrggbb)"
+    default "101014"
+
+config PACMAN_BANK_COLOR
+    string "The two safe strips, and the clock bar (rrggbb)"
+    default "1f7a3a"
+
+config PACMAN_HEDGE_COLOR
+    string "Colour of the hedge the home bays are cut into (rrggbb)"
+    default "0f5a2a"
+
+config PACMAN_FROG_COLOR
+    string "Frog colour (rrggbb)"
+    default "7bf03c"
+
+config PACMAN_FROG_EYE_COLOR
+    string "Frog's eyes (rrggbb)"
+    default "ffffff"
+
+config PACMAN_LOG_COLOR
+    string "Log colour (rrggbb)"
+    default "8a5a2b"
+
+config PACMAN_TURTLE_COLOR
+    string "Turtle colour (rrggbb)"
+    default "f0a020"
+
+config PACMAN_CAR_COLOR
+    string "Car colour; the racing cars are a lighter shade of it (rrggbb)"
+    default "e03c3c"
+
+config PACMAN_TRUCK_COLOR
+    string "Truck colour (rrggbb)"
+    default "d8d8e0"
+
+config PACMAN_SPLAT_COLOR
+    string "Colour of what is left where the frog was (rrggbb)"
+    default "ffffff"
+
+config PACMAN_FLY_COLOR
+    string "Colour of the fly in a home bay (rrggbb)"
+    default "ff40c0"
 
 # ------------------------------------------------------------------
 # Splash screen and dashboard.  The dashboard is a grid of slots; each

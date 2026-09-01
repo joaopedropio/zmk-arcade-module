@@ -2,8 +2,8 @@
 
 A self-playing arcade cabinet for the
 [snake dongle](https://github.com/joaopedropio/snake-dongle) hardware: a ZMK
-module that turns the dongle's 240x240 ST7789V panel into one of two games.
-Nobody drives either of them.
+module that turns the dongle's 240x240 ST7789V panel into one of three games.
+Nobody drives any of them.
 
 **Pac-Man** hunts pellets on his own, runs for a power pellet when he is
 cornered and chases the blue ghosts, while the four ghosts use the classic
@@ -17,11 +17,18 @@ meteors into smaller meteors, flies around the ones it cannot break in time,
 and chases the pickups they leave behind. There is nothing to clear: meteors
 keep arriving as fast as they are destroyed.
 
-<img src="docs/demo.gif" width="320" alt="The splash screen, then Pac-Man playing itself on the dongle display"/> <img src="docs/shooter.gif" width="320" alt="The ship turning and thrusting its way through a field of meteors"/>
+**Crossing** — after
+[Frogger, 1981](https://www.youtube.com/shorts/WbP_oXtiwGA) — hops a frog over
+five lanes of traffic and then over a river it can only cross by riding the
+logs and turtles drifting along it, until all five bays at the top have a frog
+in them. It waits on the banks for a gap, walks along them to a column that
+opens, and steers by choosing which current to be in.
+
+<img src="docs/demo.gif" width="240" alt="The splash screen, then Pac-Man playing itself on the dongle display"/> <img src="docs/shooter.gif" width="240" alt="The ship turning and thrusting its way through a field of meteors"/> <img src="docs/frogger.gif" width="240" alt="The frog crossing the road and riding logs over the river"/>
 
 Which one plays is the `game` setting, changed from the shell or the
-configurator without reflashing; both are always built, and each keeps its
-place while the other is on the panel.
+configurator without reflashing; all of them are always built, and each keeps
+its place while another is on the panel.
 
 Same idea (and the same hardware definition) as the
 [snake module](https://github.com/joaopedropio/snake-module), just a different game.
@@ -129,10 +136,11 @@ Swap in your own by replacing `tools/splash_art.png` and regenerating:
 python3 tools/splash_image.py > boards/shields/pacman_adapter/widgets/splash_image.h
 ```
 
-**The game** owns the whole panel, and is either the maze or the shooter
-depending on `game`. The shooter puts its score across the top, the lives it
-has left beside it as small ships, and whatever pickup is running along the
-bottom; everything else is playfield.
+**The game** owns the whole panel, and is the maze, the shooter or the
+crossing depending on `game`. The shooter puts its score across the top, the
+lives it has left beside it as small ships, and whatever pickup is running
+along the bottom; the crossing does the same with small frogs, and puts the
+clock along the bottom as a bar that shrinks. Everything else is playfield.
 
 **The dashboard** is a grid of slots: `PACMAN_INFO_SLOT_MODE` picks the layout
 and `PACMAN_INFO_SLOT_1` … `_6` say what goes in each one — `connectivity`,
@@ -183,7 +191,7 @@ ones worth knowing about; the rest colour the dashboard and are listed in
 | `CONFIG_PACMAN_ROTATE_DISPLAY` | `0` | Panel rotation: 0, 90, 180 or 270. Only the rotation you pick is compiled in. |
 | `CONFIG_PACMAN_FRAME_INTERVAL` | `33` | Milliseconds per frame (33 ≈ 30 fps). |
 | `CONFIG_PACMAN_DEFAULT_SCREEN` | `game` | Which screen comes up after the splash. |
-| `CONFIG_PACMAN_DEFAULT_GAME` | `pacman` | Which game the game screen plays: `pacman` or `shooter`. |
+| `CONFIG_PACMAN_DEFAULT_GAME` | `pacman` | Which game the game screen plays: `pacman`, `shooter` or `frogger`. |
 | `CONFIG_PACMAN_SPLASH_STYLE` | `drawn` | Which splash: `drawn` from the wordmark and sprites, or the `image` in `splash_image.h`. |
 | `CONFIG_PACMAN_SOUND` | `y` | Drive the I2S amplifier at all. `n` compiles the whole sound path out. |
 | `CONFIG_PACMAN_SOUND_VOLUME` | `80` | How loud, 0 to 100. 100 is unity; a limiter catches the peaks. |
@@ -468,6 +476,29 @@ whatever the mix is. What the score buys is more rock and faster rock, up to a
 ceiling. Over a two-hour soak the ship destroys about 10,700 meteors and runs
 out of lives every 95 seconds or so.
 
+The frog asks one question of five cells — forward, either side, back, and the
+one it is on — and takes the best answer. What makes that work is pricing the
+answers in two currencies. A cell that is death on arrival (the hedge, a full
+bay, open water, the edge of the panel) is struck off outright; everything else
+costs by *when* it goes wrong, at full price for as long as the frog would be
+stuck with it and at less than a single row of progress after that. The
+commitment is the whole hop cycle — the hop in, the pause before it may decide
+again, and the hop out — so a lane that clears in time to leave is a lane worth
+taking, and one that does not is refused however good it looks. Pricing the far
+end of the look-ahead any higher gives a frog that waits on the bank for a
+board with nothing wrong with it anywhere, and dies of the clock.
+
+Two rules do the rest. On a bank — the only rows where waiting is free — a
+column is worth more when the row above it is about to open, which is the only
+reason there is to walk along a bank at all; without it the frog picks a column
+and waits there for the whole board to come to it. And in the river, the lane
+matters more than the row: a frog that climbs out of the current carrying it
+towards the bay it wants arrives at the top on the wrong side of the last one
+and cannot get back, so beyond a cell of travel it will hold a useful current
+and even drop back a lane to catch one. Over a three-hour soak it fills 490
+bays and clears 87 boards, and dies about every 90 seconds — most often to the
+clock, which is what the clock is for.
+
 ## How it is drawn
 
 The maze is 9x9 tiles of 24px on a 240px panel. Walls and corridors are both
@@ -514,21 +545,52 @@ the readout is repainted when its words change rather than every frame, since
 anything passing underneath re-stamps it on its way. What carries the motion
 is the ship and the meteors, which is where it belongs.
 
+The crossing is both at once: a lattice the frog hops on, and a panel where
+everything else is sliding. Thirteen rows of 16px is the arcade's own layout —
+home, five of river, the median, five of road, the bank you start on — and on
+240px it leaves exactly two 16px bands over, which is where the score and the
+clock go. Fifteen columns fall out of the same number and space the five home
+bays three apart. The frog's row is always exact and its column usually is
+not: it lands snapped to a cell everywhere but the river, and in the river it
+lands wherever the log it caught happens to be and then travels with it. That
+one asymmetry is why the frog and the logs are compared in eighths of a pixel
+rather than in pixels — rounded to pixels, a frog and the log under it sit a
+pixel further apart on some frames than on others, and a frog standing on the
+end of a log gets shaken off by the rounding.
+
+Traffic runs on a fixed loop rather than being spawned and forgotten: a lane's
+movers are spread round a track 288px long of which the panel is the middle,
+and the whole lane slides. The gaps never change, so a gap the frog is waiting
+for is a gap that actually arrives. `FR_CELL`, `FR_LOOP` and `FR_SUB` in
+`game/frogger_core.h` set all of that, and the lane table beside them is the
+board — five lanes of each, directions alternating the whole way down, and the
+diving turtles deliberately next to the median so a frog whose raft sinks can
+always hop back onto solid ground.
+
+It is the most expensive of the three to draw, at about twice the maze, and
+for a reason that cannot be optimised away: thirty-odd things move every
+frame, where the maze moves five. What keeps it to twice rather than ten times
+is that the ground is drawn from the row layout and never repainted on its
+own, and that a sprite whose box and appearance both match last frame is not
+repainted at all.
+
 What it costs, per game:
 
-| | Pac-Man | Space Shooter |
-|---|---|---|
-| flash | 7.4 KB | 8.1 KB |
-| RAM | 671 bytes | 932 bytes |
-| SPI traffic | ~3600 pixels/frame ≈ 7 KB/frame, about 210 KB/s at 30 fps | ~4000 pixels/frame ≈ 7.8 KB/frame, about 235 KB/s |
-| LVGL widgets | none — the status screen is an empty `lv_obj` | none |
+| | Pac-Man | Space Shooter | Crossing |
+|---|---|---|---|
+| flash | 7.4 KB | 7.7 KB | 7.2 KB |
+| RAM | 671 bytes | 916 bytes | 998 bytes |
+| SPI traffic | ~3800 pixels/frame ≈ 7.4 KB/frame, about 220 KB/s at 30 fps | ~4000 pixels/frame ≈ 7.8 KB/frame, about 235 KB/s | ~8900 pixels/frame ≈ 17 KB/frame, about 260 KB/s at 15 fps |
+| LVGL widgets | none — the status screen is an empty `lv_obj` | none | none |
 
 Flash and RAM are the core and the renderer only, built `-Os` for a Cortex-M4;
-the pixels are what the simulator counts over a two-hour soak. On top of both
-sits the 10.3 KB band a rectangle is staged in before it goes down the SPI
-bus, which lives in `game/panel.h` rather than in either renderer: only one
-game is ever running, and a buffer each would be ten kilobytes spent on the
-game nobody is watching. A fifth of what a 20 MHz link carries, either way.
+the pixels are what the simulator counts over a long soak. On top of all three
+sits the 10.3 KB band a rectangle is staged in before it goes down the SPI bus,
+and the 5x7 font and stamping calls the two sprite renderers share — both in
+`game/panel.h` rather than in any one renderer, because only one game is ever
+running and a buffer each would be fifteen kilobytes spent on the games nobody
+is watching. Even the dearest of them is an eighth of what a 20 MHz link
+carries.
 
 ## Sound
 
@@ -552,11 +614,11 @@ Those pins are `i2s0_default` and the `pacman_amp` node in
 differs. `CONFIG_PACMAN_SOUND=n` compiles all of it out, and so does leaving
 the amplifier out of the devicetree.
 
-**Both games are silent.** Munching, dying and clearing the maze all went out
+**Every game is silent.** Munching, dying and clearing the maze all went out
 of the speaker once, and none of it was worth hearing on a loop for hours at a
 desk — a dongle that chirps every time a pellet is eaten is a dongle you
 unplug, and one that fires a laser every third second is worse. The shooter
-was therefore never given any. What is left is the one thing the dongle knows that you cannot see:
+and the crossing were therefore never given any. What is left is the one thing the dongle knows that you cannot see:
 two soft chime notes rising a fifth when a keyboard half reports in, D5 up to
 A5, and the same two falling when one goes away. Each note takes 110 ms to
 reach level and the second enters while the first is still ringing, so the pair
@@ -595,24 +657,30 @@ It runs at priority 3, above ZMK's display thread — underneath it, a full
 
 ## Trying it without flashing
 
-Both game cores and both renderers are plain C with no Zephyr or LVGL
-dependencies, so they build and run on a host. The simulator blits into a
-240x240 buffer, checks the invariants every frame (nobody inside a wall,
-nobody off the panel, and the incremental redraw always matching a full
+Every game core and renderer is plain C with no Zephyr or LVGL dependencies,
+so they build and run on a host. The simulator blits into a 240x240 buffer,
+checks the invariants every frame (nobody inside a wall, nobody standing on
+water, nobody off the panel, and the incremental redraw always matching a full
 repaint) and can dump PPM frames:
 
 ```sh
 tools/sim/build.sh /tmp/pacman-sim
 /tmp/pacman-sim 3000                          # 100 seconds, invariants only
 /tmp/pacman-sim 640 2 /tmp/frames 40          # frames, every-nth, dir, from, speed
-/tmp/pacman-sim shooter 3000                  # the other game, same arguments
+/tmp/pacman-sim shooter 3000                  # another game, same arguments
+/tmp/pacman-sim frogger 3000
 ```
 
 The game name goes in front and may be left out, in which case it is the maze.
+Each of them prints what its own balance turns on — mazes cleared against
+deaths, meteors destroyed against restarts, bays filled against what killed the
+frog — so a change to any of them is judged over a long soak rather than over
+ten seconds of watching. Building it with `-DFR_TRACE` makes the crossing name
+every death and where it happened.
 
 `docs/demo.gif` is those frames at 15 fps — which is the speed the dongle plays
 it — with the splash held in front for the first two seconds; `docs/shooter.gif`
-is the same for the other game.
+and `docs/frogger.gif` are the same for the other two.
 
 The splash and the dashboard have their own harness, which stubs Zephyr out and
 points the drawing helpers at a plain frame buffer. It shows the layout and the
@@ -660,15 +728,17 @@ boards/shields/pacman_adapter/
     │   ├── fonts.h             six pixel fonts
     │   └── settings.c          the theme and the mute, remembered across reboots
     └── game/
-        ├── panel.h/.c          the panel size and the band both games blit through
+        ├── panel.h/.c          the panel size, the band every game blits through, the 5x7 font
         ├── pacman_core.c       maze, Pac-Man's pathfinding, ghost AI, rounds
         ├── pacman_render.c     sprites, tiles and dirty-rectangle blitting
         ├── shooter_core.c      meteors, pickups, and the ship's own flying and aim
         ├── shooter_render.c    turned hull, meteor shapes, starfield, readout
+        ├── frogger_core.c      lanes, the river, and the frog's own route across
+        ├── frogger_render.c    the board, logs, turtles, traffic, clock
         ├── pacman_sfx.c        the polyphonic synth
         └── pacman_tunes.h      the tunes (generated, see tools/tunes.py)
 src/, include/, dts/            the zmk,behavior-dongle-action behaviour
-tools/sim/                      host simulator for both games
+tools/sim/                      host simulator for all three games
 tools/uisim/                    host preview for the splash and the dashboard
 tools/sfxsim/                   renders the sounds to .wav on the host
 tools/sprites.py                regenerates the splash artwork
@@ -680,7 +750,8 @@ tools/tunes.py                  regenerates the tunes
 
 Hardware definition, dongle action behaviour and the general shape of the
 module come from [snake-module](https://github.com/joaopedropio/snake-module)
-by João Pedro. Pac-Man is © Bandai Namco, and Space Shooter belongs to its own
-authors; both of these are hobby homages running on a keyboard dongle.
+by João Pedro. Pac-Man is © Bandai Namco, Frogger is © Konami, and Space
+Shooter belongs to its own authors; all three of these are hobby homages
+running on a keyboard dongle.
 
 MIT licensed.

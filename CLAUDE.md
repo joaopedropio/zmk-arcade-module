@@ -1,10 +1,11 @@
 # Working on this repo
 
 A ZMK module for the [snake dongle](https://github.com/joaopedropio/snake-dongle):
-the `pacman_adapter` shield turns the dongle's 240x240 ST7789V into one of two
-self-playing games - a Pac-Man in a maze, or an Asteroids-shaped Space Shooter
-with a triangle that turns and thrusts freely, chosen by the `game` setting -
-with sound out of a MAX98357A. Everything is drawn straight to the
+the `pacman_adapter` shield turns the dongle's 240x240 ST7789V into one of three
+self-playing games - a Pac-Man in a maze, an Asteroids-shaped Space Shooter
+with a triangle that turns and thrusts freely, or a Frogger-shaped crossing
+where a frog hops a road and rides logs over a river, chosen by the `game`
+setting - with sound out of a MAX98357A. Everything is drawn straight to the
 panel — there are no LVGL objects and no full frame buffer, only dirty
 rectangles pushed over SPI, so the usual LVGL advice does not apply here.
 
@@ -16,18 +17,22 @@ the change before claiming it works; flashing is the slow path.
 ```sh
 tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim 3000
 tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim shooter 3000
+tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim frogger 3000
 ```
-Either game core and its renderer, blitting into a 240x240 buffer. Every frame
-it checks that nobody is inside a wall (or off the panel) and that the
-incremental redraw matches a full repaint, and it prints pixels per frame — so
-it catches both game bugs and drawing bugs. The game name goes in front of the
-old argument list and may be left out, in which case it is the maze.
-`/tmp/pacman-sim 640 2 /tmp/frames 40` dumps PPMs instead.
+Any game core and its renderer, blitting into a 240x240 buffer. Every frame it
+checks that nobody is inside a wall, standing on water or off the panel, and
+that the incremental redraw matches a full repaint, and it prints pixels per
+frame — so it catches both game bugs and drawing bugs. The game name goes in
+front of the old argument list and may be left out, in which case it is the
+maze. `/tmp/pacman-sim 640 2 /tmp/frames 40` dumps PPMs instead.
 Balance changes want a soak: 200k frames prints clears against deaths for the
-maze, and meteors destroyed against restarts for the shooter.
+maze, meteors destroyed against restarts for the shooter, and bays filled
+against a breakdown of what killed the frog for the crossing. Building it with
+`-DFR_TRACE` adds a line per death saying where and why, which is the only way
+to tell a pilot bug from a board that is simply hard.
 `docs/demo.gif` is those frames at 15 fps, which is the speed the dongle plays
 it, with the splash held in front for the first two seconds; `docs/shooter.gif`
-is the same for the other game, without a splash:
+and `docs/frogger.gif` are the same for the other two, without a splash:
 
 ```sh
 ffmpeg -framerate 15 -i /tmp/frames/frame_%05d.ppm -vf palettegen=max_colors=64 /tmp/pal.png
@@ -111,9 +116,10 @@ boards/shields/pacman_adapter/
     ├── helpers/display.c    the drawing engine: bitmaps, text, rects, slots
     ├── helpers/settings.c   flash-backed settings; settings_list.h is the list
     ├── helpers/profiles.c   named sets of all of them, one flash key apiece
-    └── game/                panel.c (the shared band), pacman_core.c,
-                             pacman_render.c, shooter_core.c, shooter_render.c,
-                             pacman_sfx.c
+    └── game/                panel.c (the shared band and the 5x7 font),
+                             pacman_core.c, pacman_render.c, shooter_core.c,
+                             shooter_render.c, frogger_core.c,
+                             frogger_render.c, pacman_sfx.c
 src/ include/ dts/           the zmk,behavior-dongle-action behaviour
 tools/                       the four host harnesses and three generators
 tools/wasm/                  the renderer built for the browser, by emscripten
@@ -123,9 +129,12 @@ docs/configurator/           the WebSerial settings page, served by GitHub Pages
 `widgets/game/*.c` is strictly portable C — no Zephyr, no LVGL, no libc beyond
 string and math. Keep it that way; the simulators are what it buys. The UI files
 may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
-Neither game may include the other's headers: what they share - the panel size,
-the staging band, `pm_blit()` and `pm_rgb565()` - is in `game/panel.h`, and
-anything else they turn out to have in common belongs there too.
+No game may include another's headers: what they share - the panel size, the
+staging band, `pm_blit()`, `pm_rgb565()`, the rectangle being painted and the
+5x7 font that writes on it - is in `game/panel.h`, and anything else they turn
+out to have in common belongs there too. `pm_put()` is inlined in that header
+on purpose: it is the inner loop of the whole shield, and a call across a
+translation unit per pixel is a millisecond of every frame.
 
 ## Things that bite
 
@@ -146,9 +155,13 @@ anything else they turn out to have in common belongs there too.
   `PM_BORDER_GAP`/`PM_SPRITE` in `pacman_render.h`; `SS_SUB`, the angle units,
   `SS_NOSE`/`SS_REAR`/`SS_NOTCH`/`SS_HULL_R`/`SS_FLAME_R` and `SS_ROCKS` in
   `shooter_core.h`, `SS_HUD_*`/`SS_BANNER_*`/`SS_SHIELD_R` in
-  `shooter_render.h`. Read those comments before changing a number. A `_Static_assert` catches the corner-overlap case;
-  `PM_MARGIN` and `PM_MARGIN_END` differ on an odd leftover, so anything
-  painting the margin has to use the right one.
+  `shooter_render.h`; `FR_CELL`/`FR_ROWS`/`FR_LOOP`/`FR_RUNOFF`/`FR_SUB`/
+  `FR_SPRITE_H`/`FR_FROG_W` and the lane table in `frogger_core.h`,
+  `FR_CLOCK_*`/`FR_TURT_A`/`FR_TURT_B` in `frogger_render.h`. Read those
+  comments before changing a number. A `_Static_assert` catches the
+  corner-overlap case, the board not filling the panel, and a turtle wider than
+  its lane; `PM_MARGIN` and `PM_MARGIN_END` differ on an odd leftover, so
+  anything painting the margin has to use the right one.
 - **What a maze edit has to hold** is three things: no 2x2 all wall, no 2x2 all
   corridor, no dead ends. The odd lattice (even/even always corridor, odd/odd
   always wall, the rest links) gives all three for free, and most of the maze is
@@ -165,42 +178,78 @@ anything else they turn out to have in common belongs there too.
   velocity of the two, never the meteor's alone, or the ship coasts into rocks
   that were drifting away. `tools/sim`'s soak is how any of this is judged -
   restarts per 200k frames, not how it looks over ten seconds.
+- **The crossing's frog and the log under it are compared in eighths, never
+  in pixels.** Both advance by the same number of eighths a frame, so their
+  relative position is exact - but `x / 8` for each of them is not, and the
+  pixel difference wobbles by one from frame to frame. Rounding first is a frog
+  standing on the end of a log that gets shaken off by the arithmetic, and it
+  reads as a drowning nobody can explain. `float_at()` takes eighths, and the
+  pilot judges the cell it will actually land on (`f->x + dcol * FR_CELL *
+  FR_SUB`) rather than a rounded version of it.
+- **The frog's pilot prices danger in two currencies, and the gap between them
+  is the behaviour.** A cell that is death on arrival costs `FR_FATAL` and is
+  never taken; everything else costs by when it goes wrong, full price while
+  the frog is still committed to the cell and less than one row of progress
+  after that. `FR_COMMIT` is what that commitment is - the hop in, the pause
+  before it may decide again, and the hop out - and `FR_HOLD` is the shorter
+  one for staying put, which is why waiting is the cheap option. Making the
+  far end of the look-ahead expensive gives a frog that waits on the bank for a
+  board with nothing wrong with it anywhere and dies of the clock; making the
+  near end cheap gives one that lands in front of cars. Both were measured, not
+  guessed - `deaths: run over=… no time=…` in the soak is the instrument.
+- **The two rules that got the frog across** are that a bank cell is worth
+  more when the row above it is about to open (`FR_OPENS`, and it is a bonus
+  for the good columns rather than a penalty on the bad ones, or the frog steps
+  back off the bank rather than wait), and that in the river the lane outranks
+  the row (`FR_STEER`) - a frog that climbs out of the current carrying it
+  towards the bay it wants ends up at the top of the river on the wrong side of
+  the last bay with no way back. Neither may apply while the frog is standing
+  on a bank looking at where to go: nothing moves under it there, so any term
+  that can make waiting beat setting off makes it wait for ever.
+
 - **There are no waves in the shooter and nothing counts them.** Meteors are
   topped up whenever there is room, weighted by what they cost to draw rather
   than by how many there are, so the frame stays about the same price whatever
   the mix is. Adding a wave counter back would mean a number nobody watching a
   dongle can act on, which is the same reason the action button stopped
   stepping through themes.
-- **The two games share one staging band and nothing else.** `game/panel.h`
-  holds `PM_PANEL`, `pm_band[]`, `pm_blit()` and `pm_rgb565()`, and each
-  renderer `_Static_assert`s its own widest blit against `PM_BAND_PX`. One
-  buffer is safe only because one game runs at a time — never tick both.
-- **The two renderers work opposite ways round.** `pacman_render.c` asks each
-  pixel what is on it; `shooter_render.c` clears a rectangle and stamps the
-  sprites reaching into it, in a fixed order. Either way, a rectangle has to be
-  composed from game state alone and never from what is already on the panel —
-  that is exactly what `tools/sim`'s repaint check compares, and it is what
-  catches a sprite that forgot to say it moved.
-- **Switching games repaints both of them.** `pacman_set_game()` only says
+- **The games share one staging band and one font, and nothing else.**
+  `game/panel.h` holds `PM_PANEL`, `pm_band[]`, `pm_blit()`, `pm_rgb565()`, the
+  band being painted (`pm_band_begin()`, `pm_put()`, `pm_fill()`) and the 5x7
+  font (`pm_text()`, `pm_text_w()`, `pm_digits()`), and each renderer
+  `_Static_assert`s its own widest blit against `PM_BAND_PX`. One buffer is
+  safe only because one game runs at a time — never tick two.
+- **The renderers work two opposite ways round.** `pacman_render.c` asks each
+  pixel what is on it; `shooter_render.c` and `frogger_render.c` clear a
+  rectangle and stamp the sprites reaching into it, in a fixed order. Either
+  way, a rectangle has to be composed from game state alone and never from what
+  is already on the panel — that is exactly what `tools/sim`'s repaint check
+  compares, and it is what catches a sprite that forgot to say it moved. The
+  crossing adds one rule to that: a sprite whose box *and* look are both what
+  they were last frame is skipped entirely, so anything that can change without
+  moving (a turtle going under, a bay filling, the level flash) has to be in
+  the `look` byte or it will not be redrawn.
+- **Switching games repaints all of them.** `pacman_set_game()` only says
   which one the timer ticks; each renderer remembers what it last put on the
-  panel, and the idle one has had the other drawing over it ever since. That is
-  why `repaint_both()` and not `game.redraw`, in `pacman_start()`, the palette
-  reload and the periodic full redraw alike. Neither game is reset, so the maze
-  comes back mid-level.
-- **A preset has to have an opinion about both games.** Theme 0 already makes
-  the dashboard's colours count one at a time; across the two palettes it is
-  the same bargain, and a preset that stopped at the maze would leave a dongle
-  on the shooter looking exactly as it did. `tools/pagetest` drives the preview
-  from `presetValues(PRESETS[0])` and fails if the shooter comes out blank.
+  panel, and the idle ones have had the others drawing over them ever since.
+  That is why `repaint_all()` and not `game.redraw`, in `pacman_start()`, the
+  palette reload and the periodic full redraw alike. No game is reset, so the
+  maze comes back mid-level.
+- **A preset has to have an opinion about all three games.** Theme 0 already
+  makes the dashboard's colours count one at a time; across the three palettes
+  it is the same bargain, and a preset that stopped at the maze would leave a
+  dongle on either of the others looking exactly as it did. `tools/pagetest`
+  drives the preview from `presetValues(PRESETS[0])` and fails if any of the
+  three comes out blank or draws another's panel.
 - **The sound thread runs above ZMK's display thread** (priority 3 against 5).
   Below it, a full repaint starves the amplifier. The game timer and the sound
   thread talk only through atomics.
 - **Do not build `pacman_adapter` alongside `snake_adapter`** — same hardware,
   same `zmk,behavior-dongle-action`, defined twice.
-- **Both games are silent by design.** Only a keyboard connecting or
+- **Every game is silent by design.** Only a keyboard connecting or
   dropping makes a sound. Do not add per-event sounds back; a dongle that chirps
-  at every pellet is a dongle you unplug, and the shooter was never given any
-  for the same reason.
+  at every pellet is a dongle you unplug, and the shooter and the crossing were
+  never given any for the same reason.
 - **Disconnects are inferred from a peripheral battery level of 0**, because the
   central never sees the split connection event.
 - **Kconfig is a default, not the value.** `configure()` is two calls:
