@@ -6,15 +6,20 @@
  * animation can be checked (and eyeballed) without flashing anything.
  *
  *   tools/sim/build.sh /tmp/pacman-sim
- *   /tmp/pacman-sim [pacman|shooter|bomber|fighter|commando] <frames> \
+ *   /tmp/pacman-sim [pacman|shooter|bomber|fighter|commando|frogger] <frames> \
  *                   <every-nth-frame> <out-dir> \
  *                   [first-frame] [speed 1-5]
+ *
+ * Building it with -DFR_TRACE makes the crossing print a line for every death
+ * saying what killed the frog and where, which is what any change to its pilot
+ * has to be judged on: the counts alone cannot tell a frog that misjudged a
+ * lane from one that ran out of clock waiting for a lane it liked.
  *
  * The game name may be left out, and then it is the maze - so the command in
  * CLAUDE.md still means what it did.  Every game is checked the same way:
  * every frame the incremental redraw is compared against a full repaint, and
- * whatever else is true of that game (nobody inside a wall, nobody off the
- * panel) is checked alongside it.
+ * whatever else is true of that game (nobody inside a wall, nobody standing on
+ * water, nobody off the panel) is checked alongside it.
  *
  * SPDX-License-Identifier: MIT
  */
@@ -28,6 +33,7 @@
 #include "../../boards/shields/pacman_adapter/widgets/game/bomber_render.h"
 #include "../../boards/shields/pacman_adapter/widgets/game/fighter_render.h"
 #include "../../boards/shields/pacman_adapter/widgets/game/commando_render.h"
+#include "../../boards/shields/pacman_adapter/widgets/game/frogger_render.h"
 
 static uint16_t fb[PM_PANEL][PM_PANEL];
 static long blit_calls;
@@ -182,6 +188,160 @@ static void check_ss(const ss_game *g, int frame) {
             exit(1);
         }
     }
+}
+
+/* the crossing's version of the same two checks */
+static int check_incremental_fr(fr_game *g, int frame) {
+    memcpy(shadow, fb, sizeof(fb));
+    long calls = blit_calls, px = blit_pixels;
+    g->redraw = true;
+    fr_render_frame(g);
+    blit_calls = calls;
+    blit_pixels = px;
+
+    int diff = 0;
+    for (int y = 0; y < PM_PANEL; y++) {
+        for (int x = 0; x < PM_PANEL; x++) {
+            if (shadow[y][x] != fb[y][x]) {
+                if (!diff) {
+                    printf("FRAME %d: stale pixel at %d,%d (%04x != %04x)\n", frame, x, y,
+                           shadow[y][x], fb[y][x]);
+                }
+                diff++;
+            }
+        }
+    }
+    return diff;
+}
+
+static void check_fr(const fr_game *g, int frame) {
+    int fx = FR_PX(g->frog.x), fy = FR_PX(g->frog.y);
+
+    /* where a dead frog is lying is the splat's business, not the board's */
+    if (g->phase != FR_PLAY) {
+        return;
+    }
+    if (fx - FR_FROG_W / 2 < 0 || fx + FR_FROG_W / 2 >= PM_PANEL || fy < FR_TOP ||
+        fy >= FR_FOOT) {
+        printf("FRAME %d: the frog left the board at %d,%d\n", frame, fx, fy);
+        exit(1);
+    }
+    if (g->frog.row > FR_ROW_START) {
+        printf("FRAME %d: the frog is on row %u\n", frame, g->frog.row);
+        exit(1);
+    }
+    /* the frog is drawn on the row it says it is on, give or take a hop */
+    int want = FR_ROW_Y(g->frog.row) + FR_CELL / 2;
+    if (fy < want - FR_CELL || fy > want + FR_CELL) {
+        printf("FRAME %d: the frog is at y %d but says row %u\n", frame, fy, g->frog.row);
+        exit(1);
+    }
+    for (int r = 0; r < FR_ROWS; r++) {
+        const fr_lane *l = &g->lanes[r];
+        for (int i = 0; i < l->count; i++) {
+            int x = fr_mover_x(g, l, i, 0);
+            if (x < -FR_RUNOFF || x > PM_PANEL) {
+                printf("FRAME %d: lane %d mover %d is adrift at %d\n", frame, r, i, x);
+                exit(1);
+            }
+        }
+    }
+
+    /* and the crossing's version of "nobody is inside a wall": a frog that has
+     * landed in the river is on something, or the core should have drowned it */
+    if (g->phase != FR_PLAY || g->frog.hop > 0 || g->frog.row < FR_ROW_RIVER ||
+        g->frog.row >= FR_ROW_MEDIAN) {
+        return;
+    }
+    const fr_lane *l = &g->lanes[g->frog.row];
+    for (int i = 0; i < l->count; i++) {
+        int x = fr_mover_x(g, l, i, 0);
+        if (fx >= x && fx < x + l->span[i] && fr_turtle_sunk(g, l, i, 0) < FR_DIVE_WARN) {
+            return;
+        }
+    }
+    printf("FRAME %d: the frog is standing on water at %d, row %u\n", frame, fx, g->frog.row);
+    exit(1);
+}
+
+static int run_frogger(int frames, int every, const char *dir, int from, int speed) {
+    fr_game g;
+    fr_init(&g, 12345);
+    fr_set_speed(&g, (uint8_t)speed);
+
+    int deaths = 0, homes = 0, levels = 0, overs = 0, stale = 0, out = 0;
+    int why[8] = {0};
+    static const char *const WHY[] = {"-",    "run over", "drowned", "sunk",
+                                      "edge", "hedge",    "no time"};
+    fr_phase phase = g.phase;
+    uint32_t top = 0;
+    long airborne = 0;
+    long dwell[FR_ROWS] = {0};
+
+    for (int f = 0; f < frames; f++) {
+        fr_step(&g);
+        fr_render_frame(&g);
+        check_fr(&g, f);
+
+        if (g.score > top) {
+            top = g.score;
+        }
+        airborne += g.frog.hop > 0 ? 1 : 0;
+        if (g.phase == FR_PLAY) {
+            dwell[g.frog.row]++;
+        }
+        if (g.phase != phase) {
+            if (g.phase == FR_DYING) {
+                deaths++;
+                why[g.why & 7]++;
+#ifdef FR_TRACE
+                printf("  f%-6d died %s on row %u at x=%d, think=%u, clock=%u\n", f,
+                       WHY[g.why & 7], g.frog.row, FR_PX(g.frog.x), g.think, g.clock);
+#endif
+            }
+            if (g.phase == FR_HOMED) {
+                homes++;
+            }
+            if (g.phase == FR_LEVEL) {
+                homes++;
+                levels++;
+                printf("  f%-6d level %u done with %u\n", f, g.level, (unsigned)g.score);
+            }
+            if (g.phase == FR_OVER) {
+                overs++;
+                printf("  f%-6d game over with %u\n", f, (unsigned)top);
+            }
+            phase = g.phase;
+        }
+
+        if ((f % 37) == 0) {
+            stale += check_incremental_fr(&g, f);
+        }
+        if (every > 0 && dir && f >= from && (f % every) == 0) {
+            write_ppm(dir, out++);
+        }
+    }
+
+    printf("frames=%d score=%u best=%u level=%u lives=%u homes=%d levels=%d deaths=%d "
+           "restarts=%d\n",
+           frames, (unsigned)g.score, (unsigned)top, g.level, g.lives, homes, levels, deaths,
+           overs);
+    printf("deaths:");
+    for (int i = 1; i <= 6; i++) {
+        printf(" %s=%d", WHY[i], why[i]);
+    }
+    printf(", %.0f%% of frames mid-hop, stale pixels: %d\n", 100.0 * airborne / frames, stale);
+    printf("frames spent on each row, home first:");
+    for (int r = 0; r < FR_ROWS; r++) {
+        printf(" %ld", dwell[r]);
+    }
+    printf("\n");
+    printf("blits=%ld pixels=%ld (%.1f px/frame, %.1f blits/frame)\n", blit_calls, blit_pixels,
+           (double)blit_pixels / frames, (double)blit_calls / frames);
+    if (out) {
+        printf("wrote %d frames to %s\n", out, dir);
+    }
+    return 0;
 }
 
 static int run_shooter(int frames, int every, const char *dir, int from, int speed) {
@@ -633,7 +793,7 @@ int main(int argc, char **argv) {
     /* an optional game name in front, so the old command line still works */
     if (argc > 1 && (strcmp(argv[1], "shooter") == 0 || strcmp(argv[1], "pacman") == 0 ||
                      strcmp(argv[1], "bomber") == 0 || strcmp(argv[1], "fighter") == 0 ||
-                     strcmp(argv[1], "commando") == 0)) {
+                     strcmp(argv[1], "commando") == 0 || strcmp(argv[1], "frogger") == 0)) {
         game = argv[1];
         argv++;
         argc--;
@@ -656,6 +816,9 @@ int main(int argc, char **argv) {
     }
     if (strcmp(game, "commando") == 0) {
         return run_commando(frames, every, dir, from, speed);
+    }
+    if (strcmp(game, "frogger") == 0) {
+        return run_frogger(frames, every, dir, from, speed);
     }
 
     pm_game g;

@@ -29,8 +29,9 @@ static const char *const slot_labels[] = {"connectivity", "layer",   "theme", "w
                                           "modifiers",    "battery", "empty", NULL};
 static const char *const rotate_labels[] = {"0", "90", "180", "270", NULL};
 static const char *const splash_style_labels[] = {"drawn", "image", NULL};
-static const char *const game_labels[] = {"pacman",  "shooter",  "bomber",
-                                         "fighter", "commando", NULL};
+static const char *const game_labels[] = {"pacman",   "shooter",  "bomber",
+                                         "fighter",  "commando", "frogger",
+                                         NULL};
 
 /* the labels are indexes into display.h's enums, so they have to end together */
 _Static_assert(ARRAY_SIZE(screen_labels) == STATUS_SCREEN + 2, "screen labels out of step");
@@ -40,7 +41,7 @@ _Static_assert(ARRAY_SIZE(rotate_labels) == DISPLAY_ORIENTATION_270 + 2,
                "rotation labels out of step");
 _Static_assert(ARRAY_SIZE(splash_style_labels) == SPLASH_STYLE_IMAGE + 2,
                "splash style labels out of step");
-_Static_assert(ARRAY_SIZE(game_labels) == PACMAN_GAME_COMMANDO + 2, "game labels out of step");
+_Static_assert(ARRAY_SIZE(game_labels) == PACMAN_GAME_FROGGER + 2, "game labels out of step");
 
 static uint32_t values[PACMAN_SETTING_COUNT];
 

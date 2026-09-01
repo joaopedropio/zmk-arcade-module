@@ -34,6 +34,7 @@
 #include "game/commando_render.h"
 #include "game/fighter_render.h"
 #include "game/pacman_render.h"
+#include "game/frogger_render.h"
 #include "game/shooter_render.h"
 
 LOG_MODULE_REGISTER(pacman, LOG_LEVEL_INF);
@@ -44,6 +45,7 @@ static ss_game shooter;
 static bb_game bomber;
 static fg_game fighter;
 static cm_game commando;
+static fr_game crossing;
 static uint8_t playing = PACMAN_GAME_PACMAN;
 static bool running;
 static bool paused;
@@ -74,6 +76,7 @@ static void repaint_all(void) {
     bomber.redraw = true;
     fighter.redraw = true;
     commando.redraw = true;
+    crossing.redraw = true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -231,6 +234,26 @@ void pacman_reload_palette(void) {
     c.hud = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HUD));
 
     cm_render_set_palette(&c);
+
+    fr_palette r;
+    fr_render_default_palette(&r);
+
+    r.water = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_WATER));
+    r.road = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_ROAD));
+    r.bank = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_BANK));
+    r.hedge = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HEDGE));
+    r.frog = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FROG));
+    r.frog_eye = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FROG_EYE));
+    r.log = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_LOG));
+    r.turtle = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_TURTLE));
+    r.car = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_CAR));
+    r.truck = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_TRUCK));
+    r.splat = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_SPLAT));
+    r.fly = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FLY));
+    /* the readout is the same job on either panel, so it is the same colour */
+    r.hud = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HUD));
+
+    fr_render_set_palette(&r);
     repaint_all();
 }
 
@@ -240,7 +263,7 @@ void pacman_reload_palette(void) {
  * repaint, because whichever takes the panel next inherits another's pixels.
  */
 void pacman_set_game(uint8_t which) {
-    playing = which <= PACMAN_GAME_COMMANDO ? which : PACMAN_GAME_PACMAN;
+    playing = which <= PACMAN_GAME_FROGGER ? which : PACMAN_GAME_PACMAN;
     repaint_all();
 }
 
@@ -271,6 +294,7 @@ static void apply_wpm(uint8_t wpm) {
     bb_set_speed(&bomber, speed);
     fg_set_speed(&fighter, speed);
     cm_set_speed(&commando, speed);
+    fr_set_speed(&crossing, speed);
 #else
     ARG_UNUSED(wpm);
 #endif
@@ -337,6 +361,11 @@ static void pacman_timer_cb(lv_timer_t *timer) {
         cm_render_frame(&commando);
         return;
     }
+    if (playing == PACMAN_GAME_FROGGER) {
+        fr_step(&crossing);
+        fr_render_frame(&crossing);
+        return;
+    }
     pm_step(&game);
     pm_render_frame(&game);
 }
@@ -362,6 +391,8 @@ void zmk_widget_pacman_init(void) {
     fg_set_speed(&fighter, 4);
     cm_init(&commando, seed);
     cm_set_speed(&commando, 4);
+    fr_init(&crossing, seed);
+    fr_set_speed(&crossing, 4);
 
     /* after the inits, which would otherwise clear the repaint they ask for */
     pacman_reload_palette();

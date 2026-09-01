@@ -55,6 +55,8 @@ emcc -O2 -std=c11 -Wall \
     "$widgets/game/fighter_render.c" \
     "$widgets/game/commando_core.c" \
     "$widgets/game/commando_render.c" \
+    "$widgets/game/frogger_core.c" \
+    "$widgets/game/frogger_render.c" \
     "$widgets/helpers/display.c" \
     "$widgets/splash.c" \
     "$widgets/logo.c" \

@@ -20,6 +20,7 @@ typedef enum {
     PACMAN_GAME_BOMBER,
     PACMAN_GAME_FIGHTER,
     PACMAN_GAME_COMMANDO,
+    PACMAN_GAME_FROGGER,
 } PacmanGame;
 
 /* called once from the custom status screen */
