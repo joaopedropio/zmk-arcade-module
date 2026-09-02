@@ -51,6 +51,45 @@ _Static_assert(2 * (FG_BAR_X + FG_BAR_W) + 26 <= PM_PANEL,
 _Static_assert(FG_HORIZON < FG_FLOOR - FG_BODY_H, "the wall would cut a head in half");
 
 /*
+ * A fighter's legs, and the one that goes out.  A limb drawn as a bar of even
+ * thickness leaving the middle of the body is an arm wherever it is put, which
+ * is exactly what the sweep used to be: an arm growing out of a shin.  Three
+ * things make it a leg instead - it is hinged at the hip rather than the
+ * waist, it is thick at the thigh and thin at the ankle, and it bends at a
+ * knee part of the way along - and the boot on the end is drawn in the trim
+ * colour, because the foot is the part the eye has to find.
+ */
+#define FG_LEG_H(hgt) ((hgt) / 3)
+
+#define FG_HIP_DROP 2  /* below the top of the legs, where the kick hinges */
+#define FG_THIGH_H  9
+#define FG_SHIN_H   6
+#define FG_KNEE_AT  45 /* per cent of the drawn leg the bend sits at */
+#define FG_BOOT_W   7
+#define FG_BOOT_H   8
+
+/*
+ * The one place in this game where the picture and the hit are deliberately
+ * not the same number.  FG_KICK_REACH is forty because that is the spacing the
+ * sweep is balanced at; a leg drawn out forty pixels is longer than the
+ * fighter is tall, and reads as an arm however it is shaded.  So the leg is
+ * drawn to a leg's length and the hit stays where it was.
+ *
+ * What makes that honest rather than a lie is where the two of them stand.
+ * The pilot kicks from a gap of eighteen to forty-five pixels and usually
+ * thirty, and half of the other fighter's twenty-pixel body is inside that -
+ * so a boot twenty-two pixels out lands on him at the range these two
+ * actually fight at, and falls a few pixels short only at the far end of the
+ * sweep's range.
+ */
+#define FG_KICK_DRAW 22
+
+_Static_assert(FG_LEG_H(FG_BODY_H) - FG_HIP_DROP + FG_THIGH_H / 2 <= FG_LOW_Y + FG_LOW_H,
+               "the thigh would be drawn above what a sweep hits");
+_Static_assert(FG_BOOT_H / 2 + 1 <= FG_LOW_H / 2, "the boot would hang below it");
+_Static_assert(FG_KICK_DRAW <= FG_KICK_REACH, "the leg would be drawn past what it hits");
+
+/*
  * Two fighters, the stage they are on and the four colours the readout needs.
  * The two bodies are separate settings rather than one and a shade of it: a
  * fight is the one thing on this dongle where telling two of the same shape
