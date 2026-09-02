@@ -1,17 +1,17 @@
 /*
  * Pac-Man dongle - what the games agree on about the panel.
  *
- * The maze, the shooter, the brick field, the ring, the ridge and the crossing
- * are separate games with separate cores, but they share one square screen and
- * one way of reaching it: the size of that screen, the buffer a rectangle is
- * staged in on its way out, and the call that pushes it.  Those live here
- * rather than in any one game's header, so no game has to include another's to
- * know how big the panel is.
+ * The maze, the shooter, the brick field, the ring, the ridge, the crossing,
+ * the girders and the well are separate games with separate cores, but they
+ * share one square screen and one way of reaching it: the size of that screen,
+ * the buffer a rectangle is staged in on its way out, and the call that pushes
+ * it.  Those live here rather than in any one game's header, so no game has to
+ * include another's to know how big the panel is.
  *
- * Five of the six stamp sprites into a rectangle instead of asking each pixel
- * what is on it, and all five have a readout to write, so the rectangle being
- * painted and the letters that go in it are here as well.  The maze fills its
- * band its own way and uses none of that.
+ * Seven of the eight stamp their contents into a rectangle instead of asking
+ * each pixel what is on it, and all seven have a readout to write, so the
+ * rectangle being painted and the letters that go in it are here as well.  The
+ * maze fills its band its own way and uses none of that.
  *
  * Portable C, like everything else under game/.
  *

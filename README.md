@@ -2,7 +2,7 @@
 
 A self-playing arcade cabinet for the
 [snake dongle](https://github.com/joaopedropio/snake-dongle) hardware: a ZMK
-module that turns the dongle's 240x240 ST7789V panel into one of six
+module that turns the dongle's 240x240 ST7789V panel into one of eight
 games.  Nobody drives any of them.
 
 **Pac-Man** hunts pellets on his own, runs for a power pellet when he is
@@ -51,11 +51,30 @@ logs and turtles drifting along it, until all five bays at the top have a frog
 in them. It waits on the banks for a gap, walks along them to a column that
 opens, and steers by choosing which current to be in.
 
+**Donkey Kong** — after
+[the 1981 game of that name](https://en.wikipedia.org/wiki/Donkey_Kong_(1981_video_game))
+— climbs six sloping girders to the top while barrels roll down them, jumping
+what it cannot walk away from and taking a hammer to what it cannot jump. The
+barrels take the ladders down as often as they run to the end of a girder, so
+the way up is never the same twice; the climber prices every move it could make
+against every barrel it can see and takes whichever one is worth most, which is
+why it will stand still under a hammer rather than walk into a gap that closes.
+
+**Tempest** — after
+[the 1980 game of that name](https://en.wikipedia.org/wiki/Tempest_(video_game))
+— slides a claw round the rim of a well drawn in perspective, shooting down the
+lanes at what climbs up them: flippers that tumble across the spokes, tankers
+that break into two when shot, spikers that leave a spike up their lane, and
+pulsars that make theirs lethal every few seconds. Five wells, three closed and
+two open at both ends. When the well is clear the claw dives down it, and what
+the spikers built is in the way.
+
 <img src="docs/demo.gif" width="240" alt="The splash screen, then Pac-Man playing itself on the dongle display"/> <img src="docs/shooter.gif" width="240" alt="The ship turning and thrusting its way through a field of meteors"/> <img src="docs/bomber.gif" width="240" alt="The bomber blowing its way through a field of soft brick"/>
 <img src="docs/fighter.gif" width="240" alt="Two fighters trading punches, sweeps and fireballs on a stage"/> <img src="docs/commando.gif" width="240" alt="A trooper running right along a ridge, shooting and jumping holes"/> <img src="docs/frogger.gif" width="240" alt="The frog crossing the road and riding logs over the river"/>
+<img src="docs/kong.gif" width="240" alt="A climber going up six girders while barrels roll down them"/> <img src="docs/tempest.gif" width="240" alt="A claw sliding round the rim of a well, shooting down its lanes"/>
 
 Which one plays is the `game` setting, changed from the shell or the
-configurator without reflashing; all six are always built, and each keeps its
+configurator without reflashing; all eight are always built, and each keeps its
 place while the others are on the panel.
 
 Same idea (and the same hardware definition) as the
@@ -726,17 +745,87 @@ is that the ground is drawn from the row layout and never repainted on its
 own, and that a sprite whose box and appearance both match last frame is not
 repainted at all.
 
+The girders are the one board here that is drawn once and then left alone. Six
+of them slope alternately across the panel, twelve ladders join them, and the
+ape, the lady, the two hammers and the drum are all where the layout says they
+are and never anywhere else — so a frame is a dozen barrels, a climber and
+nothing at all besides. About eight hundred pixels, a quarter of what the maze
+sends, and the only things in it that change without moving are the ape winding
+up, a hammer being taken and the flame over the drum, each of which is a byte in
+the box that says what it looked like last frame.
+
+The climber prices every move it could make — stand, walk either way, jump, jump
+either way, up a ladder, down one — against every barrel it can see over the next
+thirty-four frames, and takes whichever comes out worth most. Value is height
+gained less the walk to the next ladder; cost is death, at full price while it is
+still committed to the move and tailing off after that, which is the crossing's
+bargain applied to a climb. What made it work rather than merely run was the
+frame the barrels are compared at. The order within a frame is barrels move,
+climber decides, climber moves, then they are tested against each other — so the
+pose the climber will be in at frame `t` has to be checked against the barrel
+that has taken `t - 1` steps, not `t`. Getting that one subtraction right took
+deaths from fourteen per sixty thousand frames to five, and it is the only change
+that mattered as much as the geometry.
+
+Two things about the barrels were bought the same way. A barrel decides whether
+to take a ladder fourteen pixels before it reaches one, and that decision is
+visible to the climber — without it, a barrel appearing at the foot of the ladder
+he was already on was a death nothing could have avoided. And the jump hangs:
+the arc is a written-down table that stays at its top for five frames rather than
+a parabola that touches it for one, because a parabola cleared a barrel for a
+frame and a half and made every jump a coin toss. Over 200k frames the climber
+reaches the top 241 times, takes a hammer 425 times, smashes 313 barrels and
+loses a life about every 800 frames, almost always run over.
+
+The well has no world laid out in pixels at all. Everything in it — the claw, the
+enemies, the shots, the spikes — is a lane and a depth, and where that lands on
+the panel is one division: a point at depth `d` is drawn at `Z / (Z + D - d)` of
+its rim offset, which is what makes equal steps of depth crowd together towards
+the bottom the way a real tube does. A linear scale instead is the one change
+that stops it looking like a tunnel. The five wells are sixteen rim points each
+and a vanishing point, and the vanishing point is per shape rather than the
+middle of the panel — a closed well surrounds its own centre and vanishes into
+itself, but a flat strip does not, and shrinking one towards the middle of the
+screen leaves a band across the bottom third with nothing above it.
+
+It is the only game here drawn entirely in lines, which turns the usual bargain
+round. A sprite is cheap to stamp and expensive to clear; the sixteen spokes and
+two rims cross every rectangle on the panel, so the expensive half of a small
+repaint is putting the well back behind whatever moved. Each line is clipped to
+the rectangle along its own longer axis rather than being drawn in full and
+thrown away a pixel at a time, which is the difference between a thirty pixel
+rectangle costing thirty pixels of spoke and a hundred and twenty. And a box
+around a thing is not enough to say whether it moved: a flipper is a trapezoid
+cut out of the well, and its far edge can slide a pixel down the tube while the
+box around it does not move at all, because the corner that moved was not the one
+the box was measured from. So each thing carries a checksum of the lane, the
+depths and the state it was drawn from instead of a description of how it looked.
+
+The claw is deciding one thing — which lane to be over — and everything else
+falls out of it, because a shot only ever goes down the lane it is already on.
+Every lane gets one number, and the number turns on a single comparison: whether
+a shot fired from there would reach a climbing enemy before that enemy reaches
+the rim. If it would, the lane is worth being in and the thing in it is a target;
+if it would not, the lane is death and the claw leaves. The other half is that
+the claw is a lane wide and slides rather than jumping, so it is standing in
+every lane between where it is and where it is going for a couple of frames each
+— including the one it is leaving. Pricing only the destination put nearly every
+death down to a pulsar the claw had stepped sideways into; pricing the whole slide
+cut those by more than half. Over 200k frames it clears 361 wells, destroys 9514
+of them, spends the superzapper 32 times and loses a life about every 1700
+frames.
+
 What it costs, per game:
 
-| | Pac-Man | Space Shooter | Bomberman | Street Fighter | Metal Slug | Crossing |
-|---|---|---|---|---|---|---|
-| flash | 7.4 KB | 8.1 KB | 9.6 KB | 7.4 KB | 6.9 KB | 7.3 KB |
-| RAM | 671 bytes | 932 bytes | 2.5 KB | 299 bytes | 1.0 KB | 990 bytes |
-| SPI traffic, pixels/frame | ~3600 | ~4000 | ~1900 | ~1950 | ~1780 | ~8900 |
-| and on the wire at 30 fps | ~210 KB/s | ~235 KB/s | ~110 KB/s | ~115 KB/s | ~105 KB/s | ~535 KB/s |
-| LVGL widgets | none — the status screen is an empty `lv_obj` | none | none | none | none | none |
+| | Pac-Man | Space Shooter | Bomberman | Street Fighter | Metal Slug | Crossing | Donkey Kong | Tempest |
+|---|---|---|---|---|---|---|---|---|
+| flash | 7.4 KB | 8.1 KB | 9.6 KB | 7.4 KB | 6.9 KB | 7.3 KB | 8.2 KB | 8.9 KB |
+| RAM | 671 bytes | 932 bytes | 2.5 KB | 299 bytes | 1.0 KB | 990 bytes | 374 bytes | 754 bytes |
+| SPI traffic, pixels/frame | ~3600 | ~4000 | ~1900 | ~1950 | ~1780 | ~8900 | ~820 | ~1630 |
+| and on the wire at 30 fps | ~210 KB/s | ~235 KB/s | ~110 KB/s | ~115 KB/s | ~105 KB/s | ~535 KB/s | ~50 KB/s | ~95 KB/s |
+| LVGL widgets | none — the status screen is an empty `lv_obj` | none | none | none | none | none | none | none |
 
-The brick field is the dearest of the six in memory and among the cheapest on
+The brick field is the dearest of the eight in memory and among the cheapest on
 the wire, and both for the same reason: it is a board rather than a playfield.
 The board, what is hidden under it, what is burning, the two maps the pilot
 plans against and the record of what each cell looked like last frame are all
@@ -745,15 +834,24 @@ because it is a board, most of it is standing still on any given frame, so what
 actually goes down the bus is the dozen cells that changed and the two sprites
 walking over them.
 
-The ring is the cheapest of the lot at both, and the ridge is the surprise. A
-fight is two sprites on a stage that never moves, so there is almost nothing to
-send; a scrolling world ought to be the whole panel every frame, and would be
-fifty-seven thousand pixels if it were painted as a picture that slides. It is
-painted as two hundred and forty columns instead, each of which remembers the
+The ring is the cheapest of the eight in memory and the girders are the cheapest
+on the wire, and the ridge is still the surprise. A fight is two sprites on a
+stage that never moves, so there is almost nothing to send; a scrolling world
+ought to be the whole panel every frame, and would be fifty-seven thousand
+pixels if it were painted as a picture that slides. It is painted as two hundred
+and forty columns instead, each of which remembers the
 outline it had last frame, and a column under a flat hilltop or over a flat
 stretch of ground looks exactly the same after the scroll as before it. The
 kilobyte is the ridge itself - a ring of chunk heights three screens long,
 generated ahead of the camera and thrown away behind it.
+
+The girders and the well are the two cheapest, and they get there from opposite
+directions: the site is almost entirely still, so hardly any of it is ever
+repainted, while the well is repainted constantly and costs nothing when it is,
+because a tube drawn in lines is a few hundred pixels wherever you cut it. The
+well is also the smallest board of the eight to hold - sixteen rim points and a
+vanishing point per shape, and everything else in it worked out from a lane and a
+depth.
 
 The crossing is the dearest to draw and cannot be made otherwise: thirty-odd
 things move on it every frame, where the maze moves five. What keeps that to
@@ -763,7 +861,7 @@ appearance both match last frame is not repainted at all.
 
 Flash and RAM are the core and the renderer only, built `-Os` for a Cortex-M4;
 the pixels are what the simulator counts over a two-hour soak. On top of all
-six sits the 10.3 KB band a rectangle is staged in before it goes down the
+eight sits the 10.3 KB band a rectangle is staged in before it goes down the
 SPI bus, which lives in `game/panel.h` rather than in any one renderer: only
 one game is ever running, and a buffer each would be sixty kilobytes spent on
 the games nobody is watching. Even the dearest of them is a fifth of what a
@@ -927,6 +1025,10 @@ boards/shields/pacman_adapter/
         ├── commando_render.c   the scrolling world as columns, sprites, readout
         ├── frogger_core.c      lanes, the river, and the frog's own route across
         ├── frogger_render.c    the board, logs, turtles, traffic, clock
+        ├── kong_core.c         girders, ladders, barrels, and the climber's own route up
+        ├── kong_render.c       the site, the sprites, the bonus bar
+        ├── tempest_core.c      the five wells, what climbs them, and the claw's own aim
+        ├── tempest_render.c    the tube in perspective, drawn in lines
         ├── pacman_sfx.c        the polyphonic synth
         └── pacman_tunes.h      the tunes (generated, see tools/tunes.py)
 src/, include/, dts/            the zmk,behavior-dongle-action behaviour

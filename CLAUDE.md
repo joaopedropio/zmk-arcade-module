@@ -1,15 +1,17 @@
 # Working on this repo
 
 A ZMK module for the [snake dongle](https://github.com/joaopedropio/snake-dongle):
-the `pacman_adapter` shield turns the dongle's 240x240 ST7789V into one of six
+the `pacman_adapter` shield turns the dongle's 240x240 ST7789V into one of eight
 self-playing games - a Pac-Man in a maze, an Asteroids-shaped Space Shooter with
 a triangle that turns and thrusts freely, a Bomberman-shaped brick field where a
 bomber blows its way through soft wall and leaves by the door under one of them,
 a Street Fighter-shaped ring where two fighters trade punches, sweeps and
 fireballs over three rounds, a Metal Slug-shaped ridge a trooper runs right
-along for ever, or a Frogger-shaped crossing where a frog hops a road and rides
-logs over a river - chosen by the `game` setting - with sound out of a
-MAX98357A. Everything is drawn straight to the
+along for ever, a Frogger-shaped crossing where a frog hops a road and rides
+logs over a river, a Donkey Kong-shaped site a climber goes up six sloping
+girders on while barrels roll down them, or a Tempest-shaped well a claw slides
+round the rim of shooting down its lanes - chosen by the `game` setting - with
+sound out of a MAX98357A. Everything is drawn straight to the
 panel — there are no LVGL objects and no full frame buffer, only dirty
 rectangles pushed over SPI, so the usual LVGL advice does not apply here.
 
@@ -25,6 +27,8 @@ tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim bomber 3000
 tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim fighter 3000
 tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim commando 3000
 tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim frogger 3000
+tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim kong 3000
+tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim tempest 3000
 ```
 Any game core and its renderer, blitting into a 240x240 buffer. Every frame it
 checks that nobody is inside a wall, standing on water or off the panel, and
@@ -37,14 +41,18 @@ maze, meteors destroyed against restarts for the shooter, boards cleared, walls
 broken and enemies destroyed against a breakdown of what killed the bomber for
 the brick field, rounds and matches against whether they went to a knockout or
 to the clock for the ring, ground covered and the longest run against what took
-each life for the ridge, and bays filled against a breakdown of what killed the
-frog for the crossing. Building it with `-DFR_TRACE` adds a line per death in
-the crossing saying where and why, which is the only way to tell a pilot bug
+each life for the ridge, bays filled against a breakdown of what killed the
+frog for the crossing, girders climbed and hammers taken against what ran the
+climber over for the site, and wells cleared and enemies destroyed against a
+breakdown of what killed the claw for the well. Building it with `-DFR_TRACE`,
+`-DDK_TRACE` or `-DTP_TRACE` adds a line per death in the crossing, on the site
+or in the well saying where and why, which is the only way to tell a pilot bug
 from a board that is simply hard.
 `docs/demo.gif` is those frames at 15 fps, which is the speed the dongle plays
 it, with the splash held in front for the first two seconds; `docs/shooter.gif`,
-`docs/bomber.gif`, `docs/fighter.gif`, `docs/commando.gif` and
-`docs/frogger.gif` are the same for the other five, without a splash:
+`docs/bomber.gif`, `docs/fighter.gif`, `docs/commando.gif`,
+`docs/frogger.gif`, `docs/kong.gif` and `docs/tempest.gif` are the same for the
+other seven, without a splash:
 
 ```sh
 ffmpeg -framerate 15 -i /tmp/frames/frame_%05d.ppm -vf palettegen=max_colors=64 /tmp/pal.png
@@ -133,7 +141,9 @@ boards/shields/pacman_adapter/
                              shooter_render.c, bomber_core.c, bomber_render.c,
                              fighter_core.c, fighter_render.c,
                              commando_core.c, commando_render.c,
-                             frogger_core.c, frogger_render.c, pacman_sfx.c
+                             frogger_core.c, frogger_render.c,
+                             kong_core.c, kong_render.c,
+                             tempest_core.c, tempest_render.c, pacman_sfx.c
 src/ include/ dts/           the zmk,behavior-dongle-action behaviour
 tools/                       the four host harnesses and three generators
 tools/wasm/                  the renderer built for the browser, by emscripten
@@ -174,7 +184,13 @@ translation unit per pixel is a millisecond of every frame.
   `BB_TALLY_*`/`BB_BANNER_*` in `bomber_render.h`; `FR_CELL`/`FR_ROWS`/
   `FR_LOOP`/`FR_RUNOFF`/`FR_SUB`/`FR_SPRITE_H`/`FR_FROG_W` and the lane table
   in `frogger_core.h`, `FR_CLOCK_*`/`FR_TURT_A`/`FR_TURT_B` in
-  `frogger_render.h`. Read those comments before changing a number. A
+  `frogger_render.h`; `DK_SUB`/`DK_TOP`/`DK_FLOORS`/`DK_BASE`/`DK_RISE`/
+  `DK_DROP`, `DK_LADDER[]`, `DK_HAMMER[]`, `DK_TELL` and the jump's `DK_ARC[]`
+  in `kong_core.h`, `DK_HUD_*`/`DK_CLOCK_*`/`DK_BANNER_*` in `kong_render.h`;
+  `TP_SEGS`/`TP_DEPTH`/`TP_Z0`/`TP_SUB`/`TP_GRAB`/`TP_LAND`/`TP_CLAW_D`/
+  `TP_SPIKE_MAX` and the `TP_SHAPE[]` table in `tempest_core.h`, `TP_BODY` and
+  `TP_HUD_*`/`TP_BANNER_*` in `tempest_render.h`. Read those comments before
+  changing a number. A
   `_Static_assert` catches the corner-overlap case, the board not filling the
   panel, and a turtle wider than its lane; `PM_MARGIN` and `PM_MARGIN_END`
   differ on an odd leftover, so anything painting the margin has to use the
@@ -299,6 +315,47 @@ translation unit per pixel is a millisecond of every frame.
   the last bay with no way back. Neither may apply while the frog is standing
   on a bank looking at where to go: nothing moves under it there, so any term
   that can make waiting beat setting off makes it wait for ever.
+- **The climber and the barrels are compared one frame apart, and that is not a
+  bug.** The order inside a frame is: barrels step, the climber decides, the
+  climber steps, then the two are tested against each other - so the pose the
+  climber will be in at `t` has to be priced against the barrel that has taken
+  `t - 1` steps. `plan_cost()` passes `t - 1` to `barrel_at()` for exactly that
+  reason. Getting it wrong is not a crash and not a stale pixel; it is a pilot
+  that walks into things it thought it had cleared, and it took deaths from
+  fourteen per sixty thousand frames to five. Two smaller ones were bought the
+  same way: a barrel commits to a ladder `DK_TELL` pixels before it (so the
+  decision is visible to the pilot rather than sprung on it), and the jump is
+  the written-down `DK_ARC[]` rather than a parabola, because a parabola clears
+  a barrel for a frame and a half and makes every jump a coin toss.
+- **The well has no world in pixels; it has `tp_at()`.** Everything in it is a
+  lane and a depth, and where that lands on the panel is one division -
+  `TP_Z0 / (TP_Z0 + TP_DEPTH - d)` of the rim offset. A linear scale instead is
+  the one change that stops it looking like a tunnel. The vanishing point is per
+  shape rather than the middle of the panel, which is what makes the two open
+  wells work: a closed one surrounds its own centre and vanishes into itself, a
+  strip does not, and shrinking one towards the middle of the screen leaves a
+  band across the bottom third with nothing above it.
+- **The well's dirty rectangles need a checksum, not a look byte.** Everything
+  else here is a sprite, so a box plus a byte saying what it looked like is
+  enough. A flipper is a trapezoid cut out of the well: its far edge can slide a
+  pixel down the tube while the box around it does not move at all, because the
+  corner that moved was not the one the box was measured from. So `tp_box.look`
+  is a hash of the lane, the depths and the state the shape was drawn from, and
+  `span_box()` samples every spoke between a span's two ends - a claw sitting
+  across a spoke bulges past the line between them by however sharp that corner
+  is. Both were found by the repaint check and neither is visible any other way.
+- **The claw is priced along its whole slide, not at its destination.** It is a
+  lane wide and it slides rather than jumping, so it is standing in every lane
+  between where it is and where it is going - including the one it is leaving.
+  `path_kills()` is that; without it nearly every death in the soak was a pulsar
+  the claw had stepped sideways into while its destination was perfectly safe.
+  The other half of the pilot is one comparison in `lane_score()`: whether a
+  shot fired from a lane reaches a climbing enemy before that enemy reaches the
+  rim. If it would, the lane is where to be and the thing in it is a target; if
+  it would not, the lane is death. Both halves count frames the same way -
+  `travel_to()` returns a frame index rather than a count of moves, because the
+  claw has already slid once by the time frame zero is over, and counting moves
+  instead puts every danger a frame later than it arrives.
 - **There are no waves in the shooter and nothing counts them.** Meteors are
   topped up whenever there is room, weighted by what they cost to draw rather
   than by how many there are, so the frame stays about the same price whatever
@@ -320,24 +377,26 @@ translation unit per pixel is a millisecond of every frame.
   of them add a rule to that. Most of what changes in the brick field and on the
   ridge is the ground, so the brick field keeps one number per cell and the
   ridge one per screen column for what it looked like last frame, and only the
-  ones whose number moved are repainted; and the crossing skips any sprite whose
-  box *and* look are both what they were. So anything that can change without
-  moving — a wall coming down, a pickup appearing under it, a fuse pulsing, a
-  flame narrowing, the board flashing, a turtle going under, a bay filling —
-  has to be in `cell_look()`, in the ridge's pair of column arrays, or in the
-  crossing's `look` byte, or it goes stale.
+  ones whose number moved are repainted; and the crossing, the site and the well
+  skip any sprite whose box *and* look are both what they were. So anything that
+  can change without moving — a wall coming down, a pickup appearing under it, a
+  fuse pulsing, a flame narrowing, the board flashing, a turtle going under, a
+  bay filling, the ape winding up, a hammer being taken, a spike growing, a
+  pulsar's lane lighting up — has to be in `cell_look()`, in the ridge's pair of
+  column arrays, or in the `look` of the crossing, the site or the well, or it
+  goes stale.
 - **Switching games repaints all of them.** `pacman_set_game()` only says
   which one the timer ticks; each renderer remembers what it last put on the
   panel, and the idle ones have had the others drawing over them ever since.
   That is why `repaint_all()` and not `game.redraw`, in `pacman_start()`, the
   palette reload and the periodic full redraw alike. No game is reset, so the
   maze comes back mid-level.
-- **A preset has to have an opinion about all six games.** Theme 0 already
-  makes the dashboard's colours count one at a time; across the six palettes
+- **A preset has to have an opinion about all eight games.** Theme 0 already
+  makes the dashboard's colours count one at a time; across the eight palettes
   it is the same bargain, and a preset that stopped at the maze would leave a
   dongle on any of the others looking exactly as it did. `tools/pagetest`
   drives the preview from `presetValues(PRESETS[0])` and fails if any of the
-  six comes out blank or draws another's panel.
+  eight comes out blank or draws another's panel.
 - **The sound thread runs above ZMK's display thread** (priority 3 against 5).
   Below it, a full repaint starves the amplifier. The game timer and the sound
   thread talk only through atomics.

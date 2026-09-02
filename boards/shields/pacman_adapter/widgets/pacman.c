@@ -35,7 +35,9 @@
 #include "game/fighter_render.h"
 #include "game/pacman_render.h"
 #include "game/frogger_render.h"
+#include "game/kong_render.h"
 #include "game/shooter_render.h"
+#include "game/tempest_render.h"
 
 LOG_MODULE_REGISTER(pacman, LOG_LEVEL_INF);
 
@@ -46,6 +48,8 @@ static bb_game bomber;
 static fg_game fighter;
 static cm_game commando;
 static fr_game crossing;
+static dk_game site;
+static tp_game well;
 static uint8_t playing = PACMAN_GAME_PACMAN;
 static bool running;
 static bool paused;
@@ -77,6 +81,8 @@ static void repaint_all(void) {
     fighter.redraw = true;
     commando.redraw = true;
     crossing.redraw = true;
+    site.redraw = true;
+    well.redraw = true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -254,6 +260,44 @@ void pacman_reload_palette(void) {
     r.hud = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HUD));
 
     fr_render_set_palette(&r);
+
+    dk_palette k;
+    dk_render_default_palette(&k);
+
+    k.site = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_SITE));
+    k.girder = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_GIRDER));
+    k.ladder = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_LADDER));
+    k.climber = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_CLIMBER));
+    k.climber_trim = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_CLIMBER_TRIM));
+    k.barrel = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_BARREL));
+    k.ape = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_APE));
+    k.ape_trim = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_APE_TRIM));
+    k.lady = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_LADY));
+    k.hammer = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HAMMER));
+    k.oil = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_DRUM));
+    /* the readout is the same job on either panel, so it is the same colour */
+    k.hud = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HUD));
+
+    dk_render_set_palette(&k);
+
+    tp_palette t;
+    tp_render_default_palette(&t);
+
+    t.site = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_VOID));
+    t.well = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_WELL));
+    t.rim = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_RIM));
+    t.claw = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_CLAW));
+    t.shot = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_CLAW_SHOT));
+    t.flipper = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_FLIPPER));
+    t.tanker = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_TANKER));
+    t.spiker = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_SPIKER));
+    t.pulsar = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_PULSAR));
+    t.spike = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_SPIKE));
+    t.bolt = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_BOLT));
+    /* the readout is the same job on either panel, so it is the same colour */
+    t.hud = pm_rgb565(pacman_settings_get(PACMAN_SETTING_GAME_HUD));
+
+    tp_render_set_palette(&t);
     repaint_all();
 }
 
@@ -263,7 +307,7 @@ void pacman_reload_palette(void) {
  * repaint, because whichever takes the panel next inherits another's pixels.
  */
 void pacman_set_game(uint8_t which) {
-    playing = which <= PACMAN_GAME_FROGGER ? which : PACMAN_GAME_PACMAN;
+    playing = which <= PACMAN_GAME_TEMPEST ? which : PACMAN_GAME_PACMAN;
     repaint_all();
 }
 
@@ -295,6 +339,8 @@ static void apply_wpm(uint8_t wpm) {
     fg_set_speed(&fighter, speed);
     cm_set_speed(&commando, speed);
     fr_set_speed(&crossing, speed);
+    dk_set_speed(&site, speed);
+    tp_set_speed(&well, speed);
 #else
     ARG_UNUSED(wpm);
 #endif
@@ -366,6 +412,16 @@ static void pacman_timer_cb(lv_timer_t *timer) {
         fr_render_frame(&crossing);
         return;
     }
+    if (playing == PACMAN_GAME_KONG) {
+        dk_step(&site);
+        dk_render_frame(&site);
+        return;
+    }
+    if (playing == PACMAN_GAME_TEMPEST) {
+        tp_step(&well);
+        tp_render_frame(&well);
+        return;
+    }
     pm_step(&game);
     pm_render_frame(&game);
 }
@@ -393,6 +449,10 @@ void zmk_widget_pacman_init(void) {
     cm_set_speed(&commando, 4);
     fr_init(&crossing, seed);
     fr_set_speed(&crossing, 4);
+    dk_init(&site, seed);
+    dk_set_speed(&site, 4);
+    tp_init(&well, seed);
+    tp_set_speed(&well, 4);
 
     /* after the inits, which would otherwise clear the repaint they ask for */
     pacman_reload_palette();

@@ -125,7 +125,8 @@ config PACMAN_DEFAULT_GAME
     help
       "pacman" is the maze, "shooter" is the meteors, "bomber" is the brick
       field, "fighter" is the two of them on a stage, "commando" is the run
-      along the ridge and "frogger" is the road and the river.  All of them are
+      along the ridge, "frogger" is the road and the river, "kong" is the
+      girders and "tempest" is the well.  All of them are
       self-playing animations on the same panel and any of them can be chosen
       later from the shell or the configurator, so this is only what a freshly
       flashed dongle comes up on.
@@ -463,6 +464,110 @@ config PACMAN_BOOM_COLOR
 config PACMAN_CRATE_COLOR
     string "Colour of a crate of grenades (rrggbb)"
     default "00c8b4"
+
+# ------------------------------------------------------------------
+# The girders' colours.  Sorted by what a barrel does to you rather
+# than by what is on screen: the girders and the ladders are the two
+# things underfoot and have to be told apart at a glance, because
+# which of them the climber is on is the whole of what he is deciding,
+# and the barrels are the one thing allowed to shout.
+# ------------------------------------------------------------------
+
+config PACMAN_SITE_COLOR
+    string "Colour behind the girders (rrggbb)"
+    default "000000"
+
+config PACMAN_GIRDER_COLOR
+    string "Girder colour; the rivets are a shade of it (rrggbb)"
+    default "d83030"
+
+config PACMAN_LADDER_COLOR
+    string "Ladder colour (rrggbb)"
+    default "30c0f0"
+
+config PACMAN_CLIMBER_COLOR
+    string "Climber colour (rrggbb)"
+    default "e03030"
+
+config PACMAN_CLIMBER_TRIM_COLOR
+    string "His overalls and his face (rrggbb)"
+    default "3060e0"
+
+config PACMAN_BARREL_COLOR
+    string "Barrel colour, and the flame over the drum (rrggbb)"
+    default "d08020"
+
+config PACMAN_APE_COLOR
+    string "Colour of whatever is throwing them (rrggbb)"
+    default "a05820"
+
+config PACMAN_APE_TRIM_COLOR
+    string "Its face and chest (rrggbb)"
+    default "f0c088"
+
+config PACMAN_LADY_COLOR
+    string "Colour of the one at the top (rrggbb)"
+    default "f060a0"
+
+config PACMAN_HAMMER_COLOR
+    string "Hammer colour (rrggbb)"
+    default "f0d040"
+
+config PACMAN_DRUM_COLOR
+    string "Colour of the drum at the foot of the site (rrggbb)"
+    default "2060d0"
+
+# ------------------------------------------------------------------
+# The well's colours.  This is the one game here drawn entirely in
+# lines, and at the far end of the tube everything in it is four
+# pixels across - so colour is all there is to tell a flipper from a
+# tanker, and the four enemies get four settings rather than a family
+# and shades of it.
+# ------------------------------------------------------------------
+
+config PACMAN_VOID_COLOR
+    string "Colour outside the well (rrggbb)"
+    default "000000"
+
+config PACMAN_WELL_COLOR
+    string "Colour of the spokes and the far end of the tube (rrggbb)"
+    default "2040d0"
+
+config PACMAN_RIM_COLOR
+    string "Colour of the near rim, which is where the claw lives (rrggbb)"
+    default "60a0ff"
+
+config PACMAN_CLAW_COLOR
+    string "Claw colour (rrggbb)"
+    default "ffe030"
+
+config PACMAN_CLAW_SHOT_COLOR
+    string "Colour of what it fires (rrggbb)"
+    default "ffffff"
+
+config PACMAN_FLIPPER_COLOR
+    string "Colour of the ones that tumble across the spokes (rrggbb)"
+    default "ff3040"
+
+config PACMAN_TANKER_COLOR
+    string "Colour of the ones that break into two when shot (rrggbb)"
+    default "40e060"
+
+config PACMAN_SPIKER_COLOR
+    string "Colour of the ones that build spikes (rrggbb)"
+    default "30e0e0"
+
+config PACMAN_PULSAR_COLOR
+    string "Colour of the ones that electrify their lane (rrggbb)"
+    default "ff40e0"
+
+config PACMAN_SPIKE_COLOR
+    string "Colour of a spike left up a lane (rrggbb)"
+    default "9060ff"
+
+config PACMAN_BOLT_COLOR
+    string "Colour of what they fire, and of the superzapper (rrggbb)"
+    default "ffa020"
 
 # ------------------------------------------------------------------
 # Splash screen and dashboard.  The dashboard is a grid of slots; each

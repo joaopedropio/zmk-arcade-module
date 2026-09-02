@@ -6,11 +6,13 @@
  * animation can be checked (and eyeballed) without flashing anything.
  *
  *   tools/sim/build.sh /tmp/pacman-sim
- *   /tmp/pacman-sim [pacman|shooter|bomber|fighter|commando|frogger] <frames> \
+ *   /tmp/pacman-sim [pacman|shooter|bomber|fighter|commando|frogger|kong|tempest] \
+ *                   <frames> \
  *                   <every-nth-frame> <out-dir> \
  *                   [first-frame] [speed 1-5]
  *
- * Building it with -DFR_TRACE makes the crossing print a line for every death
+ * Building it with -DDK_TRACE does the same for the girders, and with -DFR_TRACE
+ * makes the crossing print a line for every death
  * saying what killed the frog and where, which is what any change to its pilot
  * has to be judged on: the counts alone cannot tell a frog that misjudged a
  * lane from one that ran out of clock waiting for a lane it liked.
@@ -34,6 +36,8 @@
 #include "../../boards/shields/pacman_adapter/widgets/game/fighter_render.h"
 #include "../../boards/shields/pacman_adapter/widgets/game/commando_render.h"
 #include "../../boards/shields/pacman_adapter/widgets/game/frogger_render.h"
+#include "../../boards/shields/pacman_adapter/widgets/game/kong_render.h"
+#include "../../boards/shields/pacman_adapter/widgets/game/tempest_render.h"
 
 static uint16_t fb[PM_PANEL][PM_PANEL];
 static long blit_calls;
@@ -262,6 +266,382 @@ static void check_fr(const fr_game *g, int frame) {
     }
     printf("FRAME %d: the frog is standing on water at %d, row %u\n", frame, fx, g->frog.row);
     exit(1);
+}
+
+/* the site's version of the same two checks */
+static int check_incremental_dk(dk_game *g, int frame) {
+    memcpy(shadow, fb, sizeof(fb));
+    long calls = blit_calls, px = blit_pixels;
+    g->redraw = true;
+    dk_render_frame(g);
+    blit_calls = calls;
+    blit_pixels = px;
+
+    int diff = 0;
+    for (int y = 0; y < PM_PANEL; y++) {
+        for (int x = 0; x < PM_PANEL; x++) {
+            if (shadow[y][x] != fb[y][x]) {
+                if (!diff) {
+                    printf("FRAME %d: stale pixel at %d,%d (%04x != %04x)\n", frame, x, y,
+                           shadow[y][x], fb[y][x]);
+                }
+                diff++;
+            }
+        }
+    }
+    return diff;
+}
+
+/* the site's version of "nobody is inside a wall": a climber who is not on a
+ * ladder and not in the air is standing on the girder he says he is on */
+static void check_dk(const dk_game *g, int frame) {
+    const dk_hero *h = &g->hero;
+    int hx = DK_PX(h->x), hy = DK_PX(h->y);
+
+    if (g->phase != DK_PLAY) {
+        return;
+    }
+    if (h->floor >= DK_FLOORS) {
+        printf("FRAME %d: the climber is on girder %u\n", frame, h->floor);
+        exit(1);
+    }
+    if (hx - DK_HERO_W / 2 < 0 || hx + DK_HERO_W / 2 >= PM_PANEL || hy - DK_HERO_H < DK_TOP ||
+        hy >= PM_PANEL) {
+        printf("FRAME %d: the climber left the site at %d,%d\n", frame, hx, hy);
+        exit(1);
+    }
+    if (h->state == DK_ST_WALK && hy != dk_floor_y(h->floor, hx)) {
+        printf("FRAME %d: the climber is at y %d but girder %u is at %d\n", frame, hy,
+               h->floor, dk_floor_y(h->floor, hx));
+        exit(1);
+    }
+    /* and one the arithmetic could get wrong on its own: a jump that reached
+     * the girder above, or one that went through the one underfoot */
+    if (h->state == DK_ST_JUMP) {
+        int dy = dk_floor_y(h->floor, hx) - hy;
+        if (dy < 0 || dy > DK_JUMP_UP) {
+            printf("FRAME %d: the jump is %d above the girder\n", frame, dy);
+            exit(1);
+        }
+    }
+    for (int i = 0; i < DK_BARRELS; i++) {
+        const dk_barrel *b = &g->barrel[i];
+        if (b->state == DK_B_GONE) {
+            continue;
+        }
+        int bx = DK_PX(b->x), by = DK_PX(b->y);
+        if (b->floor >= DK_FLOORS || bx < 0 || bx >= PM_PANEL || by < DK_TOP ||
+            by > PM_PANEL) {
+            printf("FRAME %d: barrel %d is adrift at %d,%d on girder %u\n", frame, i, bx, by,
+                   b->floor);
+            exit(1);
+        }
+    }
+}
+
+static int run_kong(int frames, int every, const char *dir, int from, int speed) {
+    dk_game g;
+    dk_init(&g, 12345);
+    dk_set_speed(&g, (uint8_t)speed);
+
+    int deaths = 0, wins = 0, overs = 0, stale = 0, out = 0;
+    int jumps = 0, climbs = 0, hammers = 0, smashed = 0;
+    int why[DK_D_CAUSES] = {0};
+    static const char *const WHY[DK_D_CAUSES] = {"-", "run over", "no time"};
+    dk_phase phase = g.phase;
+    uint8_t state = g.hero.state;
+    uint32_t top = 0;
+    long dwell[DK_FLOORS] = {0};
+
+    for (int f = 0; f < frames; f++) {
+        bool armed = g.hero.hammer > 0;
+        bool had[DK_HAMMERS];
+        int live = 0;
+        for (int i = 0; i < DK_HAMMERS; i++) {
+            had[i] = g.hammer_up[i];
+        }
+        for (int i = 0; i < DK_BARRELS; i++) {
+            live += g.barrel[i].state != DK_B_GONE;
+        }
+
+        dk_step(&g);
+        dk_render_frame(&g);
+        check_dk(&g, f);
+
+        if (g.score > top) {
+            top = g.score;
+        }
+        if (g.phase == DK_PLAY) {
+            dwell[g.hero.floor]++;
+        }
+        if (g.hero.state != state) {
+            jumps += g.hero.state == DK_ST_JUMP;
+            climbs += g.hero.state == DK_ST_CLIMB;
+            state = g.hero.state;
+        }
+        for (int i = 0; i < DK_HAMMERS; i++) {
+            hammers += had[i] && !g.hammer_up[i];
+        }
+        if (armed) {
+            int now = 0;
+            for (int i = 0; i < DK_BARRELS; i++) {
+                now += g.barrel[i].state != DK_B_GONE;
+            }
+            smashed += live > now ? live - now : 0;
+        }
+        if (g.phase != phase) {
+            if (g.phase == DK_DYING) {
+                deaths++;
+                why[g.why % DK_D_CAUSES]++;
+#ifdef DK_TRACE
+                printf("  f%-6d died %s on girder %u at x=%d, state=%u, aim=%d, clock=%u\n", f,
+                       WHY[g.why % DK_D_CAUSES], g.hero.floor, DK_PX(g.hero.x), g.hero.state,
+                       g.aim, g.clock);
+                printf("           he is at y=%d, %d above girder %u, t=%u\n",
+                       DK_PX(g.hero.y), dk_floor_y(g.hero.floor, DK_PX(g.hero.x)) -
+                       DK_PX(g.hero.y), g.hero.floor, g.hero.t);
+                for (int i = 0; i < DK_BARRELS; i++) {
+                    const dk_barrel *b = &g.barrel[i];
+                    if (b->state != DK_B_GONE) {
+                        printf("           barrel %d at %d,%d girder=%u state=%u dir=%d\n", i,
+                               DK_PX(b->x), DK_PX(b->y), b->floor, b->state, b->dir);
+                    }
+                }
+#endif
+            }
+            if (g.phase == DK_WON) {
+                wins++;
+                printf("  f%-6d girder %d reached with %u\n", f, DK_FLOORS - 1,
+                       (unsigned)g.score);
+            }
+            if (g.phase == DK_OVER) {
+                overs++;
+                printf("  f%-6d game over with %u\n", f, (unsigned)top);
+            }
+            phase = g.phase;
+        }
+
+        if ((f % 37) == 0) {
+            stale += check_incremental_dk(&g, f);
+        }
+        if (every > 0 && dir && f >= from && (f % every) == 0) {
+            write_ppm(dir, out++);
+        }
+    }
+
+    printf("frames=%d score=%u best=%u level=%u lives=%u climbed=%d deaths=%d restarts=%d\n",
+           frames, (unsigned)g.score, (unsigned)top, g.level, g.lives, wins, deaths, overs);
+    printf("jumps=%d climbs=%d hammers=%d barrels smashed=%d\n", jumps, climbs, hammers,
+           smashed);
+    printf("deaths:");
+    for (int i = 1; i < DK_D_CAUSES; i++) {
+        printf(" %s=%d", WHY[i], why[i]);
+    }
+    printf(", stale pixels: %d\n", stale);
+    printf("frames spent on each girder, the bottom first:");
+    for (int i = 0; i < DK_FLOORS; i++) {
+        printf(" %ld", dwell[i]);
+    }
+    printf("\n");
+    printf("blits=%ld pixels=%ld (%.1f px/frame, %.1f blits/frame)\n", blit_calls, blit_pixels,
+           (double)blit_pixels / frames, (double)blit_calls / frames);
+    if (out) {
+        printf("wrote %d frames to %s\n", out, dir);
+    }
+    return 0;
+}
+
+/* the well's version of the same two checks */
+static int check_incremental_tp(tp_game *g, int frame) {
+    memcpy(shadow, fb, sizeof(fb));
+    long calls = blit_calls, px = blit_pixels;
+    g->redraw = true;
+    tp_render_frame(g);
+    blit_calls = calls;
+    blit_pixels = px;
+
+    int diff = 0;
+    for (int y = 0; y < PM_PANEL; y++) {
+        for (int x = 0; x < PM_PANEL; x++) {
+            if (shadow[y][x] != fb[y][x]) {
+                if (!diff) {
+                    printf("FRAME %d: stale pixel at %d,%d (%04x != %04x)\n", frame, x, y,
+                           shadow[y][x], fb[y][x]);
+                }
+                diff++;
+            }
+        }
+    }
+    return diff;
+}
+
+/*
+ * The well's version of "nobody is inside a wall".  Everything here has a lane
+ * and a depth rather than a position, so what can go wrong is different: a lane
+ * off the end of an open well, a depth outside the tube, a claw that walked off
+ * the end of a strip, or something drawn outside the panel because tp_at() was
+ * asked for a point that does not exist.
+ */
+static void check_tp(const tp_game *g, int frame) {
+    const tp_shape *s = tp_well(g);
+    int limit = s->closed ? TP_RIM : (TP_SEGS - 1) * TP_SUB;
+
+    if (g->pos < 0 || g->pos > limit) {
+        printf("FRAME %d: the claw is at %d, off a well that ends at %d\n", frame, g->pos,
+               limit);
+        exit(1);
+    }
+    for (int i = 0; i < TP_ENEMIES; i++) {
+        const tp_enemy *e = &g->foe[i];
+        if (e->kind == TP_E_GONE) {
+            continue;
+        }
+        if (e->lane >= TP_SEGS || e->d < 0 || e->d > TP_DEPTH) {
+            printf("FRAME %d: enemy %d is adrift in lane %u at depth %d\n", frame, i, e->lane,
+                   e->d);
+            exit(1);
+        }
+    }
+    for (int i = 0; i < TP_SHOTS; i++) {
+        if (g->shot[i].on && (g->shot[i].lane >= TP_SEGS || g->shot[i].d > TP_DEPTH)) {
+            printf("FRAME %d: shot %d is adrift in lane %u at depth %d\n", frame, i,
+                   g->shot[i].lane, g->shot[i].d);
+            exit(1);
+        }
+    }
+    /* and the one the perspective could get wrong on its own: every point of
+     * the rim and of the far end has to land on the panel */
+    for (int i = 0; i <= TP_SEGS; i++) {
+        for (int d = 0; d <= TP_DEPTH; d += TP_DEPTH) {
+            int x, y;
+            tp_at(s, i * TP_SUB, d, &x, &y);
+            if (x < 0 || x >= PM_PANEL || y < TP_TOP || y >= PM_PANEL) {
+                printf("FRAME %d: the well reaches %d,%d, off the panel\n", frame, x, y);
+                exit(1);
+            }
+        }
+    }
+}
+
+static int run_tempest(int frames, int every, const char *dir, int from, int speed) {
+    tp_game g;
+    tp_init(&g, 12345);
+    tp_set_speed(&g, (uint8_t)speed);
+
+    int deaths = 0, levels = 0, overs = 0, stale = 0, out = 0;
+    int shot_at = 0, zaps = 0, dives = 0;
+    int killed[TP_E_KINDS] = {0};
+    int why[TP_D_CAUSES] = {0};
+    static const char *const WHY[TP_D_CAUSES] = {"-", "grabbed", "shot", "pulsed", "spiked"};
+    static const char *const KIND[TP_E_KINDS] = {"-", "flippers", "tankers", "spikers",
+                                                 "pulsars"};
+    static const char *const SHAPE[TP_SHAPES] = {"circle", "strip", "square", "vee", "cross"};
+    long on_shape[TP_SHAPES] = {0};
+    tp_phase phase = g.phase;
+    uint32_t top = 0;
+    uint8_t zap = g.zap;
+    uint8_t was[TP_ENEMIES];
+
+    for (int i = 0; i < TP_ENEMIES; i++) {
+        was[i] = g.foe[i].kind;
+    }
+
+    for (int f = 0; f < frames; f++) {
+        int shots = 0;
+        for (int i = 0; i < TP_SHOTS; i++) {
+            shots += g.shot[i].on;
+        }
+
+        tp_step(&g);
+        tp_render_frame(&g);
+        check_tp(&g, f);
+
+        if (g.score > top) {
+            top = g.score;
+        }
+        on_shape[g.shape]++;
+        int now = 0;
+        for (int i = 0; i < TP_SHOTS; i++) {
+            now += g.shot[i].on;
+        }
+        shot_at += now > shots ? now - shots : 0;
+        /* a slot that stopped holding what it held was shot or zapped - and the
+         * test is against what it holds now rather than against empty, because a
+         * tanker breaking up refills its own slot with one of the two flippers
+         * it left behind, in the same frame */
+        for (int i = 0; i < TP_ENEMIES; i++) {
+            if (was[i] != TP_E_GONE && g.foe[i].kind != was[i]) {
+                killed[was[i] % TP_E_KINDS]++;
+            }
+            was[i] = g.foe[i].kind;
+        }
+        if (g.zap < zap) {
+            zaps++;
+        }
+        zap = g.zap;
+
+        if (g.phase != phase) {
+            if (g.phase == TP_DYING) {
+                deaths++;
+                why[g.why % TP_D_CAUSES]++;
+#ifdef TP_TRACE
+                printf("  f%-6d died %s in lane %d of the %s, level %u (pos=%d aim=%d "
+                       "pulse=%d zap=%u)\n", f, WHY[g.why % TP_D_CAUSES], tp_claw_lane(&g),
+                       SHAPE[g.shape], g.level, g.pos, g.aim, g.pulse % 62, g.zap);
+                for (int i = 0; i < TP_ENEMIES; i++) {
+                    if (g.foe[i].kind != TP_E_GONE) {
+                        printf("           %s in lane %u at depth %d, flip=%u\n",
+                               KIND[g.foe[i].kind % TP_E_KINDS], g.foe[i].lane, g.foe[i].d,
+                               g.foe[i].flip);
+                    }
+                }
+#endif
+            }
+            if (g.phase == TP_DIVE) {
+                dives++;
+            }
+            if (phase == TP_DIVE && g.phase == TP_PLAY) {
+                levels++;
+                printf("  f%-6d level %u reached with %u\n", f, g.level, (unsigned)g.score);
+            }
+            if (g.phase == TP_OVER) {
+                overs++;
+                printf("  f%-6d game over with %u\n", f, (unsigned)top);
+            }
+            phase = g.phase;
+        }
+
+        if ((f % 37) == 0) {
+            stale += check_incremental_tp(&g, f);
+        }
+        if (every > 0 && dir && f >= from && (f % every) == 0) {
+            write_ppm(dir, out++);
+        }
+    }
+
+    printf("frames=%d score=%u best=%u level=%u lives=%u cleared=%d deaths=%d restarts=%d\n",
+           frames, (unsigned)g.score, (unsigned)top, g.level, g.lives, levels, deaths, overs);
+    printf("shots=%d zaps=%d dives=%d, destroyed:", shot_at, zaps, dives);
+    for (int i = 1; i < TP_E_KINDS; i++) {
+        printf(" %s=%d", KIND[i], killed[i]);
+    }
+    printf("\n");
+    printf("deaths:");
+    for (int i = 1; i < TP_D_CAUSES; i++) {
+        printf(" %s=%d", WHY[i], why[i]);
+    }
+    printf(", stale pixels: %d\n", stale);
+    printf("frames spent on each well:");
+    for (int i = 0; i < TP_SHAPES; i++) {
+        printf(" %s=%ld", SHAPE[i], on_shape[i]);
+    }
+    printf("\n");
+    printf("blits=%ld pixels=%ld (%.1f px/frame, %.1f blits/frame)\n", blit_calls, blit_pixels,
+           (double)blit_pixels / frames, (double)blit_calls / frames);
+    if (out) {
+        printf("wrote %d frames to %s\n", out, dir);
+    }
+    return 0;
 }
 
 static int run_frogger(int frames, int every, const char *dir, int from, int speed) {
@@ -793,7 +1173,8 @@ int main(int argc, char **argv) {
     /* an optional game name in front, so the old command line still works */
     if (argc > 1 && (strcmp(argv[1], "shooter") == 0 || strcmp(argv[1], "pacman") == 0 ||
                      strcmp(argv[1], "bomber") == 0 || strcmp(argv[1], "fighter") == 0 ||
-                     strcmp(argv[1], "commando") == 0 || strcmp(argv[1], "frogger") == 0)) {
+                     strcmp(argv[1], "commando") == 0 || strcmp(argv[1], "frogger") == 0 ||
+                     strcmp(argv[1], "kong") == 0 || strcmp(argv[1], "tempest") == 0)) {
         game = argv[1];
         argv++;
         argc--;
@@ -819,6 +1200,12 @@ int main(int argc, char **argv) {
     }
     if (strcmp(game, "frogger") == 0) {
         return run_frogger(frames, every, dir, from, speed);
+    }
+    if (strcmp(game, "kong") == 0) {
+        return run_kong(frames, every, dir, from, speed);
+    }
+    if (strcmp(game, "tempest") == 0) {
+        return run_tempest(frames, every, dir, from, speed);
     }
 
     pm_game g;

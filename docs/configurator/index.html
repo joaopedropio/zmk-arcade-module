@@ -346,7 +346,7 @@ try {
   </footer>
 </main>
 
-<script src="preview.js?v=609ec78eb7e5"></script>
+<script src="preview.js?v=e672f1ecf3ca"></script>
 <script>
 "use strict";
 
@@ -420,11 +420,11 @@ function screenOf(name) {
 const UNOFFERED = /^theme$/;
 
 /*
- * The first pattern to match wins, so five of the six games name their own
+ * The first pattern to match wins, so seven of the eight games name their own
  * colours and the shooter takes whatever game- is left.  Written that way
- * round because those five lists are finished and the shooter's is the one
+ * round because those seven lists are finished and the shooter's is the one
  * likely to grow: a colour added to it lands in its own group rather than
- * under the wrong game.  `game-hud` is the score on five of the six panels
+ * under the wrong game.  `game-hud` is the score on seven of the eight panels
  * and falls to the shooter's group, which is where a reader will find it
  * soonest.
  */
@@ -435,6 +435,8 @@ const GROUPS = [
   ["The ring",        /^game-(ring|fighter|spark|fireball|health)/],
   ["The ridge",       /^game-(sky|hill|ground|hero|grunt|shot|grenade|boom|crate)/],
   ["The crossing",    /^game-(water|road|bank|hedge|frog|log|turtle|car|truck|splat|fly)/],
+  ["The girders",     /^game-(site|girder|ladder|climber|barrel|ape|lady|hammer|drum)/],
+  ["The well",        /^game-(void|well|rim|claw|flipper|tanker|spiker|pulsar|spike|bolt)/],
   ["The starfield",   /^game-/],
   ["Layout",          /^(screen$|slot|battery-slots$|rotate$)/],
   ["Sound",           /^(mute$|volume$|bass-floor$|sample-rate$)/],
@@ -451,7 +453,7 @@ const GROUPS = [
 
 /*
  * The five that come with the page rather than with the dongle.  Each has an
- * opinion about all six games, because which one plays is a setting like any
+ * opinion about all eight games, because which one plays is a setting like any
  * other and a look that only recoloured the maze would leave a dongle playing
  * one of the others looking exactly as it did.  A preset is only ever a
  * handful of colours - never a layout, never a timing, and never which game -
@@ -497,6 +499,14 @@ const PRESETS = [
       "game-hedge": "006800", "game-frog": "00ff00", "game-frog-eye": "ffffff",
       "game-log": "a54a00", "game-turtle": "ffb852", "game-car": "ff0000",
       "game-truck": "ffffff", "game-splat": "ffffff", "game-fly": "ffb8ff",
+      "game-site": "000000", "game-girder": "ffb8ff", "game-ladder": "00ffff",
+      "game-climber": "ff0000", "game-climber-trim": "2121de", "game-barrel": "ffb852",
+      "game-ape": "a54a00", "game-ape-trim": "ffb897", "game-lady": "ffff00",
+      "game-hammer": "ffff00", "game-drum": "2121de",
+      "game-void": "000000", "game-well": "2121de", "game-rim": "6d6dff",
+      "game-claw": "ffff00", "game-claw-shot": "ffffff", "game-flipper": "ff0000",
+      "game-tanker": "00a800", "game-spiker": "00ffff", "game-pulsar": "ffb8ff",
+      "game-spike": "ffb852", "game-bolt": "ffb897",
       "splash-logo": "ffff00", "splash-created-by": "ffb897", "splash-bg": "000000",
       "splash-multi-0": "ff0000", "splash-multi-1": "ffb8ff",
       "splash-multi-2": "00ffff", "splash-multi-3": "ffb852",
@@ -538,6 +548,14 @@ const PRESETS = [
       "game-hedge": "312e81", "game-frog": "7dd3fc", "game-frog-eye": "e0e7ff",
       "game-log": "a78bfa", "game-turtle": "38bdf8", "game-car": "f472b6",
       "game-truck": "e0e7ff", "game-splat": "e0e7ff", "game-fly": "f472b6",
+      "game-site": "0b1020", "game-girder": "4338ca", "game-ladder": "7dd3fc",
+      "game-climber": "e0e7ff", "game-climber-trim": "f472b6", "game-barrel": "a78bfa",
+      "game-ape": "312e81", "game-ape-trim": "7dd3fc", "game-lady": "f472b6",
+      "game-hammer": "38bdf8", "game-drum": "1e1b4b",
+      "game-void": "0b1020", "game-well": "4338ca", "game-rim": "7dd3fc",
+      "game-claw": "e0e7ff", "game-claw-shot": "ffffff", "game-flipper": "f472b6",
+      "game-tanker": "38bdf8", "game-spiker": "7dd3fc", "game-pulsar": "a78bfa",
+      "game-spike": "312e81", "game-bolt": "f472b6",
       "splash-logo": "7dd3fc", "splash-created-by": "a5b4fc", "splash-bg": "0b1020",
       "splash-multi-0": "f472b6", "splash-multi-1": "7dd3fc",
       "splash-multi-2": "a78bfa", "splash-multi-3": "38bdf8",
@@ -579,6 +597,14 @@ const PRESETS = [
       "game-hedge": "3d2400", "game-frog": "ffd980", "game-frog-eye": "ffb000",
       "game-log": "cc8800", "game-turtle": "ffb000", "game-car": "ffb000",
       "game-truck": "ffd980", "game-splat": "ffd980", "game-fly": "ffd980",
+      "game-site": "140c00", "game-girder": "7a4a00", "game-ladder": "cc8800",
+      "game-climber": "ffd980", "game-climber-trim": "ffb000", "game-barrel": "ffb000",
+      "game-ape": "996600", "game-ape-trim": "ffd980", "game-lady": "ffb000",
+      "game-hammer": "ffd980", "game-drum": "3d2400",
+      "game-void": "140c00", "game-well": "7a4a00", "game-rim": "cc8800",
+      "game-claw": "ffd980", "game-claw-shot": "ffd980", "game-flipper": "ffb000",
+      "game-tanker": "cc8800", "game-spiker": "996600", "game-pulsar": "ffd980",
+      "game-spike": "3d2400", "game-bolt": "ffb000",
       "splash-logo": "ffb000", "splash-created-by": "cc8800", "splash-bg": "140c00",
       "splash-multi-0": "ffb000", "splash-multi-1": "ffd980",
       "splash-multi-2": "cc8800", "splash-multi-3": "996600",
@@ -620,6 +646,14 @@ const PRESETS = [
       "game-hedge": "143a14", "game-frog": "9bbc0f", "game-frog-eye": "0f380f",
       "game-log": "8bac0f", "game-turtle": "9bbc0f", "game-car": "9bbc0f",
       "game-truck": "8bac0f", "game-splat": "9bbc0f", "game-fly": "8bac0f",
+      "game-site": "0f380f", "game-girder": "306230", "game-ladder": "8bac0f",
+      "game-climber": "9bbc0f", "game-climber-trim": "0f380f", "game-barrel": "8bac0f",
+      "game-ape": "6b8c1f", "game-ape-trim": "9bbc0f", "game-lady": "9bbc0f",
+      "game-hammer": "9bbc0f", "game-drum": "143a14",
+      "game-void": "0f380f", "game-well": "306230", "game-rim": "8bac0f",
+      "game-claw": "9bbc0f", "game-claw-shot": "9bbc0f", "game-flipper": "9bbc0f",
+      "game-tanker": "6b8c1f", "game-spiker": "8bac0f", "game-pulsar": "9bbc0f",
+      "game-spike": "143a14", "game-bolt": "8bac0f",
       "splash-logo": "9bbc0f", "splash-created-by": "8bac0f", "splash-bg": "0f380f",
       "splash-multi-0": "9bbc0f", "splash-multi-1": "8bac0f",
       "splash-multi-2": "306230", "splash-multi-3": "6b8c1f",
@@ -661,6 +695,14 @@ const PRESETS = [
       "game-hedge": "2a0a3d", "game-frog": "00e5ff", "game-frog-eye": "ffffff",
       "game-log": "ff6b00", "game-turtle": "fff200", "game-car": "ff2ec4",
       "game-truck": "ffffff", "game-splat": "ffffff", "game-fly": "fff200",
+      "game-site": "08000f", "game-girder": "ff2ec4", "game-ladder": "00e5ff",
+      "game-climber": "fff200", "game-climber-trim": "b026ff", "game-barrel": "ff6b00",
+      "game-ape": "b026ff", "game-ape-trim": "ff2ec4", "game-lady": "ff2ec4",
+      "game-hammer": "fff200", "game-drum": "1a0020",
+      "game-void": "08000f", "game-well": "b026ff", "game-rim": "00e5ff",
+      "game-claw": "fff200", "game-claw-shot": "ffffff", "game-flipper": "ff2ec4",
+      "game-tanker": "00e5ff", "game-spiker": "ffffff", "game-pulsar": "ff6b00",
+      "game-spike": "fff200", "game-bolt": "ff6b00",
       "splash-logo": "ff2ec4", "splash-created-by": "00e5ff", "splash-bg": "08000f",
       "splash-multi-0": "ff2ec4", "splash-multi-1": "00e5ff",
       "splash-multi-2": "b026ff", "splash-multi-3": "fff200",
@@ -737,6 +779,15 @@ const COMMANDO_OPENING_FRAME = 71;
  * it takes that many because the frog picks its own way and has to have got
  * home once for a bay to be full */
 const FROGGER_OPENING_FRAME = 780;
+/* the girders, with the climber halfway up a ladder, barrels on three of them,
+ * both hammers still up and the flame over the drum - which is every colour the
+ * site has except the one the climber turns when a barrel gets him */
+const KONG_OPENING_FRAME = 300;
+/* and the well on its cross, with a spiker paying out a spike down one lane and
+ * a pulsar in another: it takes this long because the two of them only turn up
+ * from the fifth level, and they are the two the palette is hardest to see
+ * without */
+const TEMPEST_OPENING_FRAME = 1995;
 const FRAME_MS = 66; /* about 15 fps, which is the speed the dongle plays it */
 
 let port = null, writer = null, incoming = "", prompt = PROMPT_FALLBACK;
@@ -1436,7 +1487,8 @@ function setNav(index) {
 const OPENINGS = {
   pacman: OPENING_FRAME, shooter: SHOOTER_OPENING_FRAME, bomber: BOMBER_OPENING_FRAME,
   fighter: FIGHTER_OPENING_FRAME, commando: COMMANDO_OPENING_FRAME,
-  frogger: FROGGER_OPENING_FRAME,
+  frogger: FROGGER_OPENING_FRAME, kong: KONG_OPENING_FRAME,
+  tempest: TEMPEST_OPENING_FRAME,
 };
 
 function openingFrame() {

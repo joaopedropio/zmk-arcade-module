@@ -17,5 +17,9 @@ cc -O2 -Wall -Wextra -std=c11 -o "$out" \
     "$root/boards/shields/pacman_adapter/widgets/game/commando_core.c" \
     "$root/boards/shields/pacman_adapter/widgets/game/commando_render.c" \
     "$root/boards/shields/pacman_adapter/widgets/game/frogger_core.c" \
-    "$root/boards/shields/pacman_adapter/widgets/game/frogger_render.c"
+    "$root/boards/shields/pacman_adapter/widgets/game/frogger_render.c" \
+    "$root/boards/shields/pacman_adapter/widgets/game/kong_core.c" \
+    "$root/boards/shields/pacman_adapter/widgets/game/kong_render.c" \
+    "$root/boards/shields/pacman_adapter/widgets/game/tempest_core.c" \
+    "$root/boards/shields/pacman_adapter/widgets/game/tempest_render.c"
 echo "$out"

@@ -44,6 +44,8 @@
 #include "output_status.h"
 #include "frogger_core.h"
 #include "frogger_render.h"
+#include "kong_core.h"
+#include "kong_render.h"
 #include "pacman_core.h"
 #include "pacman_render.h"
 #include "pacman.h"
@@ -51,6 +53,8 @@
 #include "shooter_render.h"
 #include "sound.h"
 #include "splash.h"
+#include "tempest_core.h"
+#include "tempest_render.h"
 #include "theme.h"
 #include "wpm.h"
 
@@ -63,6 +67,8 @@ static bb_game bomber;
 static fg_game fighter;
 static cm_game commando;
 static fr_game crossing;
+static dk_game site;
+static tp_game well;
 /* which of them the game screen is showing, as the `game` setting says */
 static int playing;
 static uint32_t values[PACMAN_SETTING_COUNT];
@@ -212,12 +218,50 @@ static void reload_game_palette(void) {
     r.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
 
     fr_render_set_palette(&r);
+
+    dk_palette k;
+    dk_render_default_palette(&k);
+
+    k.site = pm_rgb565(values[PACMAN_SETTING_GAME_SITE]);
+    k.girder = pm_rgb565(values[PACMAN_SETTING_GAME_GIRDER]);
+    k.ladder = pm_rgb565(values[PACMAN_SETTING_GAME_LADDER]);
+    k.climber = pm_rgb565(values[PACMAN_SETTING_GAME_CLIMBER]);
+    k.climber_trim = pm_rgb565(values[PACMAN_SETTING_GAME_CLIMBER_TRIM]);
+    k.barrel = pm_rgb565(values[PACMAN_SETTING_GAME_BARREL]);
+    k.ape = pm_rgb565(values[PACMAN_SETTING_GAME_APE]);
+    k.ape_trim = pm_rgb565(values[PACMAN_SETTING_GAME_APE_TRIM]);
+    k.lady = pm_rgb565(values[PACMAN_SETTING_GAME_LADY]);
+    k.hammer = pm_rgb565(values[PACMAN_SETTING_GAME_HAMMER]);
+    k.oil = pm_rgb565(values[PACMAN_SETTING_GAME_DRUM]);
+    k.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
+
+    dk_render_set_palette(&k);
+
+    tp_palette t;
+    tp_render_default_palette(&t);
+
+    t.site = pm_rgb565(values[PACMAN_SETTING_GAME_VOID]);
+    t.well = pm_rgb565(values[PACMAN_SETTING_GAME_WELL]);
+    t.rim = pm_rgb565(values[PACMAN_SETTING_GAME_RIM]);
+    t.claw = pm_rgb565(values[PACMAN_SETTING_GAME_CLAW]);
+    t.shot = pm_rgb565(values[PACMAN_SETTING_GAME_CLAW_SHOT]);
+    t.flipper = pm_rgb565(values[PACMAN_SETTING_GAME_FLIPPER]);
+    t.tanker = pm_rgb565(values[PACMAN_SETTING_GAME_TANKER]);
+    t.spiker = pm_rgb565(values[PACMAN_SETTING_GAME_SPIKER]);
+    t.pulsar = pm_rgb565(values[PACMAN_SETTING_GAME_PULSAR]);
+    t.spike = pm_rgb565(values[PACMAN_SETTING_GAME_SPIKE]);
+    t.bolt = pm_rgb565(values[PACMAN_SETTING_GAME_BOLT]);
+    t.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
+
+    tp_render_set_palette(&t);
     game.redraw = true;
     shooter.redraw = true;
     bomber.redraw = true;
     fighter.redraw = true;
     commando.redraw = true;
     crossing.redraw = true;
+    site.redraw = true;
+    well.redraw = true;
 }
 
 /*
@@ -248,6 +292,8 @@ static void apply_game(uint32_t v) {
     fighter.redraw = 1;
     commando.redraw = 1;
     crossing.redraw = 1;
+    site.redraw = 1;
+    well.redraw = 1;
 }
 
 static void apply_theme_colors(uint32_t v) {
@@ -394,12 +440,18 @@ EMSCRIPTEN_KEEPALIVE void preview_reset(uint32_t seed) {
     cm_set_speed(&commando, 4);
     fr_init(&crossing, seed ? seed : 1u);
     fr_set_speed(&crossing, 4);
+    dk_init(&site, seed ? seed : 1u);
+    dk_set_speed(&site, 4);
+    tp_init(&well, seed ? seed : 1u);
+    tp_set_speed(&well, 4);
     game.redraw = true;
     shooter.redraw = true;
     bomber.redraw = true;
     fighter.redraw = true;
     commando.redraw = true;
     crossing.redraw = true;
+    site.redraw = true;
+    well.redraw = true;
 }
 
 /* one tick of whatever the current screen does over time */
@@ -428,6 +480,16 @@ EMSCRIPTEN_KEEPALIVE void preview_step(void) {
         if (playing == PACMAN_GAME_FROGGER) {
             fr_step(&crossing);
             fr_render_frame(&crossing);
+            return;
+        }
+        if (playing == PACMAN_GAME_KONG) {
+            dk_step(&site);
+            dk_render_frame(&site);
+            return;
+        }
+        if (playing == PACMAN_GAME_TEMPEST) {
+            tp_step(&well);
+            tp_render_frame(&well);
             return;
         }
         pm_step(&game);
@@ -469,6 +531,16 @@ EMSCRIPTEN_KEEPALIVE void preview_render(void) {
         if (playing == PACMAN_GAME_FROGGER) {
             crossing.redraw = true;
             fr_render_frame(&crossing);
+            return;
+        }
+        if (playing == PACMAN_GAME_KONG) {
+            site.redraw = true;
+            dk_render_frame(&site);
+            return;
+        }
+        if (playing == PACMAN_GAME_TEMPEST) {
+            well.redraw = true;
+            tp_render_frame(&well);
             return;
         }
         game.redraw = true;
