@@ -112,6 +112,68 @@ static void draw_down(int cx, int fy, int s, uint16_t body, uint16_t trim) {
 }
 
 /*
+ * Where the kicking leg is hinged.  The drawing and the dirty rectangle around
+ * it both take the top of the thigh from here, because a leg that reaches a
+ * pixel higher than the box was measured for is a row of stale pixels that
+ * only shows up on a sweep.
+ */
+static int hip_y(const fg_fighter *f, int fy) {
+    return fy - FG_LEG_H(fg_height(f)) + FG_HIP_DROP;
+}
+
+/*
+ * How much of a swing is drawn: all of a punch, and a leg's worth of a kick.
+ * Scaled rather than clipped, so the leg still goes out and comes back over
+ * the same frames the reach does - a leg that snaps to its full length and
+ * holds there has no swing in it.
+ */
+static int drawn_reach(int reach, int high) {
+    return high ? reach : reach * FG_KICK_DRAW / FG_KICK_REACH;
+}
+
+/*
+ * The leg that is out, as a column at a time: it leaves the hip, drops to the
+ * sweep's height by the knee and runs flat from there to the boot, thinning
+ * from a thigh to an ankle on the way.  The taper is the whole of what makes
+ * it a leg rather than a stick - at forty pixels long and six thick there is
+ * no room for a shape, so the only thing left to say "leg" is that it is wider
+ * where it joins the body and narrower where it does not.
+ *
+ * A column at a time rather than three rectangles because the knee moves out
+ * with the reach while the leg is extending, and a stepped thigh that changes
+ * where its steps are from frame to frame flickers.
+ */
+static void draw_kick(int cx, int hip, int mid, int s, int reach, uint16_t body,
+                      uint16_t trim) {
+    int knee = reach * FG_KNEE_AT / 100;
+
+    if (knee < 1) {
+        knee = 1;
+    }
+    for (int i = 0; i < reach; i++) {
+        int y = mid, th = FG_SHIN_H;
+
+        if (i < knee) {
+            y = hip + (mid - hip) * i / knee;
+            th = FG_THIGH_H - (FG_THIGH_H - FG_SHIN_H) * i / knee;
+        }
+        pm_fill(cx + (s > 0 ? i : -1 - i), y - th / 2, 1, th, body);
+    }
+
+    /* the boot, with a sole under it: a foot at the end of the leg is what
+     * says which way round the thing is, and it is what a sweep connects with.
+     * It is never wider than the leg is long, because the first and last
+     * frames of a swing reach five pixels and a boot drawn to its full width
+     * there sticks out of the fighter's back - which is both wrong to look at
+     * and outside the rectangle this is repainted in */
+    int bw = reach < FG_BOOT_W ? reach : FG_BOOT_W;
+    int bx = s > 0 ? cx + reach - bw : cx - reach;
+    int by = mid - FG_BOOT_H / 2 + 1;
+    pm_fill(bx, by, bw, FG_BOOT_H, trim);
+    pm_fill(bx, by + FG_BOOT_H - 3, bw, 3, shade(trim, 1, 2));
+}
+
+/*
  * A fighter as a dozen rectangles: legs, belt, torso, head, headband, and
  * whichever arm the state calls for.  It is drawn from the feet up out of the
  * height fg_height() reports rather than from a fixed table, so a crouch is
@@ -134,18 +196,32 @@ static void draw_fighter(const fg_game *g, int who) {
     }
 
     int hgt = fg_height(f);
-    int leg = hgt / 3, head = 12;
+    int leg = FG_LEG_H(hgt), head = 12;
     int torso = hgt - leg - head;
     int ty = fy - leg - torso;
     int hy = ty - head;
 
+    /* which limb is out is decided before anything is drawn, because a kick
+     * changes the legs and the arms as well as adding to them */
+    int high, reach = fg_swing(f, &high);
+    bool kicking = reach > 0 && !high;
+
     /* the legs, and a stride that only shows while there is one */
     bool walking = f->state == FG_S_WALK || f->state == FG_S_BACK;
     int step = walking ? ((f->stride >> 2) & 1 ? 3 : -3) : 0;
-    pm_fill(cx - 7 + step, fy - leg, 6, leg, body);
-    pm_fill(cx + 1 - step, fy - leg, 6, leg, body);
-    pm_fill(cx - 7 + step, fy - 3, 6, 3, shade(body, 1, 2));
-    pm_fill(cx + 1 - step, fy - 3, 6, 3, shade(body, 1, 2));
+    if (kicking) {
+        /* one leg is out, so only the other one is holding the fighter up.
+         * Leaving both planted and adding a limb below the belt is what made
+         * the sweep read as an arm: nothing had left the body to throw it */
+        int lx = s > 0 ? cx - 8 : cx + 1;
+        pm_fill(lx, fy - leg, 7, leg, body);
+        pm_fill(lx, fy - 3, 7, 3, shade(body, 1, 2));
+    } else {
+        pm_fill(cx - 7 + step, fy - leg, 6, leg, body);
+        pm_fill(cx + 1 - step, fy - leg, 6, leg, body);
+        pm_fill(cx - 7 + step, fy - 3, 6, 3, shade(body, 1, 2));
+        pm_fill(cx + 1 - step, fy - 3, 6, 3, shade(body, 1, 2));
+    }
 
     pm_fill(cx - 7, ty, 14, torso, body);
     pm_fill(cx - 7, ty, 14, 2, shade(body, 5, 4));
@@ -158,8 +234,6 @@ static void draw_fighter(const fg_game *g, int who) {
     pm_fill(hx, hy + 3, 12, 3, trim);
     pm_fill(hx + (s > 0 ? 8 : 2), hy + 7, 2, 2, shade(body, 1, 3));
     pm_fill(s > 0 ? hx - 4 : hx + 12, hy + 3, 4, 2, trim);
-
-    int high, reach = fg_swing(f, &high);
 
     switch (f->state) {
     case FG_S_BLOCK:
@@ -176,27 +250,36 @@ static void draw_fighter(const fg_game *g, int who) {
         break;
     default:
         /* the far arm stays tucked whatever is happening; the near one is
-         * drawn only when it is not the thing being thrown */
+         * drawn only when it is not the thing being thrown - a kick keeps
+         * both, carried high for balance, and an arm still up by the chest is
+         * half of what tells the eye that the thing down at ankle height is a
+         * leg */
         pm_fill(s > 0 ? cx - 10 : cx + 7, ty + 3, 3, 8, body);
-        if (reach == 0) {
-            pm_fill(s > 0 ? cx + 7 : cx - 10, ty + 3, 3, 8, body);
+        if (reach == 0 || kicking) {
+            pm_fill(s > 0 ? cx + 7 : cx - 10, kicking ? ty : ty + 3, 3, 8, body);
         }
         break;
     }
 
     /*
-     * The limb that is out, drawn to exactly the reach the core hit with.  The
-     * two of them read the same fg_swing(), so the picture and the hit cannot
-     * disagree about where the foot got to - which is the only way anybody
-     * watching can tell a whiff from a block.
+     * The limb that is out.  A punch is a bar out of the shoulder with a fist
+     * on it, drawn to exactly the reach the core hit with, so the picture and
+     * the hit cannot disagree about where the fist got to - which is how
+     * anybody watching tells a whiff from a block.  A kick is draw_kick(),
+     * and it is drawn to FG_KICK_DRAW instead: a leg the length of the sweep's
+     * reach is not a leg.  Both still read the same fg_swing(), so both still
+     * go out and come back on the frames the core says they do.
      */
     if (reach > 0) {
         int band = high ? FG_HIGH_H : FG_LOW_H;
         int mid = fy - (high ? FG_HIGH_Y : FG_LOW_Y) - band / 2;
-        int x0 = s > 0 ? cx : cx - reach;
 
-        pm_fill(x0, mid - 2, reach, 4, body);
-        pm_fill(s > 0 ? cx + reach - 6 : cx - reach, mid - 4, 6, 8, trim);
+        if (high) {
+            pm_fill(s > 0 ? cx : cx - reach, mid - 2, reach, 4, body);
+            pm_fill(s > 0 ? cx + reach - 6 : cx - reach, mid - 4, 6, 8, trim);
+        } else {
+            draw_kick(cx, hip_y(f, fy), mid, s, drawn_reach(reach, high), body, trim);
+        }
     }
 }
 
@@ -488,10 +571,19 @@ static fg_box2 box_of(const fg_game *g, int idx) {
         int band = high ? FG_HIGH_H : FG_LOW_H;
         int mid = fy - (high ? FG_HIGH_Y : FG_LOW_Y) - band / 2;
 
-        b.x = (int16_t)((f->face ? cx : cx - reach) - 1);
-        b.w = (int16_t)(reach + 2);
-        b.y = (int16_t)(mid - 5);
-        b.h = 10;
+        int out = drawn_reach(reach, high);
+        b.x = (int16_t)((f->face ? cx : cx - out) - 1);
+        b.w = (int16_t)(out + 2);
+        if (high) {
+            b.y = (int16_t)(mid - 5);
+            b.h = 10;
+        } else {
+            /* a kick is taller than a punch: the box has to start at the top
+             * of the thigh, up at the hip, and not at the shin it ends on */
+            int top = hip_y(f, fy) - FG_THIGH_H / 2 - 1;
+            b.y = (int16_t)top;
+            b.h = (int16_t)(mid + FG_BOOT_H / 2 + 3 - top);
+        }
         b.look = (uint16_t)reach;
     }
     b.on = true;
