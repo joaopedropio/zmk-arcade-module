@@ -21,6 +21,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/ble.h>
 #include <zmk/endpoints.h>
 
+#include "arcade.h"
 #include "output_status.h"
 #include "helpers/display.h"
 
@@ -259,11 +260,23 @@ void set_status_symbol() {
     print_symbols(symbol_usb_x, symbol_ble_x, symbols_y, status_state);
 }
 
+connectivity_snapshot connectivity_get(void) {
+    return (connectivity_snapshot){
+        .usb_selected = status_state.selected_endpoint.transport == ZMK_TRANSPORT_USB,
+        .usb_ready = status_state.usb_is_hid_ready,
+        .ble_selected = status_state.selected_endpoint.transport == ZMK_TRANSPORT_BLE,
+        .ble_profile = status_state.active_profile_index,
+        .ble_connected = status_state.active_profile_connected,
+        .ble_bonded = status_state.active_profile_bonded,
+    };
+}
+
 void output_status_update_cb(struct output_status_state state) {
     status_state = state;
     if (status_widget_initialized) {
         set_status_symbol();
     }
+    arcade_refresh_connectivity();
 }
 
 ZMK_DISPLAY_WIDGET_LISTENER(widget_output_status, struct output_status_state,

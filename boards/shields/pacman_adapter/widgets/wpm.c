@@ -11,6 +11,7 @@ LOG_MODULE_REGISTER(pacman_wpm_widget, LOG_LEVEL_INF);
 #include <zmk/event_manager.h>
 #include <zmk/events/wpm_state_changed.h>
 #include <zmk/wpm.h>
+#include "arcade.h"
 #include "helpers/display.h"
 
 static bool wpm_widget_running = false;
@@ -88,11 +89,14 @@ struct wpm_speed_state wpm_speed_get_state(const zmk_event_t *eh) {
     return (struct wpm_speed_state) { .wpm = ev->state };
 }
 
+uint8_t wpm_current(void) { return wpm_speed.wpm; }
+
 void wpm_speed_update_cb(struct wpm_speed_state state) {
     wpm_speed = state;
     if (wpm_widget_initialized && wpm_widget_running) {
         print_wpm();
     }
+    arcade_refresh_wpm();
 }
 
 ZMK_DISPLAY_WIDGET_LISTENER(widget_wpm, struct wpm_speed_state,

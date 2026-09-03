@@ -20,6 +20,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/event_manager.h>
 #include <zmk/events/battery_state_changed.h>
 
+#include "arcade.h"
 #include "battery_status.h"
 #include "helpers/display.h"
 #include "sound.h"
@@ -230,6 +231,19 @@ static void announce_connection(struct peripheral_battery_state state) {
     }
 }
 
+uint8_t battery_current_level(uint8_t source) {
+    switch (source) {
+    case 0:
+        return battery_state_0.level;
+    case 1:
+        return battery_state_1.level;
+    case 2:
+        return battery_state_2.level;
+    default:
+        return 0;
+    }
+}
+
 void battery_status_update_cb(struct peripheral_battery_state state) {
     announce_connection(state);
     if (state.source == 0) {
@@ -246,6 +260,7 @@ void battery_status_update_cb(struct peripheral_battery_state state) {
         set_battery_symbol();
         print_battery_widget();
     }
+    arcade_refresh_battery();
 }
 
 static struct peripheral_battery_state battery_status_get_state(const zmk_event_t *eh) {

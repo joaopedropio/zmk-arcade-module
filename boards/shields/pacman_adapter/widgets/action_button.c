@@ -27,6 +27,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk_dongle_events/dongle_action_event.h>
 
 #include "action_button.h"
+#include "arcade.h"
 #include "battery_status.h"
 #include "frames.h"
 #include "helpers/display.h"
@@ -98,6 +99,28 @@ void refresh_screen(void) {
 }
 
 void print_menu(void) {
+    if (get_dashboard_style() == DASHBOARD_STYLE_ARCADE) {
+        /*
+         * The arcade dashboard owns the whole panel and reads the widgets'
+         * state back itself, so the slot widgets are stopped - only arcade.c
+         * draws while this is up.  Stopping them here and not only in
+         * toggle_menu() is what makes `pacman set dashboard-style arcade` safe
+         * with the menu already open: refresh_screen() lands back here, and a
+         * slot widget still running would paint its corner over the HUD on the
+         * next event.
+         */
+        stop_wpm_status();
+        stop_modifier_status();
+        stop_output_status();
+        stop_battery_status();
+        stop_animation();
+        stop_layer_status();
+        arcade_set_active(true);
+        arcade_render();
+        return;
+    }
+    arcade_set_active(false);
+
     clear_screen(get_menu_bg_color());
     start_animation();
     print_frames(buf_frame);
@@ -123,6 +146,7 @@ static void toggle_menu(void) {
         stop_battery_status();
         stop_animation();
         stop_layer_status();
+        arcade_set_active(false);
         pacman_start();
         menu_on = false;
         return;

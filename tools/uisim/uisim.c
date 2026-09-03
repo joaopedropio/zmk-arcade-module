@@ -25,6 +25,7 @@
 #include <zephyr/drivers/display.h>
 
 #include "action_button.h"
+#include "arcade.h"
 /* the made-up dongle state the widgets ask for; see the header */
 #include "uisim_state.h"
 #include "battery_status.h"
@@ -240,6 +241,7 @@ int main(int argc, char **argv) {
 
     /* and the dashboard: its frames, and the header a few steps into its lap */
     logo_animation_init();
+    arcade_init();
     zmk_widget_output_status_init();
     zmk_widget_peripheral_battery_status_init();
     zmk_widget_layer_init();
@@ -253,6 +255,13 @@ int main(int argc, char **argv) {
         logo_animation_timer(NULL);
     }
     write_ppm(dir, "dashboard");
+
+    /* and the same readouts drawn the other way, as the arcade dashboard */
+    set_dashboard_style(DASHBOARD_STYLE_ARCADE);
+    print_menu();
+    write_ppm(dir, "dashboard-arcade");
+    set_dashboard_style(DASHBOARD_STYLE_CLASSIC);
+    arcade_set_active(false);
 
     /*
      * And the modal a profile switch puts over whichever screen is up.  Drawn

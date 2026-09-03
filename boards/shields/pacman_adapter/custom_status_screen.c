@@ -22,6 +22,7 @@
 
 #include "custom_status_screen.h"
 #include "widgets/action_button.h"
+#include "widgets/arcade.h"
 #include "widgets/battery_status.h"
 #include "widgets/configuration.h"
 #include "widgets/helpers/display.h"
@@ -72,6 +73,7 @@ lv_obj_t *zmk_display_status_screen(void) {
 
     zmk_widget_splash_init();
     zmk_widget_pacman_init();
+    arcade_init();
     zmk_widget_output_status_init();
     zmk_widget_peripheral_battery_status_init();
     zmk_widget_layer_init();

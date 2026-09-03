@@ -12,6 +12,7 @@ LOG_MODULE_REGISTER(snake_modifier, LOG_LEVEL_INF);
 #include <zmk/event_manager.h>
 #include <zmk/events/keycode_state_changed.h>
 #include <dt-bindings/zmk/modifiers.h>
+#include "arcade.h"
 #include "helpers/display.h"
 
 static bool modifier_widget_running = false;
@@ -127,11 +128,14 @@ static struct modifiers_state modifiers_get_state(const zmk_event_t *eh) {
     };
 }
 
+uint8_t modifier_current_mask(void) { return modifier_state.modifiers; }
+
 void modifiers_update_cb(struct modifiers_state state) {
     modifier_state = state;
     if (modifier_widget_initialized && modifier_widget_running) {
         print_modifiers();
     }
+    arcade_refresh_mods();
 }
 
 ZMK_DISPLAY_WIDGET_LISTENER(widget_modifiers, struct modifiers_state,

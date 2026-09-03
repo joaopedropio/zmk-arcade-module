@@ -110,6 +110,16 @@ typedef enum {
 } DefaultScreen;
 
 /*
+ * Which dashboard the status screen draws.  CLASSIC is the slot grid with the
+ * animated header; ARCADE is the fixed cabinet-HUD layout in widgets/arcade.c.
+ * Only print_menu() reads it - the widgets do not know which one is up.
+ */
+typedef enum {
+    DASHBOARD_STYLE_CLASSIC,
+    DASHBOARD_STYLE_ARCADE,
+} DashboardStyle;
+
+/*
  * Which splash goes up at boot: the one drawn from the wordmark and the
  * sprites, whose every colour is a setting, or the picture in splash_image.h,
  * which carries its own eight and ignores them.
@@ -152,6 +162,7 @@ void render_filled_rectangle(uint8_t *buf_area, uint8_t x, uint8_t y, uint8_t wi
 void render_indexed_image(uint16_t *row_buf, const uint8_t *runs, size_t run_count, const uint16_t palette[], uint16_t x, uint16_t y, uint16_t width, uint16_t height);
 
 void set_default_screen(DefaultScreen screen);
+void set_dashboard_style(DashboardStyle style);
 void set_splash_style(SplashStyle style);
 void set_display_orientation(DisplayOrientation orientation);
 void set_battery_slots(uint8_t slots);
@@ -200,6 +211,7 @@ void set_bt_status_open_color(uint32_t color);
 void set_bt_status_bg_color(uint32_t color);
 
 DefaultScreen get_default_screen();
+DashboardStyle get_dashboard_style(void);
 SplashStyle get_splash_style(void);
 DisplayOrientation get_display_orientation();
 uint8_t get_battery_slots(void);

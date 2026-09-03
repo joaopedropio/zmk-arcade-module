@@ -14,6 +14,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/event_manager.h>
 #include <zmk/endpoints.h>
 #include <zmk/keymap.h>
+#include "arcade.h"
 #include "helpers/display.h"
 #include <stdio.h>
 #include <string.h>
@@ -161,11 +162,14 @@ void print_layer() {
     last_printed_layer = current_layer;
 }
 
+const char *layer_current_label(void) { return current_layer.label; }
+
 static void layer_status_update_cb(struct layer_status_state state) {
     current_layer = state;
     if (layer_widget_running) {
         print_layer();
     }
+    arcade_refresh_layer();
 }
 
 static struct layer_status_state layer_status_get_state(const zmk_event_t *eh) {

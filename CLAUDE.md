@@ -131,6 +131,7 @@ boards/shields/pacman_adapter/
     ├── sound.c              the I2S driver side of the synth
     ├── action_button.c      screens, themes, mute
     ├── splash.c logo.c frames.c theme.c configuration.c shell.c
+    ├── arcade.c             the other dashboard-style: the fixed cabinet HUD
     ├── splash_image.h       the other splash, run-length, from tools/splash_art.png
     ├── battery_status.c output_status.c layer_status.c wpm.c modifier.c
     ├── helpers/display.c    the drawing engine: bitmaps, text, rects, slots
@@ -391,6 +392,34 @@ translation unit per pixel is a millisecond of every frame.
   That is why `repaint_all()` and not `game.redraw`, in `pacman_start()`, the
   palette reload and the periodic full redraw alike. No game is reset, so the
   maze comes back mid-level.
+- **There are two dashboards and only one is a grid of slots.** `dashboard-style`
+  picks `classic` (the slot grid with the animated header) or `arcade`
+  (`widgets/arcade.c`, one fixed cabinet-HUD layout: the layer name across the
+  top, the WPM as a big score with the two connectivity lamps beside it, the
+  modifiers as lit buttons, the batteries as ENERGY bars). The arcade one owns the
+  whole panel, so `print_menu()` starts none of the slot widgets in that mode -
+  their listeners still keep their state current and `arcade.c` reads it back
+  through a getter apiece (`wpm_current()`, `layer_current_label()`,
+  `modifier_current_mask()`, `connectivity_get()`, `battery_current_level()`).
+  Each of those listeners calls the matching `arcade_refresh_*()` after storing
+  its state - the same place it would call its own `print_*` - and that is a
+  no-op unless `arcade_set_active(true)` was called, which `print_menu()` does
+  for the arcade style and `toggle_menu()` undoes. It draws in fixed positions
+  with no slot-table or per-slot buffer, which is what makes it hot-reloadable
+  where the slot layout is not: switching to it after boot just works. It also
+  carries its own art - a chunky 5x7 font and a round lamp defined in the file -
+  rather than the 3x5 font and the sprites the classic widgets share; the only
+  drawing it borrows is `render_bitmap()`, `clear_screen()` /
+  `print_filled_rectangle()`, and the `get_*_color()` getters. The ENERGY bars
+  get a CRT scanline - a 1px line every fourth panel row, drawn as its own
+  uniform fills so it rotates like everything else; a translucent full-panel
+  overlay would need reading the panel back, which this shield never does, and
+  opaque lines through the 14px text cost more than they add at this
+  resolution, so the texture stays on the one box that reads as a display.
+  Those colours are the settings, so a `pacman set` on any of them repaints it
+  through `refresh_screen()` like the classic one. `tools/uisim` writes `dashboard-arcade.ppm` beside `dashboard.ppm`
+  and `tools/pagetest` checks the preview draws a filled dashboard for each
+  style - the same rebuild-or-it-goes-stale rule the rest of `preview.js` follows.
 - **A preset has to have an opinion about all eight games.** Theme 0 already
   makes the dashboard's colours count one at a time; across the eight palettes
   it is the same bargain, and a preset that stopped at the maze would leave a

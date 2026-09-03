@@ -462,6 +462,51 @@ check(splash.differ && !splash.blank,
       (splash.blank ? " (the image came out blank)" : ""));
 
 /*
+ * The dashboard has two styles too - the classic slot grid and the arcade
+ * cabinet HUD - chosen by `dashboard-style`.  The fixture predates it, so a
+ * fresh module is built with every other setting at its default and this one
+ * forced each way, the way the `layout` check above does it.  What matters is
+ * that preview.js still knows the word and draws a filled dashboard for each,
+ * which it stops doing the moment the drawing code changes without
+ * tools/wasm/build.sh.
+ */
+let dashboard;
+try {
+  dashboard = await vm.runInContext(`(async () => {
+  const shot = async (style) => {
+    const m = await PacmanPreview();
+    m._preview_set_screen(2);
+    for (const s of settings) {
+      const ptr = m.stringToNewUTF8(s.name);
+      m._preview_set(ptr, asNumber(s));
+      m._free(ptr);
+    }
+    const ptr = m.stringToNewUTF8("dashboard-style");
+    const known = m._preview_set(ptr, style);
+    m._free(ptr);
+    m._preview_apply_all();
+    m._preview_render();
+    const b = m._preview_framebuffer() >> 1;
+    return { known, frame: Array.from(m.HEAPU16.subarray(b, b + m._preview_panel() ** 2)).join(",") };
+  };
+  const classic = await shot(0), arcade = await shot(1);
+  return { known: classic.known === 1,
+           differ: classic.frame !== arcade.frame,
+           classicBlank: new Set(classic.frame.split(",")).size < 3,
+           arcadeBlank: new Set(arcade.frame.split(",")).size < 3 };
+})()`, ctx);
+} catch (err) {
+  dashboard = { known: false, differ: false, arcadeBlank: true, err: err.message };
+}
+check(dashboard.known, "preview.js knows the dashboard-style setting");
+check(dashboard.differ && !dashboard.classicBlank && !dashboard.arcadeBlank,
+      `and draws a filled dashboard for each style` +
+      (dashboard.err ? ": " + dashboard.err
+       : dashboard.arcadeBlank ? " (the arcade one came out blank)"
+       : dashboard.classicBlank ? " (the classic one came out blank)"
+       : !dashboard.differ ? " (both came out the same)" : ""));
+
+/*
  * Which game the panel plays is a setting like any other, and the fixture
  * predates it as well, so the module is driven directly here too.  The colours
  * come out of a preset rather than being written in this file: a preset that

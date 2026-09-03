@@ -13,3 +13,6 @@ void print_wpm();
 void zmk_widget_wpm_init();
 void start_wpm_status();
 void stop_wpm_status();
+
+/* the last speed the widget was told about, for the arcade dashboard */
+uint8_t wpm_current(void);

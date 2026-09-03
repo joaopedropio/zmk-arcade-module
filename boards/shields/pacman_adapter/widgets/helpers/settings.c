@@ -25,6 +25,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 static const char *const mute_labels[] = {"off", "on", NULL};
 static const char *const screen_labels[] = {"game", "status", NULL};
 static const char *const slot_mode_labels[] = {"2-slot", "4-slot", "5-slot", "6-slot", NULL};
+static const char *const dashboard_style_labels[] = {"classic", "arcade", NULL};
 static const char *const slot_labels[] = {"connectivity", "layer",   "theme", "wpm",
                                           "modifiers",    "battery", "empty", NULL};
 static const char *const rotate_labels[] = {"0", "90", "180", "270", NULL};
@@ -35,6 +36,8 @@ static const char *const game_labels[] = {"pacman",  "shooter",  "bomber", "figh
 /* the labels are indexes into display.h's enums, so they have to end together */
 _Static_assert(ARRAY_SIZE(screen_labels) == STATUS_SCREEN + 2, "screen labels out of step");
 _Static_assert(ARRAY_SIZE(slot_mode_labels) == SLOT_MODE_6 + 2, "slot mode labels out of step");
+_Static_assert(ARRAY_SIZE(dashboard_style_labels) == DASHBOARD_STYLE_ARCADE + 2,
+               "dashboard style labels out of step");
 _Static_assert(ARRAY_SIZE(slot_labels) == SLOT_NAME_NONE + 2, "slot labels out of step");
 _Static_assert(ARRAY_SIZE(rotate_labels) == DISPLAY_ORIENTATION_270 + 2,
                "rotation labels out of step");
@@ -57,6 +60,7 @@ uint32_t pacman_settings_get(pacman_setting_id id) { return values[id]; }
  */
 static void apply_screen(uint32_t v) { set_default_screen((DefaultScreen)v); }
 static void apply_slot_mode(uint32_t v) { set_slot_mode((SlotMode)v); }
+static void apply_dashboard_style(uint32_t v) { set_dashboard_style((DashboardStyle)v); }
 static void apply_slot_1(uint32_t v) { set_slot_1((SlotName)v); }
 static void apply_slot_2(uint32_t v) { set_slot_2((SlotName)v); }
 static void apply_slot_3(uint32_t v) { set_slot_3((SlotName)v); }
