@@ -96,7 +96,7 @@ manifest:
       remote: zmkfirmware
       revision: main
       import: app/west.yml
-    - name: zmk-arcade
+    - name: zmk-arcade-module
       remote: joaopedropio
       revision: main
   self:

@@ -96,7 +96,7 @@ ZEPHYR_TOOLCHAIN_VARIANT=zephyr ZEPHYR_SDK_INSTALL_DIR=$HOME/zephyr-sdk-0.17.0 \
   -d build/cyg_dongle -- \
   -DSHIELD="cygnus_dongle arcade_adapter" \
   -DZMK_CONFIG=$HOME/zmk-cygnus/config \
-  -DZMK_EXTRA_MODULES="$HOME/zmk-arcade;$HOME/zmk-cygnus"
+  -DZMK_EXTRA_MODULES="$HOME/zmk-arcade-module;$HOME/zmk-cygnus"
 ```
 
 ZMK main uses hardware model v2, so the board is `nice_nano@2.0.0/nrf52840/zmk`,
