@@ -15,3 +15,6 @@ void stop_battery_status(void);
 void set_battery_symbol(void);
 void print_battery_widget(void);
 void initialize_battery_status(void);
+
+/* the last level heard from a peripheral (0 = gone / unheard), for the arcade dashboard */
+uint8_t battery_current_level(uint8_t source);

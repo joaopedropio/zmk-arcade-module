@@ -207,6 +207,14 @@ are the two that 2-slot keeps, `_3` upwards for 4-slot, `_2` upwards for
 5-slot. The configurator only shows the slots the chosen mode has, so the rest
 keep their setting but are neither drawn nor offered.
 
+`dashboard-style` (`PACMAN_DASHBOARD_STYLE`) switches the whole thing for
+`arcade`: one fixed cabinet-HUD layout — the active layer name across the top,
+the WPM as a big score with the USB and BT lamps beside it, the modifiers as
+lit buttons, the batteries as `ENERGY` bars. It ignores the slot settings, has
+no animated header, and repaints live from the same colour settings the classic
+one uses, so `pacman set dashboard-style arcade` takes effect without a
+reflash.
+
 **A widget goes in one slot only.** Nothing refuses the second one, which is
 what makes it worth saying: `get_slot_by_name()` returns the first slot holding
 a widget, so every widget that asks draws into that one and the other slot is

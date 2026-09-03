@@ -27,6 +27,7 @@
 #include <zephyr/drivers/display.h>
 
 #include "action_button.h"
+#include "arcade.h"
 #include "battery_status.h"
 #include "bomber_core.h"
 #include "bomber_render.h"
@@ -272,6 +273,7 @@ static void reload_game_palette(void) {
  */
 static void apply_screen(uint32_t v) { set_default_screen((DefaultScreen)v); }
 static void apply_slot_mode(uint32_t v) { set_slot_mode((SlotMode)v); }
+static void apply_dashboard_style(uint32_t v) { set_dashboard_style((DashboardStyle)v); }
 static void apply_slot_1(uint32_t v) { set_slot_1((SlotName)v); }
 static void apply_slot_2(uint32_t v) { set_slot_2((SlotName)v); }
 static void apply_slot_3(uint32_t v) { set_slot_3((SlotName)v); }
@@ -386,6 +388,7 @@ static void build_once(void) {
 
     zmk_widget_splash_init();
     logo_animation_init();
+    arcade_init();
     zmk_widget_output_status_init();
     zmk_widget_peripheral_battery_status_init();
     zmk_widget_layer_init();

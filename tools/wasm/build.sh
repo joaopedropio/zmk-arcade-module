@@ -72,6 +72,7 @@ emcc -O2 -std=c11 -Wall \
     "$widgets/modifier.c" \
     "$widgets/wpm.c" \
     "$widgets/action_button.c" \
+    "$widgets/arcade.c" \
     "$widgets/progress.c" \
     --no-entry \
     -sSINGLE_FILE=1 \

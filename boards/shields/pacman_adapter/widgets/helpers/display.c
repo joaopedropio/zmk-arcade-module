@@ -76,6 +76,7 @@ static uint16_t wpm_font_1_color;
 static uint16_t wpm_font_bg_color;
 
 static DefaultScreen default_screen = GAME_SCREEN;
+static DashboardStyle dashboard_style = DASHBOARD_STYLE_CLASSIC;
 static SplashStyle splash_style = SPLASH_STYLE_DRAWN;
 static DisplayOrientation display_orientation = DISPLAY_ORIENTATION_0;
 
@@ -490,6 +491,14 @@ void set_battery_slots(uint8_t slots) {
 
 void set_default_screen(DefaultScreen screen) {
     default_screen = screen;
+}
+
+void set_dashboard_style(DashboardStyle style) {
+    dashboard_style = style;
+}
+
+DashboardStyle get_dashboard_style(void) {
+    return dashboard_style;
 }
 
 void set_splash_style(SplashStyle style) {

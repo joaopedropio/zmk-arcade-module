@@ -31,6 +31,7 @@
 #define PACMAN_SETTING_LIST(X)                                                                     \
     X(SCREEN,                "screen",                ENUM,   0,     STATUS_SCREEN,           screen_labels,     apply_screen,                false, false, CONFIG_PACMAN_DEFAULT_SCREEN)   \
     X(SLOT_MODE,             "slot-mode",             ENUM,   0,     SLOT_MODE_6,             slot_mode_labels,  apply_slot_mode,             false, false, CONFIG_PACMAN_INFO_SLOT_MODE)   \
+    X(DASHBOARD_STYLE,       "dashboard-style",       ENUM,   0,     DASHBOARD_STYLE_ARCADE,  dashboard_style_labels, apply_dashboard_style,  true,  false, CONFIG_PACMAN_DASHBOARD_STYLE)   \
     X(SLOT_1,                "slot1",                 ENUM,   0,     SLOT_NAME_NONE,          slot_labels,       apply_slot_1,                false, false, CONFIG_PACMAN_INFO_SLOT_1)   \
     X(SLOT_2,                "slot2",                 ENUM,   0,     SLOT_NAME_NONE,          slot_labels,       apply_slot_2,                false, false, CONFIG_PACMAN_INFO_SLOT_2)   \
     X(SLOT_3,                "slot3",                 ENUM,   0,     SLOT_NAME_NONE,          slot_labels,       apply_slot_3,                false, false, CONFIG_PACMAN_INFO_SLOT_3)   \

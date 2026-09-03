@@ -660,6 +660,16 @@ config PACMAN_BT_STATUS_OPEN_COLOR
     string ""
     default "ffb852"
 
+config PACMAN_DASHBOARD_STYLE
+    string "Dashboard style"
+    default "classic"
+    help
+      "classic" is the configurable slot grid with the animated Pac-Man header.
+      "arcade" is the fixed cabinet-HUD layout: the same six readouts drawn as
+      an arcade machine's own HUD - WPM as the 1UP score, the layer as the
+      STAGE, the profile as the CREDIT count, connectivity as player lamps,
+      modifiers as lit buttons, the batteries as ENERGY bars.
+
 config PACMAN_DEFAULT_SCREEN
     string "Default screen"
     default "game"
