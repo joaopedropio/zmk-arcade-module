@@ -1,12 +1,12 @@
 """
-Generates widgets/game/pacman_tunes.h - the sine table and what the dongle plays.
+Generates widgets/game/arcade_tunes.h - the sine table and what the dongle plays.
 
 The speaker is a DAC and an amplifier, not a buzzer, so these are scores rather
 than beeps: notes with a pitch, a length and an instrument, several of them
 sounding at once.  Written here in notation, and turned into the note lists the
 synth reads.
 
-    python3 tools/tunes.py > boards/shields/pacman_adapter/widgets/game/pacman_tunes.h
+    python3 tools/tunes.py > boards/shields/arcade_adapter/widgets/game/arcade_tunes.h
 """
 
 import math
@@ -14,8 +14,8 @@ import math
 NOTES = {"C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5, "F#": 6,
          "G": 7, "G#": 8, "A": 9, "A#": 10, "B": 11}
 
-BELL, PLUCK, PAD, NOISE = "PM_INST_BELL", "PM_INST_PLUCK", "PM_INST_PAD", "PM_INST_NOISE"
-CHIME = "PM_INST_CHIME"
+BELL, PLUCK, PAD, NOISE = "ARC_INST_BELL", "ARC_INST_PLUCK", "ARC_INST_PAD", "ARC_INST_NOISE"
+CHIME = "ARC_INST_CHIME"
 
 
 def hz(note):
@@ -63,10 +63,10 @@ DISCONNECT = [n(0, "A5", 420, CHIME, 56), n(200, "D5", 600, CHIME, 56)]
 # name, notes, loops, priority, and how long the tune runs before it is over
 # or goes round again (None works it out from the last note and its tail)
 TUNES = [
-    ("PM_TUNE_CONNECT", CONNECT, False, 1, None),
+    ("ARC_TUNE_CONNECT", CONNECT, False, 1, None),
     # a keyboard dropping is the more useful of the two to hear, so it takes
     # the voice off a connect rather than the other way about
-    ("PM_TUNE_DISCONNECT", DISCONNECT, False, 2, None),
+    ("ARC_TUNE_DISCONNECT", DISCONNECT, False, 2, None),
 ]
 
 HEADER = '''/*
@@ -79,7 +79,7 @@ HEADER = '''/*
 
 #pragma once
 
-#include "pacman_sfx.h"
+#include "arcade_sfx.h"
 
 '''
 
@@ -87,7 +87,7 @@ HEADER = '''/*
 def sine_table():
     values = [int(round(16383 * math.sin(2 * math.pi * i / 256))) for i in range(256)]
     rows = [", ".join(f"{v:6}" for v in values[i:i + 8]) for i in range(0, 256, 8)]
-    return "#define PM_SINE_TABLE { \\\n" + ", \\\n".join("    " + r for r in rows) + " \\\n}\n"
+    return "#define ARC_SINE_TABLE { \\\n" + ", \\\n".join("    " + r for r in rows) + " \\\n}\n"
 
 
 def main():
@@ -95,7 +95,7 @@ def main():
     for name, notes, *_ in TUNES:
         rows = ",\n".join(f"    {{{at}, {f}, {ms}, {inst}, {lvl}}}"
                           for at, f, ms, inst, lvl in sorted(notes))
-        out.append(f"static const pm_note {name.lower()}_notes[] = {{\n{rows},\n}};\n")
+        out.append(f"static const arc_note {name.lower()}_notes[] = {{\n{rows},\n}};\n")
     rows = []
     for name, notes, loop, prio, length in TUNES:
         # the tune is over when its last note has finished ringing
@@ -103,7 +103,7 @@ def main():
         end = length or max(at + ms + tail[inst] for at, _f, ms, inst, _l in notes)
         rows.append(f"    [{name}] = {{{name.lower()}_notes, {len(notes)}, {end}, "
                     f"{'true' if loop else 'false'}, {prio}}}")
-    out.append("static const pm_tune PM_TUNES[PM_TUNE_COUNT] = {\n" + ",\n".join(rows) + ",\n};\n")
+    out.append("static const arc_tune ARC_TUNES[ARC_TUNE_COUNT] = {\n" + ",\n".join(rows) + ",\n};\n")
     print("\n".join(out), end="")
 
 

@@ -10,14 +10,14 @@
  *
  *   node tools/pagetest/pagetest.mjs [path/to/index.html]
  *
- * Refresh the fixture by capturing `pacman schema` from a real dongle; the
+ * Refresh the fixture by capturing `arcade schema` from a real dongle; the
  * point of it is that it is not something this repo made up.
  *
  * SPDX-License-Identifier: MIT
  */
 import fs from "fs";
 import vm from "vm";
-import PacmanPreview from "../../docs/configurator/preview.js";
+import ArcadePreview from "../../docs/configurator/preview.js";
 
 const html = fs.readFileSync(process.argv[2] || new URL("../../docs/configurator/index.html", import.meta.url).pathname, "utf8");
 const src = html.split('<script>\n"use strict";')[1].split("\n</script>")[0];
@@ -109,7 +109,7 @@ const serial = { asked: 0, addEventListener(){}, requestPort() {
 const ctx = {
   document, console, setTimeout, setInterval, clearInterval, Math, JSON, Date, Number,
   String, Object, Array, Set, Map, RegExp, Promise, Error, parseInt, isNaN, performance,
-  navigator: { serial }, window: { prompt: (q, v) => dialogs.prompt(q, v) }, PacmanPreview,
+  navigator: { serial }, window: { prompt: (q, v) => dialogs.prompt(q, v) }, ArcadePreview,
   confirm: () => dialogs.confirm,
   localStorage, matchMedia, Blob, URL: blobUrls, BroadcastChannel,
   TextEncoderStream: class {}, TextDecoderStream: class {}, MouseEvent: class {},
@@ -129,7 +129,7 @@ const raw = fs.readFileSync(new URL("schema.txt", import.meta.url), "latin1");
  *
  * The dongle is always on a profile, and being on one means the live settings
  * are that profile - so the slot it is on and `live` are the same object here,
- * exactly as `pacman set` and `profile show` present them.  Slot 1 is a
+ * exactly as `arcade set` and `profile show` present them.  Slot 1 is a
  * profile it is not on, which is the only way to tell the two readings apart.
  */
 const live = Object.fromEntries(
@@ -211,12 +211,12 @@ function profileCommand(argv) {
 }
 
 ctx.dongleSays = (line) => {
-  if (line.startsWith("pacman schema")) return raw;
+  if (line.startsWith("arcade schema")) return raw;
   const argv = words(line.trim());
-  if (argv[0] === "pacman" && argv[1] === "profile") {
+  if (argv[0] === "arcade" && argv[1] === "profile") {
     return dongle.knowsProfiles ? profileCommand(argv) : term(["profile: command not found"]);
   }
-  if (argv[0] === "pacman" && argv[1] === "set") {
+  if (argv[0] === "arcade" && argv[1] === "set") {
     dongle.written.push([argv[2], argv[3]]);
     dongle.profiles[dongle.current].values[argv[2]] = argv[3];
     return term([`${argv[2]} is now ${argv[3]}`]);
@@ -316,7 +316,7 @@ check(vm.runInContext('settings.some((s) => s.name === "theme")', ctx) &&
  * catch-all screen without a word.
  */
 const listed = [...fs.readFileSync(
-    new URL("../../boards/shields/pacman_adapter/widgets/helpers/settings_list.h",
+    new URL("../../boards/shields/arcade_adapter/widgets/helpers/settings_list.h",
             import.meta.url), "utf8")
   .matchAll(/^\s*X\(\w+,\s*"([^"]+)"/gm)].map((m) => m[1]);
 
@@ -415,7 +415,7 @@ try {
   const got = snap(wasm);
 
   /* what a dongle booting into this layout draws, built with no history */
-  const fresh = await PacmanPreview();
+  const fresh = await ArcadePreview();
   fresh._preview_set_screen(2);
   for (const s of settings) {
     const ptr = fresh.stringToNewUTF8(s.name);
@@ -442,7 +442,7 @@ check(layout.same && !layout.blank,
  */
 const splash = await (async () => {
   const shot = async (style) => {
-    const m = await PacmanPreview();
+    const m = await ArcadePreview();
     const ptr = m.stringToNewUTF8("splash-style");
     const known = m._preview_set(ptr, style);
     m._free(ptr);
@@ -462,8 +462,8 @@ check(splash.differ && !splash.blank,
       (splash.blank ? " (the image came out blank)" : ""));
 
 /*
- * The dashboard has two styles too - the classic slot grid and the arcade
- * cabinet HUD - chosen by `dashboard-style`.  The fixture predates it, so a
+ * The dashboard has two styles too - the classic slot grid and the cabinet
+ * HUD - chosen by `dashboard-style`.  The fixture predates it, so a
  * fresh module is built with every other setting at its default and this one
  * forced each way, the way the `layout` check above does it.  What matters is
  * that preview.js still knows the word and draws a filled dashboard for each,
@@ -474,7 +474,7 @@ let dashboard;
 try {
   dashboard = await vm.runInContext(`(async () => {
   const shot = async (style) => {
-    const m = await PacmanPreview();
+    const m = await ArcadePreview();
     m._preview_set_screen(2);
     for (const s of settings) {
       const ptr = m.stringToNewUTF8(s.name);
@@ -489,20 +489,20 @@ try {
     const b = m._preview_framebuffer() >> 1;
     return { known, frame: Array.from(m.HEAPU16.subarray(b, b + m._preview_panel() ** 2)).join(",") };
   };
-  const classic = await shot(0), arcade = await shot(1);
+  const classic = await shot(0), cabinet = await shot(1);
   return { known: classic.known === 1,
-           differ: classic.frame !== arcade.frame,
+           differ: classic.frame !== cabinet.frame,
            classicBlank: new Set(classic.frame.split(",")).size < 3,
-           arcadeBlank: new Set(arcade.frame.split(",")).size < 3 };
+           cabinetBlank: new Set(cabinet.frame.split(",")).size < 3 };
 })()`, ctx);
 } catch (err) {
-  dashboard = { known: false, differ: false, arcadeBlank: true, err: err.message };
+  dashboard = { known: false, differ: false, cabinetBlank: true, err: err.message };
 }
 check(dashboard.known, "preview.js knows the dashboard-style setting");
-check(dashboard.differ && !dashboard.classicBlank && !dashboard.arcadeBlank,
+check(dashboard.differ && !dashboard.classicBlank && !dashboard.cabinetBlank,
       `and draws a filled dashboard for each style` +
       (dashboard.err ? ": " + dashboard.err
-       : dashboard.arcadeBlank ? " (the arcade one came out blank)"
+       : dashboard.cabinetBlank ? " (the cabinet one came out blank)"
        : dashboard.classicBlank ? " (the classic one came out blank)"
        : !dashboard.differ ? " (both came out the same)" : ""));
 
@@ -515,7 +515,7 @@ check(dashboard.differ && !dashboard.classicBlank && !dashboard.arcadeBlank,
  */
 const games = await (async () => {
   const shot = async (which) => {
-    const m = await PacmanPreview();
+    const m = await ArcadePreview();
     const values = vm.runInContext("presetValues(PRESETS[0])", ctx);
     for (const [name, word] of Object.entries(values)) {
       const p = m.stringToNewUTF8(name);
@@ -791,7 +791,7 @@ check(still.length === 0,
 /* profiles, which live on the dongle                                  */
 /* ------------------------------------------------------------------ */
 
-check(vm.runInContext("profilesLive === true", ctx), "the page found `pacman profile`");
+check(vm.runInContext("profilesLive === true", ctx), "the page found `arcade profile`");
 const slots = vm.runInContext("JSON.stringify(profiles)", ctx);
 check(JSON.parse(slots).length === 5 && JSON.parse(slots)[0].name === "Desk",
       `it read all five slots back: ${slots}`);
@@ -843,7 +843,7 @@ dialogs.prompt = () => "2";
 dongle.written = [];
 await vm.runInContext("guardAction(() => exportProfile(profiles[1]))", ctx);
 const file = saved.text ? JSON.parse(saved.text) : {};
-check(file["pacman-dongle-profile"] === 1 && file.name === "Night" &&
+check(file["arcade-dongle-profile"] === 1 && file.name === "Night" &&
       file.settings && file.settings["game-wall"] === "2121de",
       "an exported profile is a file another dongle could read");
 
@@ -939,7 +939,7 @@ check(/already open somewhere else/.test(vm.runInContext(
       "a port the browser will not open is blamed on whoever has it");
 
 /* a second tab of this page, already holding a dongle */
-const otherTab = new BroadcastChannel("pacman-configurator");
+const otherTab = new BroadcastChannel("arcade-configurator");
 otherTab.onmessage = (event) => {
   if (event.data.what === "who") otherTab.postMessage({ what: "mine", from: "other" });
 };

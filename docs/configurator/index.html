@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pac-Man Dongle Configurator</title>
+<title>Arcade Dongle Configurator</title>
 <style>
   /*
    * Two palettes, and nothing between them: every colour below is a token, so
@@ -279,7 +279,7 @@
  * first paint is already the right colour.  "auto" stores nothing and asks
  * the browser instead. */
 try {
-  var pick = localStorage.getItem("pacman-configurator.theme");
+  var pick = localStorage.getItem("arcade-configurator.theme");
   if (pick !== "light" && pick !== "dark") {
     pick = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
   }
@@ -289,7 +289,7 @@ try {
 </head>
 <body>
 <header>
-  <h1>Pac-Man dongle <span>configurator</span></h1>
+  <h1>Arcade dongle <span>configurator</span></h1>
   <div id="themepick"></div>
   <button id="connect" class="primary">Connect</button>
   <button id="reload" disabled>Reload</button>
@@ -346,12 +346,12 @@ try {
   </footer>
 </main>
 
-<script src="preview.js?v=7764f85d7dbf"></script>
+<script src="preview.js?v=cefe05b92d04"></script>
 <script>
 "use strict";
 
 /*
- * The dongle speaks Zephyr's shell over a CDC ACM endpoint.  `pacman schema`
+ * The dongle speaks Zephyr's shell over a CDC ACM endpoint.  `arcade schema`
  * answers with one tab-separated line per setting and a bare `end`, so this
  * page never needs to know what settings exist - it asks.
  */
@@ -415,7 +415,7 @@ function screenOf(name) {
  * between profiles instead - so there is nowhere left to act on the number and
  * a spinner for it was a control that led nowhere.  It is still written (every
  * preset sets theme 0, which is what makes the individual colours count) and
- * still reachable as `pacman set theme`.
+ * still reachable as `arcade set theme`.
  */
 const UNOFFERED = /^theme$/;
 
@@ -460,7 +460,7 @@ const GROUPS = [
  * so
  * applying one cannot leave a dongle needing a reboot to look like itself
  * again, and a setting it does not mention keeps whatever it had.  Names are
- * matched against whatever `pacman schema` reported, so a preset naming a
+ * matched against whatever `arcade schema` reported, so a preset naming a
  * colour this firmware has not got simply skips it.
  */
 const PRESETS = [
@@ -754,7 +754,7 @@ function presetValues(preset) {
 const PRESET_FACE = ["game-bg", "game-wall", "game-pac", "game-ghost-0"];
 
 /* what a profile file holds, and the version that says this page wrote it */
-const PROFILE_FILE = "pacman-dongle-profile";
+const PROFILE_FILE = "arcade-dongle-profile";
 const PROFILE_FILE_VERSION = 1;
 
 /* seed 1 reaches this frame with all four ghosts out of the house and Pac-Man
@@ -817,7 +817,7 @@ function say(text, kind) {
  * the first paint from the same key; this half only has to keep up with a
  * click, and with the browser changing its mind while auto is on.
  */
-const THEME_KEY = "pacman-configurator.theme";
+const THEME_KEY = "arcade-configurator.theme";
 const THEMES = [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]];
 
 function themeChoice() {
@@ -936,7 +936,7 @@ function replyLines(text, command) {
 }
 
 async function loadSchema() {
-  const text = await exec("pacman schema", "end");
+  const text = await exec("arcade schema", "end");
   const rows = [];
   for (const line of text.split("\n")) {
     const parts = line.replace(/\r/g, "").split("\t");
@@ -953,7 +953,7 @@ async function loadSchema() {
       labels: labels.trim() === "-" ? null : labels.trim().split(","),
     });
   }
-  if (!rows.length) throw new Error("`pacman schema` said nothing - is this the right firmware?");
+  if (!rows.length) throw new Error("`arcade schema` said nothing - is this the right firmware?");
   settings = rows;
   await loadProfiles();
   /* a reconnect to an older dongle must not leave the page on a tab it no
@@ -983,8 +983,8 @@ async function loadSchema() {
  */
 async function setValue(setting, word, quiet) {
   try {
-    const text = await exec("pacman set " + setting.name + " " + word);
-    const reply = replyLines(text, "pacman set " + setting.name + " " + word).join(" ");
+    const text = await exec("arcade set " + setting.name + " " + word);
+    const reply = replyLines(text, "arcade set " + setting.name + " " + word).join(" ");
     if (/^(no setting|.*is not a value|.*out of range|could not)/i.test(reply)) {
       say(reply, "bad");
       return false;
@@ -1330,7 +1330,7 @@ function previewOff(what, err) {
  * the dongle will draw it, not this one with the numbers moved.
  */
 async function rebootPreview() {
-  wasm = await PacmanPreview();
+  wasm = await ArcadePreview();
   bootPreview();
 }
 
@@ -1410,7 +1410,7 @@ function buildNav() {
   const strip = $("nav");
   strip.textContent = "";
   SECTIONS.forEach((section, i) => {
-    /* a firmware without `pacman profile` gets no tab for it rather than a
+    /* a firmware without `arcade profile` gets no tab for it rather than a
      * tab that answers nothing */
     if (section.view === "profiles" && !profilesLive) return;
     const button = document.createElement("button");
@@ -1696,7 +1696,7 @@ async function loadProfiles() {
   profiles = [];
   profilesLive = false;
   try {
-    const rows = parseTable(await exec("pacman profile list", "end"), "pacman profile list", 3);
+    const rows = parseTable(await exec("arcade profile list", "end"), "arcade profile list", 3);
     if (!rows) return;
     profilesLive = true;
     profiles = rows.map(([slot, name, size]) => ({
@@ -1712,8 +1712,8 @@ async function loadProfiles() {
      * but not `current` predates the idea of being on one at all, so the
      * fallback is the slot such a dongle would have been on: the first.
      */
-    const here = parseTable(await exec("pacman profile current", "end"),
-                            "pacman profile current", 2);
+    const here = parseTable(await exec("arcade profile current", "end"),
+                            "arcade profile current", 2);
     onSlot = here && here.length ? Number(here[0][0]) : 0;
   } catch (err) {
     /* the settings still work without them, so this is not worth the status line */
@@ -1722,7 +1722,7 @@ async function loadProfiles() {
 
 /* what one profile holds, as setting name to the word the shell prints */
 async function profileValues(slot) {
-  const command = "pacman profile show " + slot;
+  const command = "arcade profile show " + slot;
   const rows = parseTable(await exec(command, "end"), command, 2);
   if (!rows) throw new Error("this dongle did not answer `" + command + "`");
 
@@ -1744,7 +1744,7 @@ async function writeValues(values, what) {
   for (const name of names) {
     const setting = settings.find((s) => s.name === name);
     const word = String(values[name]);
-    const command = "pacman set " + name + " " + word;
+    const command = "arcade set " + name + " " + word;
     const reply = replyLines(await exec(command), command).join(" ");
 
     if (/^(no setting|.*is not a value|.*out of range|could not)/i.test(reply)) {
@@ -1771,17 +1771,17 @@ async function stageValues(slot, name, values) {
   const names = Object.keys(values).filter((n) => settings.some((s) => s.name === n));
   if (!names.length) throw new Error("nothing in that file matches a setting this dongle has");
 
-  await exec("pacman profile stage");
+  await exec("arcade profile stage");
   let staged = 0;
   for (const setting of names) {
-    const command = "pacman profile stage " + setting + " " + values[setting];
+    const command = "arcade profile stage " + setting + " " + values[setting];
     const reply = replyLines(await exec(command), command).join(" ");
     if (!/^staged/i.test(reply)) continue;
     staged++;
     say("Writing “" + name + "”... " + staged + " of " + names.length);
   }
 
-  const command = 'pacman profile commit ' + slot + ' "' + name + '"';
+  const command = 'arcade profile commit ' + slot + ' "' + name + '"';
   const reply = replyLines(await exec(command), command).join(" ");
   if (!/^saved/i.test(reply)) throw new Error(reply || "the dongle would not write that profile");
   return staged;
@@ -1923,7 +1923,7 @@ async function savePreset(preset) {
  */
 async function snapshotInto(slot, name) {
   const leaving = onProfileName();
-  const command = 'pacman profile save ' + slot + ' "' + name + '"';
+  const command = 'arcade profile save ' + slot + ' "' + name + '"';
   const reply = replyLines(await exec(command), command).join(" ");
   if (!/^saved/i.test(reply)) throw new Error(reply || "the dongle would not write that profile");
   say("Slot " + slot + " is “" + name + "”, and the dongle is on it now. " +
@@ -1975,7 +1975,7 @@ async function duplicateProfile(profile) {
  */
 async function loadProfile(profile) {
   const leaving = onProfileName();
-  const command = "pacman profile load " + profile.slot;
+  const command = "arcade profile load " + profile.slot;
   const reply = replyLines(await exec(command), command).join(" ");
   if (!/^loaded/i.test(reply)) throw new Error(reply || "the dongle would not read that profile");
 
@@ -1988,7 +1988,7 @@ async function renameProfile(profile) {
   const name = cleanName(ask("Call it:", profile.name));
   if (!name || name === profile.name) return;
 
-  const command = 'pacman profile rename ' + profile.slot + ' "' + name + '"';
+  const command = 'arcade profile rename ' + profile.slot + ' "' + name + '"';
   const reply = replyLines(await exec(command), command).join(" ");
   if (!/^renamed/i.test(reply)) throw new Error(reply || "the dongle would not rename it");
   say("Slot " + profile.slot + " is now “" + name + "”.", "good");
@@ -2011,7 +2011,7 @@ async function deleteProfile(profile) {
               "are; only the saved copy goes.")) {
     return;
   }
-  const command = "pacman profile delete " + profile.slot;
+  const command = "arcade profile delete " + profile.slot;
   const reply = replyLines(await exec(command), command).join(" ");
   if (!/^deleted/i.test(reply)) throw new Error(reply || "the dongle would not forget it");
   say("Slot " + profile.slot + " is free again.", "good");
@@ -2243,7 +2243,7 @@ function setConnected(on) {
  * ever shown, and anything else holding the port - another browser, a screen
  * or minicom session - is named in the failure that comes back.
  */
-const BUS_NAME = "pacman-configurator";
+const BUS_NAME = "arcade-configurator";
 let bus = null, holding = false, answers = 0;
 const busId = Math.random().toString(36).slice(2);
 
@@ -2362,7 +2362,7 @@ const PREVIEW_NEEDS = ["_preview_panel", "_preview_framebuffer", "_preview_rgb56
                        "_preview_render", "_preview_reset", "_preview_step", "_free",
                        "stringToNewUTF8"];
 
-PacmanPreview().then((module) => {
+ArcadePreview().then((module) => {
   const missing = PREVIEW_NEEDS.filter((name) => typeof module[name] !== "function")
     .concat(module.HEAPU16 ? [] : ["HEAPU16"]);
   if (missing.length) {
@@ -2390,7 +2390,7 @@ $("resetall").addEventListener("click", async () => {
   if (!confirm("Forget every stored setting? The dongle goes back to what it was built with " +
                "on its next boot.")) return;
   try {
-    await exec("pacman reset all");
+    await exec("arcade reset all");
     await loadSchema();
     say("Everything forgotten. Restart the dongle to see it.", "good");
   } catch (err) {

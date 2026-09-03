@@ -2,9 +2,9 @@
  * Renders each of the dongle's sounds to a .wav, using the same synth the
  * firmware runs, so a tune can be listened to before it is flashed.
  *
- *   cc -I boards/shields/pacman_adapter/widgets/game \
+ *   cc -I boards/shields/arcade_adapter/widgets/game \
  *      -o /tmp/sfxsim tools/sfxsim/sfxsim.c \
- *      boards/shields/pacman_adapter/widgets/game/pacman_sfx.c
+ *      boards/shields/arcade_adapter/widgets/game/arcade_sfx.c
  *   /tmp/sfxsim <out-dir> [sample-rate] [bass-floor-hz]
  *
  * SPDX-License-Identifier: MIT
@@ -14,11 +14,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "pacman_sfx.h"
+#include "arcade_sfx.h"
 
 #define MAX_SECONDS 6
 
-static const char *const NAMES[PM_TUNE_COUNT] = {
+static const char *const NAMES[ARC_TUNE_COUNT] = {
     "connect", "disconnect",
 };
 
@@ -60,9 +60,9 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    for (int id = 0; id < PM_TUNE_COUNT; id++) {
-        pm_sfx_init(rate, 100, floor_hz);
-        pm_sfx_play((pm_tune_id)id);
+    for (int id = 0; id < ARC_TUNE_COUNT; id++) {
+        arc_sfx_init(rate, 100, floor_hz);
+        arc_sfx_play((arc_tune_id)id);
 
         size_t total = 0;
         while (total < cap) {
@@ -70,11 +70,11 @@ int main(int argc, char **argv) {
             if (total + block > cap) {
                 block = cap - total;
             }
-            pm_sfx_render(buf + total, block);
+            arc_sfx_render(buf + total, block);
             total += block;
             /* a looping tune never ends: give it a couple of times round */
-            bool looping = pm_sfx_loops((pm_tune_id)id);
-            if ((!looping && !pm_sfx_sounding()) || (looping && total > rate * 4)) {
+            bool looping = arc_sfx_loops((arc_tune_id)id);
+            if ((!looping && !arc_sfx_sounding()) || (looping && total > rate * 4)) {
                 break;
             }
         }

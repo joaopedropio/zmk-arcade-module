@@ -13,7 +13,7 @@ set -e
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
 out=${1:-$root/docs/configurator/preview.js}
-widgets=$root/boards/shields/pacman_adapter/widgets
+widgets=$root/boards/shields/arcade_adapter/widgets
 stub=$root/tools/uisim/stub
 
 # the UI reads its defaults from Kconfig, so turn those into a forced include
@@ -21,10 +21,10 @@ defs=$(mktemp)
 python3 - "$root/Kconfig" > "$defs" <<'PY'
 import re, sys
 print("/* generated from Kconfig defaults by tools/wasm/build.sh */")
-print("#define CONFIG_PACMAN_USE_COMPLETE_CUSTOM_THEME 1")
+print("#define CONFIG_ARCADE_USE_COMPLETE_CUSTOM_THEME 1")
 name = None
 for line in open(sys.argv[1]):
-    m = re.match(r"^config (PACMAN_\S+)", line)
+    m = re.match(r"^config (ARCADE_\S+)", line)
     if m:
         name = m.group(1)
         continue
@@ -72,12 +72,12 @@ emcc -O2 -std=c11 -Wall \
     "$widgets/modifier.c" \
     "$widgets/wpm.c" \
     "$widgets/action_button.c" \
-    "$widgets/arcade.c" \
+    "$widgets/cabinet.c" \
     "$widgets/progress.c" \
     --no-entry \
     -sSINGLE_FILE=1 \
     -sMODULARIZE=1 \
-    -sEXPORT_NAME=PacmanPreview \
+    -sEXPORT_NAME=ArcadePreview \
     -sENVIRONMENT=web,node \
     -sEXPORTED_FUNCTIONS=_malloc,_free \
     -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU16,HEAPU32,cwrap,ccall,stringToNewUTF8 \

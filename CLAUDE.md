@@ -1,7 +1,7 @@
 # Working on this repo
 
 A ZMK module for the [snake dongle](https://github.com/joaopedropio/snake-dongle):
-the `pacman_adapter` shield turns the dongle's 240x240 ST7789V into one of eight
+the `arcade_adapter` shield turns the dongle's 240x240 ST7789V into one of eight
 self-playing games - a Pac-Man in a maze, an Asteroids-shaped Space Shooter with
 a triangle that turns and thrusts freely, a Bomberman-shaped brick field where a
 bomber blows its way through soft wall and leaves by the door under one of them,
@@ -21,21 +21,21 @@ Four harnesses build the firmware's own C - and its page - on a laptop. Run whic
 the change before claiming it works; flashing is the slow path.
 
 ```sh
-tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim 3000
-tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim shooter 3000
-tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim bomber 3000
-tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim fighter 3000
-tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim commando 3000
-tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim frogger 3000
-tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim kong 3000
-tools/sim/build.sh /tmp/pacman-sim && /tmp/pacman-sim tempest 3000
+tools/sim/build.sh /tmp/arcade-sim && /tmp/arcade-sim 3000
+tools/sim/build.sh /tmp/arcade-sim && /tmp/arcade-sim shooter 3000
+tools/sim/build.sh /tmp/arcade-sim && /tmp/arcade-sim bomber 3000
+tools/sim/build.sh /tmp/arcade-sim && /tmp/arcade-sim fighter 3000
+tools/sim/build.sh /tmp/arcade-sim && /tmp/arcade-sim commando 3000
+tools/sim/build.sh /tmp/arcade-sim && /tmp/arcade-sim frogger 3000
+tools/sim/build.sh /tmp/arcade-sim && /tmp/arcade-sim kong 3000
+tools/sim/build.sh /tmp/arcade-sim && /tmp/arcade-sim tempest 3000
 ```
 Any game core and its renderer, blitting into a 240x240 buffer. Every frame it
 checks that nobody is inside a wall, standing on water or off the panel, and
 that the incremental redraw matches a full repaint, and it prints pixels per
 frame — so it catches both game bugs and drawing bugs. The game name goes in
 front of the old argument list and may be left out, in which case it is the
-maze. `/tmp/pacman-sim 640 2 /tmp/frames 40` dumps PPMs instead.
+maze. `/tmp/arcade-sim 640 2 /tmp/frames 40` dumps PPMs instead.
 Balance changes want a soak: 200k frames prints clears against deaths for the
 maze, meteors destroyed against restarts for the shooter, boards cleared, walls
 broken and enemies destroyed against a breakdown of what killed the bomber for
@@ -57,7 +57,7 @@ other seven, without a splash:
 ```sh
 ffmpeg -framerate 15 -i /tmp/frames/frame_%05d.ppm -vf palettegen=max_colors=64 /tmp/pal.png
 ffmpeg -framerate 15 -i /tmp/frames/frame_%05d.ppm -i /tmp/pal.png \
-    -lavfi paletteuse=dither=none /tmp/pacman.gif
+    -lavfi paletteuse=dither=none /tmp/arcade.gif
 ```
 
 ```sh
@@ -94,17 +94,17 @@ cd ~/zmk-workspace
 ZEPHYR_TOOLCHAIN_VARIANT=zephyr ZEPHYR_SDK_INSTALL_DIR=$HOME/zephyr-sdk-0.17.0 \
   ./.venv/bin/west build -p always -s zmk/app -b 'nice_nano@2.0.0/nrf52840/zmk' \
   -d build/cyg_dongle -- \
-  -DSHIELD="cygnus_dongle pacman_adapter" \
+  -DSHIELD="cygnus_dongle arcade_adapter" \
   -DZMK_CONFIG=$HOME/zmk-cygnus/config \
-  -DZMK_EXTRA_MODULES="$HOME/zmk-pacman;$HOME/zmk-cygnus"
+  -DZMK_EXTRA_MODULES="$HOME/zmk-arcade;$HOME/zmk-cygnus"
 ```
 
 ZMK main uses hardware model v2, so the board is `nice_nano@2.0.0/nrf52840/zmk`,
 never `nice_nano_v2` — the README's `build.yaml` snippet is the GitHub Actions
 path, which is a different thing.
 
-That command alone builds a dongle with no shell, and so with no `pacman`
-command, no profiles and nothing for the configurator to talk to: `PACMAN_SHELL`
+That command alone builds a dongle with no shell, and so with no `arcade`
+command, no profiles and nothing for the configurator to talk to: `ARCADE_SHELL`
 depends on `SHELL`, so `shell.c` and `helpers/profiles.c` are simply not
 compiled. Add the console snippet, and put the USB identity on the command line
 rather than in a `.conf` — snippet config is merged after the keyboard's and
@@ -115,23 +115,23 @@ would win:
   ... -DCONFIG_USB_DEVICE_PRODUCT='"Cygnus"' -DCONFIG_USB_DEVICE_PID=0x615E
 ```
 
-Check rather than assume — `grep ^CONFIG_PACMAN_SHELL= build/cyg_dongle/zephyr/.config`.
+Check rather than assume — `grep ^CONFIG_ARCADE_SHELL= build/cyg_dongle/zephyr/.config`.
 Without the shell the image links byte for byte the same as one built before any
 shell-side change, so a clean build says nothing about code it never saw.
 
 ## Where things live
 
 ```
-boards/shields/pacman_adapter/
-├── pacman_adapter.overlay   panel, amplifier, action button
+boards/shields/arcade_adapter/
+├── arcade_adapter.overlay   panel, amplifier, action button
 ├── Kconfig.defconfig        display and LVGL defaults
 ├── custom_status_screen.c   hands ZMK an empty screen, starts the timer
 └── widgets/
-    ├── pacman.c             display device, palette, LVGL timer, WPM speed
+    ├── arcade.c                        display device, palette, LVGL timer, WPM speed
     ├── sound.c              the I2S driver side of the synth
     ├── action_button.c      screens, themes, mute
     ├── splash.c logo.c frames.c theme.c configuration.c shell.c
-    ├── arcade.c             the other dashboard-style: the fixed cabinet HUD
+    ├── cabinet.c            the other dashboard-style: the fixed cabinet HUD
     ├── splash_image.h       the other splash, run-length, from tools/splash_art.png
     ├── battery_status.c output_status.c layer_status.c wpm.c modifier.c
     ├── helpers/display.c    the drawing engine: bitmaps, text, rects, slots
@@ -144,7 +144,7 @@ boards/shields/pacman_adapter/
                              commando_core.c, commando_render.c,
                              frogger_core.c, frogger_render.c,
                              kong_core.c, kong_render.c,
-                             tempest_core.c, tempest_render.c, pacman_sfx.c
+                             tempest_core.c, tempest_render.c, arcade_sfx.c
 src/ include/ dts/           the zmk,behavior-dongle-action behaviour
 tools/                       the four host harnesses and three generators
 tools/wasm/                  the renderer built for the browser, by emscripten
@@ -155,21 +155,21 @@ docs/configurator/           the WebSerial settings page, served by GitHub Pages
 string and math. Keep it that way; the simulators are what it buys. The UI files
 may include Zephyr headers only where `tools/uisim/stub/` already stubs them.
 No game may include another's headers: what they share - the panel size, the
-staging band, `pm_blit()`, `pm_rgb565()`, the rectangle being painted and the
+staging band, `arc_blit()`, `arc_rgb565()`, the rectangle being painted and the
 5x7 font that writes on it - is in `game/panel.h`, and anything else they turn
-out to have in common belongs there too. `pm_put()` is inlined in that header
+out to have in common belongs there too. `arc_put()` is inlined in that header
 on purpose: it is the inner loop of the whole shield, and a call across a
 translation unit per pixel is a millisecond of every frame.
 
 ## Things that bite
 
-- **`pacman_art.h`, `pacman_tunes.h` and `splash_image.h` are generated.** Edit
+- **`pacman_art.h`, `arcade_tunes.h` and `splash_image.h` are generated.** Edit
   `tools/sprites.py`, `tools/tunes.py` or `tools/splash_art.png` and regenerate;
   hand-editing the headers loses the change.
   ```sh
-  python3 tools/tunes.py > boards/shields/pacman_adapter/widgets/game/pacman_tunes.h
-  python3 tools/sprites.py > boards/shields/pacman_adapter/widgets/pacman_art.h
-  python3 tools/splash_image.py > boards/shields/pacman_adapter/widgets/splash_image.h
+  python3 tools/tunes.py > boards/shields/arcade_adapter/widgets/game/arcade_tunes.h
+  python3 tools/sprites.py > boards/shields/arcade_adapter/widgets/pacman_art.h
+  python3 tools/splash_image.py > boards/shields/arcade_adapter/widgets/splash_image.h
   ```
   The picture is at most eight flat colours, run-length encoded three bits of
   palette index to five of length, and no run crosses a row - which is what
@@ -364,10 +364,10 @@ translation unit per pixel is a millisecond of every frame.
   dongle can act on, which is the same reason the action button stopped
   stepping through themes.
 - **The games share one staging band and one font, and nothing else.**
-  `game/panel.h` holds `PM_PANEL`, `pm_band[]`, `pm_blit()`, `pm_rgb565()`, the
-  band being painted (`pm_band_begin()`, `pm_put()`, `pm_fill()`) and the 5x7
-  font (`pm_text()`, `pm_text_w()`, `pm_digits()`), and each renderer
-  `_Static_assert`s its own widest blit against `PM_BAND_PX`. One buffer is
+  `game/panel.h` holds `ARC_PANEL`, `arc_band[]`, `arc_blit()`, `arc_rgb565()`, the
+  band being painted (`arc_band_begin()`, `arc_put()`, `arc_fill()`) and the 5x7
+  font (`arc_text()`, `arc_text_w()`, `arc_digits()`), and each renderer
+  `_Static_assert`s its own widest blit against `ARC_BAND_PX`. One buffer is
   safe only because one game runs at a time — never tick two.
 - **The renderers work two opposite ways round.** `pacman_render.c` asks each
   pixel what is on it; the other five clear a rectangle and stamp the sprites
@@ -386,25 +386,25 @@ translation unit per pixel is a millisecond of every frame.
   pulsar's lane lighting up — has to be in `cell_look()`, in the ridge's pair of
   column arrays, or in the `look` of the crossing, the site or the well, or it
   goes stale.
-- **Switching games repaints all of them.** `pacman_set_game()` only says
+- **Switching games repaints all of them.** `arcade_set_game()` only says
   which one the timer ticks; each renderer remembers what it last put on the
   panel, and the idle ones have had the others drawing over them ever since.
-  That is why `repaint_all()` and not `game.redraw`, in `pacman_start()`, the
+  That is why `repaint_all()` and not `game.redraw`, in `arcade_start()`, the
   palette reload and the periodic full redraw alike. No game is reset, so the
   maze comes back mid-level.
 - **There are two dashboards and only one is a grid of slots.** `dashboard-style`
-  picks `classic` (the slot grid with the animated header) or `arcade`
-  (`widgets/arcade.c`, one fixed cabinet-HUD layout: the layer name across the
+  picks `classic` (the slot grid with the animated header) or `cabinet`
+  (`widgets/cabinet.c`, one fixed cabinet-HUD layout: the layer name across the
   top, the WPM as a big score with the two connectivity lamps beside it, the
-  modifiers as lit buttons, the batteries as ENERGY bars). The arcade one owns the
+  modifiers as lit buttons, the batteries as ENERGY bars). The cabinet one owns the
   whole panel, so `print_menu()` starts none of the slot widgets in that mode -
-  their listeners still keep their state current and `arcade.c` reads it back
+  their listeners still keep their state current and `cabinet.c` reads it back
   through a getter apiece (`wpm_current()`, `layer_current_label()`,
   `modifier_current_mask()`, `connectivity_get()`, `battery_current_level()`).
-  Each of those listeners calls the matching `arcade_refresh_*()` after storing
+  Each of those listeners calls the matching `cabinet_refresh_*()` after storing
   its state - the same place it would call its own `print_*` - and that is a
-  no-op unless `arcade_set_active(true)` was called, which `print_menu()` does
-  for the arcade style and `toggle_menu()` undoes. It draws in fixed positions
+  no-op unless `cabinet_set_active(true)` was called, which `print_menu()` does
+  for the cabinet style and `toggle_menu()` undoes. It draws in fixed positions
   with no slot-table or per-slot buffer, which is what makes it hot-reloadable
   where the slot layout is not: switching to it after boot just works. It also
   carries its own art - a chunky 5x7 font and a round lamp defined in the file -
@@ -416,8 +416,8 @@ translation unit per pixel is a millisecond of every frame.
   overlay would need reading the panel back, which this shield never does, and
   opaque lines through the 14px text cost more than they add at this
   resolution, so the texture stays on the one box that reads as a display.
-  Those colours are the settings, so a `pacman set` on any of them repaints it
-  through `refresh_screen()` like the classic one. `tools/uisim` writes `dashboard-arcade.ppm` beside `dashboard.ppm`
+  Those colours are the settings, so an `arcade set` on any of them repaints it
+  through `refresh_screen()` like the classic one. `tools/uisim` writes `dashboard-cabinet.ppm` beside `dashboard.ppm`
   and `tools/pagetest` checks the preview draws a filled dashboard for each
   style - the same rebuild-or-it-goes-stale rule the rest of `preview.js` follows.
 - **A preset has to have an opinion about all eight games.** Theme 0 already
@@ -429,7 +429,7 @@ translation unit per pixel is a millisecond of every frame.
 - **The sound thread runs above ZMK's display thread** (priority 3 against 5).
   Below it, a full repaint starves the amplifier. The game timer and the sound
   thread talk only through atomics.
-- **Do not build `pacman_adapter` alongside `snake_adapter`** — same hardware,
+- **Do not build `arcade_adapter` alongside `snake_adapter`** — same hardware,
   same `zmk,behavior-dongle-action`, defined twice.
 - **Every game is silent by design.** Only a keyboard connecting or
   dropping makes a sound. Do not add per-event sounds back; a dongle that chirps
@@ -439,9 +439,9 @@ translation unit per pixel is a millisecond of every frame.
 - **Disconnects are inferred from a peripheral battery level of 0**, because the
   central never sees the split connection event.
 - **Kconfig is a default, not the value.** `configure()` is two calls:
-  `pacman_settings_load_defaults()` fills in whatever flash had nothing to say,
-  then `pacman_settings_apply_all()` pushes the result at everything that draws
-  or sounds it. Nothing else should read `CONFIG_PACMAN_*` at its point of use —
+  `arcade_settings_load_defaults()` fills in whatever flash had nothing to say,
+  then `arcade_settings_apply_all()` pushes the result at everything that draws
+  or sounds it. Nothing else should read `CONFIG_ARCADE_*` at its point of use —
   if it does, the shell cannot reach it.
 - **A setting is one line in `helpers/settings_list.h`** and nothing else. That
   line is its flash key, its shell word, the values it takes, how it reaches
@@ -464,14 +464,14 @@ translation unit per pixel is a millisecond of every frame.
   widget. The firmware takes the duplicate silently; the configurator is where
   it is kept out of reach, by moving the widget rather than copying it.
 - **Anything that draws belongs on the display queue.** The shell runs on its
-  own thread, so `pacman set` submits the repaint to `zmk_display_work_q()`
+  own thread, so `arcade set` submits the repaint to `zmk_display_work_q()`
   rather than painting where it stands; two threads on the same SPI bus is a
   corrupt panel. Flash writes go the other way — they stay on the calling
   thread, off the queue that has to repaint next.
-- **`pacman schema` is a wire format.** The configurator page parses those
+- **`arcade schema` is a wire format.** The configurator page parses those
   tab-separated columns, so adding a setting is free but adding or reordering a
-  column breaks the page. `pacman profile list`, `pacman profile show` and
-  `pacman profile current` are three more of them, closed by the same bare
+  column breaks the page. `arcade profile list`, `arcade profile show` and
+  `arcade profile current` are three more of them, closed by the same bare
   `end`; everything else under `profile` answers with a sentence whose first
   word is what it did - saved, loaded, renamed, deleted, staged, cleared - and
   the page treats anything else as a failure, so neither end keeps a list of
@@ -488,7 +488,7 @@ translation unit per pixel is a millisecond of every frame.
   every stored profile, which is not worth the tidier word.
 - **`profiles.c` is built whether or not there is a shell**, because the button
   reaches profiles too - so `action_button.c` and `theme.c` call into it, and
-  both host harnesses have to answer `pacman_profile_current()`,
+  both host harnesses have to answer `arcade_profile_current()`,
   `_next()` and `_load()` themselves alongside the sound and game no-ops.
   A profile switch from the button is a flash write for the profile being left
   plus one per setting that moved, which is long enough to look like a button
@@ -502,7 +502,7 @@ translation unit per pixel is a millisecond of every frame.
   game is stopped first because its timer runs on that same thread and would
   paint the maze over the box.
 - **The dongle is always on a profile, and the live settings are it.**
-  `pacman set` reaches flash as it is typed, so there is no draft of a profile
+  `arcade set` reaches flash as it is typed, so there is no draft of a profile
   and nothing to save: what it writes is the profile you are on. Keeping a look
   before changing it is `profile save <free slot>`, which snapshots the panel
   and moves the dongle onto the copy. Slot 0 is written on a dongle's first
@@ -512,8 +512,8 @@ translation unit per pixel is a millisecond of every frame.
   it: holding it in step would cost eight hundred bytes per colour somebody
   drags a slider over, so `name()` and `read()` answer for that slot out of the
   live settings, and `load` snapshots the profile being left before it applies
-  the one being gone to. `configure()` calls `pacman_profile_init()` between
-  loading the defaults and applying them, guarded by `CONFIG_PACMAN_SHELL` -
+  the one being gone to. `configure()` calls `arcade_profile_init()` between
+  loading the defaults and applying them, guarded by `CONFIG_ARCADE_SHELL` -
   a build with no shell has no profiles to be on.
 - **A profile is one flash key, not one per setting** - the opposite of what
   the settings themselves do, because a profile is only ever written whole and
@@ -524,7 +524,7 @@ translation unit per pixel is a millisecond of every frame.
   setting drops it from existing profiles, which is the honest outcome. An
   import arrives a value at a time over the shell, so `stage` fills a RAM copy
   and `commit` is the single write.
-- **Theme 0 is not derived.** With `CONFIG_PACMAN_USE_COMPLETE_CUSTOM_THEME`
+- **Theme 0 is not derived.** With `CONFIG_ARCADE_USE_COMPLETE_CUSTOM_THEME`
   on - which is the default - theme 0 paints the dashboard from the individual
   colour settings, and `theme-primary` and its three companions do nothing.
   They only feed themes 1..N. So anything meaning to recolour the whole panel
@@ -537,7 +537,7 @@ translation unit per pixel is a millisecond of every frame.
   until it is rebuilt. It walks `settings_list.h` for the name of every
   setting, so the page drives it by the same words the shell takes and there is
   no third list to keep in step; `reload_game_palette()` there does mirror
-  `pacman_reload_palette()` by hand, house fill included.
+  `arcade_reload_palette()` by hand, house fill included.
 - **A setting the schema calls `boot` needs the preview built again**, not
   pushed at the one that is running - the widgets sized their buffers from the
   slots at init, and `build_once()` has already happened. The page instantiates

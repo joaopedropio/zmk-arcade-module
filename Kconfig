@@ -1,10 +1,10 @@
-# Pac-Man dongle module options.
+# Arcade dongle module options.
 #
-# Every symbol is prefixed with PACMAN_ so this module can live next to
+# Every symbol is prefixed with ARCADE_ so this module can live next to
 # other dongle modules without fighting over Kconfig names.
 
-config PACMAN_SHELL
-    bool "A `pacman` command on the shell"
+config ARCADE_SHELL
+    bool "An `arcade` command on the shell"
     depends on SHELL
     default y
     help
@@ -19,7 +19,7 @@ config PACMAN_SHELL
       comes with it.  On a dongle that means a CDC ACM endpoint over the USB
       it is already plugged into.
 
-config PACMAN_PROFILE_SLOTS
+config ARCADE_PROFILE_SLOTS
     int "How many profiles the dongle can hold"
     default 5
     range 1 16
@@ -29,27 +29,27 @@ config PACMAN_PROFILE_SLOTS
       one costs about eight hundred bytes of the storage partition when it is
       used, and nothing while the slot is empty.
 
-config PACMAN_ROTATE_DISPLAY
+config ARCADE_ROTATE_DISPLAY
     int "Rotate the display (0, 90, 180 or 270)"
     default 0
 
-config PACMAN_FRAME_INTERVAL
+config ARCADE_FRAME_INTERVAL
     int "Milliseconds between frames"
     default 33
     help
       33 ms is roughly 30 frames per second.  Raise it for a calmer,
       cheaper animation, lower it for a snappier one.
 
-config PACMAN_SOUND
+config ARCADE_SOUND
     bool "Drive the I2S amplifier"
     default y
     select I2S
     help
       Needs a MAX98357A (or anything else that takes I2S straight in) on the
-      pins the shield's pacman_amp node names.  With no amplifier in the
+      pins the shield's arcade_amp node names.  With no amplifier in the
       devicetree this does nothing either way.
 
-config PACMAN_SOUND_VOLUME
+config ARCADE_SOUND_VOLUME
     int "How loud, 0 to 100"
     default 80
     range 0 100
@@ -60,7 +60,7 @@ config PACMAN_SOUND_VOLUME
       Take the rest from the amplifier: GAIN tied to GND instead of left
       floating is 6 dB and does not touch the waveform.
 
-config PACMAN_SOUND_BASS_FLOOR_HZ
+config ARCADE_SOUND_BASS_FLOOR_HZ
     int "Lowest pitch worth sending to the speaker"
     default 0
     range 0 4000
@@ -74,7 +74,7 @@ config PACMAN_SOUND_BASS_FLOOR_HZ
       drivers manage - so there is little here for this to fix.  It is kept
       for a score of your own in tools/tunes.py that does go low.
 
-config PACMAN_SOUND_CONNECT
+config ARCADE_SOUND_CONNECT
     bool "Chirp when a keyboard connects or drops off"
     default y
     help
@@ -88,7 +88,7 @@ config PACMAN_SOUND_CONNECT
       which is the same bargain the battery readout already makes.  Nothing
       sounds at power-on, when the halves connecting is not news.
 
-config PACMAN_MUTE_THRESHOLD
+config ARCADE_MUTE_THRESHOLD
     int "Milliseconds of hold that mute and unmute the speaker"
     default 600
     help
@@ -99,7 +99,7 @@ config PACMAN_MUTE_THRESHOLD
 
       Set it to 0 to leave the button with its two actions and no mute.
 
-config PACMAN_SOUND_SAMPLE_RATE
+config ARCADE_SOUND_SAMPLE_RATE
     int "Samples per second"
     default 16000
     help
@@ -107,19 +107,19 @@ config PACMAN_SOUND_SAMPLE_RATE
       closest it can.  16 kHz is plenty for square waves and keeps the blocks
       small.
 
-config PACMAN_WPM_SPEED
+config ARCADE_WPM_SPEED
     bool "Speed the game up while you type"
     default y
 
-config PACMAN_WPM_SLOW
+config ARCADE_WPM_SLOW
     int "Words per minute below which the game idles"
     default 20
 
-config PACMAN_WPM_FAST
+config ARCADE_WPM_FAST
     int "Words per minute above which the game runs fast"
     default 60
 
-config PACMAN_DEFAULT_GAME
+config ARCADE_DEFAULT_GAME
     string "Which game the panel plays"
     default "pacman"
     help
@@ -135,55 +135,55 @@ config PACMAN_DEFAULT_GAME
 # The maze's colours.
 # ------------------------------------------------------------------
 
-config PACMAN_BG_COLOR
+config ARCADE_BG_COLOR
     string "Background colour (rrggbb)"
     default "000000"
 
-config PACMAN_WALL_COLOR
+config ARCADE_WALL_COLOR
     string "Maze wall outline colour (rrggbb)"
     default "2121de"
 
-config PACMAN_WALL_FILL_COLOR
+config ARCADE_WALL_FILL_COLOR
     string "Maze wall fill colour (rrggbb)"
     default "00003c"
 
-config PACMAN_WALL_FLASH_COLOR
+config ARCADE_WALL_FLASH_COLOR
     string "Maze colour while it flashes at the end of a level (rrggbb)"
     default "f8f8f8"
 
-config PACMAN_HOUSE_COLOR
+config ARCADE_HOUSE_COLOR
     string "Ghost house outline colour (rrggbb)"
     default "6d6dff"
 
-config PACMAN_DOOR_COLOR
+config ARCADE_DOOR_COLOR
     string "Ghost house door colour (rrggbb)"
     default "ffb8ff"
 
-config PACMAN_PELLET_COLOR
+config ARCADE_PELLET_COLOR
     string "Pellet colour (rrggbb)"
     default "ffb897"
 
-config PACMAN_PACMAN_COLOR
+config ARCADE_PACMAN_COLOR
     string "Pac-Man colour (rrggbb)"
     default "ffee00"
 
-config PACMAN_GHOST_0_COLOR
+config ARCADE_GHOST_0_COLOR
     string "First ghost colour (rrggbb)"
     default "ff0000"
 
-config PACMAN_GHOST_1_COLOR
+config ARCADE_GHOST_1_COLOR
     string "Second ghost colour (rrggbb)"
     default "ffb8ff"
 
-config PACMAN_GHOST_2_COLOR
+config ARCADE_GHOST_2_COLOR
     string "Third ghost colour (rrggbb)"
     default "00ffff"
 
-config PACMAN_GHOST_3_COLOR
+config ARCADE_GHOST_3_COLOR
     string "Fourth ghost colour (rrggbb)"
     default "ffb852"
 
-config PACMAN_FRIGHT_COLOR
+config ARCADE_FRIGHT_COLOR
     string "Colour of a frightened ghost (rrggbb)"
     default "2121de"
 
@@ -194,47 +194,47 @@ config PACMAN_FRIGHT_COLOR
 # length whatever the individual colours are.
 # ------------------------------------------------------------------
 
-config PACMAN_SPACE_COLOR
+config ARCADE_SPACE_COLOR
     string "Colour behind the stars (rrggbb)"
     default "05060f"
 
-config PACMAN_STAR_COLOR
+config ARCADE_STAR_COLOR
     string "Star colour (rrggbb)"
     default "8899bb"
 
-config PACMAN_SHIP_COLOR
+config ARCADE_SHIP_COLOR
     string "Ship hull colour (rrggbb)"
     default "6ee7ff"
 
-config PACMAN_SHIP_TRIM_COLOR
+config ARCADE_SHIP_TRIM_COLOR
     string "Ship cockpit colour (rrggbb)"
     default "ffffff"
 
-config PACMAN_THRUSTER_COLOR
+config ARCADE_THRUSTER_COLOR
     string "Exhaust flame colour (rrggbb)"
     default "ff8a1f"
 
-config PACMAN_BULLET_COLOR
+config ARCADE_BULLET_COLOR
     string "Shot colour (rrggbb)"
     default "fff36b"
 
-config PACMAN_METEOR_COLOR
+config ARCADE_METEOR_COLOR
     string "Meteor fill colour (rrggbb)"
     default "5a5f7a"
 
-config PACMAN_METEOR_EDGE_COLOR
+config ARCADE_METEOR_EDGE_COLOR
     string "Meteor rim colour (rrggbb)"
     default "a3adc9"
 
-config PACMAN_BLAST_COLOR
+config ARCADE_BLAST_COLOR
     string "Colour of a meteor coming apart (rrggbb)"
     default "ff5a2b"
 
-config PACMAN_POWERUP_COLOR
+config ARCADE_POWERUP_COLOR
     string "Pickup and shield colour (rrggbb)"
     default "39ff9e"
 
-config PACMAN_HUD_COLOR
+config ARCADE_HUD_COLOR
     string "Score and lives colour (rrggbb)"
     default "ffee00"
     help
@@ -250,51 +250,51 @@ config PACMAN_HUD_COLOR
 # than stored, so there is nothing here that can disagree with itself.
 # ------------------------------------------------------------------
 
-config PACMAN_WATER_COLOR
+config ARCADE_WATER_COLOR
     string "River colour (rrggbb)"
     default "1030a8"
 
-config PACMAN_ROAD_COLOR
+config ARCADE_ROAD_COLOR
     string "Road colour, and the two readout bands (rrggbb)"
     default "101014"
 
-config PACMAN_BANK_COLOR
+config ARCADE_BANK_COLOR
     string "The two safe strips, and the clock bar (rrggbb)"
     default "1f7a3a"
 
-config PACMAN_HEDGE_COLOR
+config ARCADE_HEDGE_COLOR
     string "Colour of the hedge the home bays are cut into (rrggbb)"
     default "0f5a2a"
 
-config PACMAN_FROG_COLOR
+config ARCADE_FROG_COLOR
     string "Frog colour (rrggbb)"
     default "7bf03c"
 
-config PACMAN_FROG_EYE_COLOR
+config ARCADE_FROG_EYE_COLOR
     string "Frog's eyes (rrggbb)"
     default "ffffff"
 
-config PACMAN_LOG_COLOR
+config ARCADE_LOG_COLOR
     string "Log colour (rrggbb)"
     default "8a5a2b"
 
-config PACMAN_TURTLE_COLOR
+config ARCADE_TURTLE_COLOR
     string "Turtle colour (rrggbb)"
     default "f0a020"
 
-config PACMAN_CAR_COLOR
+config ARCADE_CAR_COLOR
     string "Car colour; the racing cars are a lighter shade of it (rrggbb)"
     default "e03c3c"
 
-config PACMAN_TRUCK_COLOR
+config ARCADE_TRUCK_COLOR
     string "Truck colour (rrggbb)"
     default "d8d8e0"
 
-config PACMAN_SPLAT_COLOR
+config ARCADE_SPLAT_COLOR
     string "Colour of what is left where the frog was (rrggbb)"
     default "ffffff"
 
-config PACMAN_FLY_COLOR
+config ARCADE_FLY_COLOR
     string "Colour of the fly in a home bay (rrggbb)"
     default "ff40c0"
 
@@ -306,55 +306,55 @@ config PACMAN_FLY_COLOR
 # deciding.  The flame is the one thing allowed to shout.
 # ------------------------------------------------------------------
 
-config PACMAN_FLOOR_COLOR
+config ARCADE_FLOOR_COLOR
     string "Colour of ground a bomb has cleared (rrggbb)"
     default "1c6b2a"
 
-config PACMAN_SOLID_COLOR
+config ARCADE_SOLID_COLOR
     string "Pillar and border colour (rrggbb)"
     default "9aa2ad"
 
-config PACMAN_BRICK_COLOR
+config ARCADE_BRICK_COLOR
     string "Soft wall colour (rrggbb)"
     default "b5561e"
 
-config PACMAN_BRICK_EDGE_COLOR
+config ARCADE_BRICK_EDGE_COLOR
     string "Colour of the joints between its bricks (rrggbb)"
     default "6e2f10"
 
-config PACMAN_BOMB_COLOR
+config ARCADE_BOMB_COLOR
     string "Bomb colour (rrggbb)"
     default "14161c"
 
-config PACMAN_FLAME_COLOR
+config ARCADE_FLAME_COLOR
     string "Blast colour (rrggbb)"
     default "ff6a00"
 
-config PACMAN_FLAME_HOT_COLOR
+config ARCADE_FLAME_HOT_COLOR
     string "Colour of the core of a blast, and of a lit fuse (rrggbb)"
     default "ffe066"
 
-config PACMAN_BOMBER_COLOR
+config ARCADE_BOMBER_COLOR
     string "Bomber colour (rrggbb)"
     default "f2f2f2"
 
-config PACMAN_BOMBER_TRIM_COLOR
+config ARCADE_BOMBER_TRIM_COLOR
     string "Colour of its visor, which is the way it is facing (rrggbb)"
     default "1e73ff"
 
-config PACMAN_FOE_COLOR
+config ARCADE_FOE_COLOR
     string "Enemy colour (rrggbb)"
     default "e23b6d"
 
-config PACMAN_FOE_EYE_COLOR
+config ARCADE_FOE_EYE_COLOR
     string "Enemy eye colour (rrggbb)"
     default "ffffff"
 
-config PACMAN_PICKUP_COLOR
+config ARCADE_PICKUP_COLOR
     string "Colour of whatever was under a soft wall (rrggbb)"
     default "00d2ff"
 
-config PACMAN_EXIT_COLOR
+config ARCADE_EXIT_COLOR
     string "Colour of the way out (rrggbb)"
     default "ffd400"
 
@@ -366,47 +366,47 @@ config PACMAN_EXIT_COLOR
 # worth looking at happens in the forty pixels above the floor.
 # ------------------------------------------------------------------
 
-config PACMAN_RING_COLOR
+config ARCADE_RING_COLOR
     string "Colour of the backdrop above the stage (rrggbb)"
     default "2a1a4a"
 
-config PACMAN_RING_CROWD_COLOR
+config ARCADE_RING_CROWD_COLOR
     string "Colour of the wall behind the stage (rrggbb)"
     default "53306b"
 
-config PACMAN_RING_FLOOR_COLOR
+config ARCADE_RING_FLOOR_COLOR
     string "Colour of the stage itself (rrggbb)"
     default "8a5a2b"
 
-config PACMAN_FIGHTER_0_COLOR
+config ARCADE_FIGHTER_0_COLOR
     string "First fighter's colour (rrggbb)"
     default "f2f2f2"
 
-config PACMAN_FIGHTER_0_TRIM_COLOR
+config ARCADE_FIGHTER_0_TRIM_COLOR
     string "Its headband, belt and guard (rrggbb)"
     default "d42a2a"
 
-config PACMAN_FIGHTER_1_COLOR
+config ARCADE_FIGHTER_1_COLOR
     string "Second fighter's colour (rrggbb)"
     default "ffcf3f"
 
-config PACMAN_FIGHTER_1_TRIM_COLOR
+config ARCADE_FIGHTER_1_TRIM_COLOR
     string "Its headband, belt and guard (rrggbb)"
     default "1e73ff"
 
-config PACMAN_SPARK_COLOR
+config ARCADE_SPARK_COLOR
     string "Colour of a hit landing, and of the stage flashing (rrggbb)"
     default "fff4c2"
 
-config PACMAN_FIREBALL_COLOR
+config ARCADE_FIREBALL_COLOR
     string "Fireball colour (rrggbb)"
     default "4fd8ff"
 
-config PACMAN_HEALTH_COLOR
+config ARCADE_HEALTH_COLOR
     string "Colour of what is left of a health bar (rrggbb)"
     default "ffe000"
 
-config PACMAN_HEALTH_LOST_COLOR
+config ARCADE_HEALTH_LOST_COLOR
     string "Colour of what is draining out of one (rrggbb)"
     default "d03020"
 
@@ -417,51 +417,51 @@ config PACMAN_HEALTH_LOST_COLOR
 # separating the ridge from the dark it is standing in.
 # ------------------------------------------------------------------
 
-config PACMAN_SKY_COLOR
+config ARCADE_SKY_COLOR
     string "Sky colour over the ridge (rrggbb)"
     default "2c4a72"
 
-config PACMAN_HILL_COLOR
+config ARCADE_HILL_COLOR
     string "Colour of the skyline behind it (rrggbb)"
     default "3f5f4a"
 
-config PACMAN_GROUND_COLOR
+config ARCADE_GROUND_COLOR
     string "Colour of the ground the trooper runs on (rrggbb)"
     default "6b5233"
 
-config PACMAN_GROUND_EDGE_COLOR
+config ARCADE_GROUND_EDGE_COLOR
     string "Colour of the lit top of it (rrggbb)"
     default "9e8b52"
 
-config PACMAN_HERO_COLOR
+config ARCADE_HERO_COLOR
     string "Trooper colour (rrggbb)"
     default "d8e0c0"
 
-config PACMAN_HERO_TRIM_COLOR
+config ARCADE_HERO_TRIM_COLOR
     string "Its helmet and rifle (rrggbb)"
     default "2f6b2f"
 
-config PACMAN_GRUNT_COLOR
+config ARCADE_GRUNT_COLOR
     string "Enemy colour (rrggbb)"
     default "c44a3a"
 
-config PACMAN_GRUNT_TRIM_COLOR
+config ARCADE_GRUNT_TRIM_COLOR
     string "Its cap and weapon (rrggbb)"
     default "2a1a14"
 
-config PACMAN_SHOT_COLOR
+config ARCADE_SHOT_COLOR
     string "Colour of a round in the air (rrggbb)"
     default "ffe066"
 
-config PACMAN_GRENADE_COLOR
+config ARCADE_GRENADE_COLOR
     string "Grenade colour (rrggbb)"
     default "4a4a4a"
 
-config PACMAN_BOOM_COLOR
+config ARCADE_BOOM_COLOR
     string "Colour of something going off (rrggbb)"
     default "ff7a1f"
 
-config PACMAN_CRATE_COLOR
+config ARCADE_CRATE_COLOR
     string "Colour of a crate of grenades (rrggbb)"
     default "00c8b4"
 
@@ -473,47 +473,47 @@ config PACMAN_CRATE_COLOR
 # and the barrels are the one thing allowed to shout.
 # ------------------------------------------------------------------
 
-config PACMAN_SITE_COLOR
+config ARCADE_SITE_COLOR
     string "Colour behind the girders (rrggbb)"
     default "000000"
 
-config PACMAN_GIRDER_COLOR
+config ARCADE_GIRDER_COLOR
     string "Girder colour; the rivets are a shade of it (rrggbb)"
     default "d83030"
 
-config PACMAN_LADDER_COLOR
+config ARCADE_LADDER_COLOR
     string "Ladder colour (rrggbb)"
     default "30c0f0"
 
-config PACMAN_CLIMBER_COLOR
+config ARCADE_CLIMBER_COLOR
     string "Climber colour (rrggbb)"
     default "e03030"
 
-config PACMAN_CLIMBER_TRIM_COLOR
+config ARCADE_CLIMBER_TRIM_COLOR
     string "His overalls and his face (rrggbb)"
     default "3060e0"
 
-config PACMAN_BARREL_COLOR
+config ARCADE_BARREL_COLOR
     string "Barrel colour, and the flame over the drum (rrggbb)"
     default "d08020"
 
-config PACMAN_APE_COLOR
+config ARCADE_APE_COLOR
     string "Colour of whatever is throwing them (rrggbb)"
     default "a05820"
 
-config PACMAN_APE_TRIM_COLOR
+config ARCADE_APE_TRIM_COLOR
     string "Its face and chest (rrggbb)"
     default "f0c088"
 
-config PACMAN_LADY_COLOR
+config ARCADE_LADY_COLOR
     string "Colour of the one at the top (rrggbb)"
     default "f060a0"
 
-config PACMAN_HAMMER_COLOR
+config ARCADE_HAMMER_COLOR
     string "Hammer colour (rrggbb)"
     default "f0d040"
 
-config PACMAN_DRUM_COLOR
+config ARCADE_DRUM_COLOR
     string "Colour of the drum at the foot of the site (rrggbb)"
     default "2060d0"
 
@@ -525,142 +525,142 @@ config PACMAN_DRUM_COLOR
 # and shades of it.
 # ------------------------------------------------------------------
 
-config PACMAN_VOID_COLOR
+config ARCADE_VOID_COLOR
     string "Colour outside the well (rrggbb)"
     default "000000"
 
-config PACMAN_WELL_COLOR
+config ARCADE_WELL_COLOR
     string "Colour of the spokes and the far end of the tube (rrggbb)"
     default "2040d0"
 
-config PACMAN_RIM_COLOR
+config ARCADE_RIM_COLOR
     string "Colour of the near rim, which is where the claw lives (rrggbb)"
     default "60a0ff"
 
-config PACMAN_CLAW_COLOR
+config ARCADE_CLAW_COLOR
     string "Claw colour (rrggbb)"
     default "ffe030"
 
-config PACMAN_CLAW_SHOT_COLOR
+config ARCADE_CLAW_SHOT_COLOR
     string "Colour of what it fires (rrggbb)"
     default "ffffff"
 
-config PACMAN_FLIPPER_COLOR
+config ARCADE_FLIPPER_COLOR
     string "Colour of the ones that tumble across the spokes (rrggbb)"
     default "ff3040"
 
-config PACMAN_TANKER_COLOR
+config ARCADE_TANKER_COLOR
     string "Colour of the ones that break into two when shot (rrggbb)"
     default "40e060"
 
-config PACMAN_SPIKER_COLOR
+config ARCADE_SPIKER_COLOR
     string "Colour of the ones that build spikes (rrggbb)"
     default "30e0e0"
 
-config PACMAN_PULSAR_COLOR
+config ARCADE_PULSAR_COLOR
     string "Colour of the ones that electrify their lane (rrggbb)"
     default "ff40e0"
 
-config PACMAN_SPIKE_COLOR
+config ARCADE_SPIKE_COLOR
     string "Colour of a spike left up a lane (rrggbb)"
     default "9060ff"
 
-config PACMAN_BOLT_COLOR
+config ARCADE_BOLT_COLOR
     string "Colour of what they fire, and of the superzapper (rrggbb)"
     default "ffa020"
 
 # ------------------------------------------------------------------
 # Splash screen and dashboard.  The dashboard is a grid of slots; each
-# PACMAN_INFO_SLOT_* names what goes in one of them, and the colours
+# ARCADE_INFO_SLOT_* names what goes in one of them, and the colours
 # below are the custom theme (theme 0).  Holding the action button
 # steps through the built-in themes, which recolour all of it.
 # ------------------------------------------------------------------
 
-config PACMAN_BATTERY_BG_COLOR
+config ARCADE_BATTERY_BG_COLOR
     string ""
     default "000000"
 
-config PACMAN_BATTERY_BG_COLOR_1
+config ARCADE_BATTERY_BG_COLOR_1
     string ""
     default "000000"
 
-config PACMAN_BATTERY_BG_COLOR_2
+config ARCADE_BATTERY_BG_COLOR_2
     string ""
     default "000000"
 
-config PACMAN_BATTERY_NUM_COLOR
+config ARCADE_BATTERY_NUM_COLOR
     string ""
     default "ffee00"
 
-config PACMAN_BATTERY_NUM_COLOR_1
+config ARCADE_BATTERY_NUM_COLOR_1
     string ""
     default "ffee00"
 
-config PACMAN_BATTERY_NUM_COLOR_2
+config ARCADE_BATTERY_NUM_COLOR_2
     string ""
     default "ffee00"
 
-config PACMAN_BATTERY_PERCENTAGE_COLOR
+config ARCADE_BATTERY_PERCENTAGE_COLOR
     string ""
     default "ffb897"
 
-config PACMAN_BATTERY_PERCENTAGE_COLOR_1
+config ARCADE_BATTERY_PERCENTAGE_COLOR_1
     string ""
     default "ffb897"
 
-config PACMAN_BATTERY_PERCENTAGE_COLOR_2
+config ARCADE_BATTERY_PERCENTAGE_COLOR_2
     string ""
     default "ffb897"
 
-config PACMAN_BATTERY_SLOTS
+config ARCADE_BATTERY_SLOTS
     int "Battery Slots"
     default 2
 
-config PACMAN_BATTERY_WIDGET_BG_COLOR
+config ARCADE_BATTERY_WIDGET_BG_COLOR
     string ""
     default "000000"
 
-config PACMAN_BATTERY_WIDGET_NUM_COLOR
+config ARCADE_BATTERY_WIDGET_NUM_COLOR
     string ""
     default "ffee00"
 
-config PACMAN_BATTERY_WIDGET_NUMBER
+config ARCADE_BATTERY_WIDGET_NUMBER
     int ""
     default 0
 
-config PACMAN_BATTERY_WIDGET_PERCENTAGE_COLOR
+config ARCADE_BATTERY_WIDGET_PERCENTAGE_COLOR
     string ""
     default "ffb897"
 
-config PACMAN_BATTERY_WIDGET_TEXT_COLOR
+config ARCADE_BATTERY_WIDGET_TEXT_COLOR
     string ""
     default "ffb897"
 
-config PACMAN_BT_BG_COLOR
+config ARCADE_BT_BG_COLOR
     string ""
     default "000000"
 
-config PACMAN_BT_NUM_COLOR
+config ARCADE_BT_NUM_COLOR
     string ""
     default "00ffff"
 
-config PACMAN_BT_STATUS_BG_COLOR
+config ARCADE_BT_STATUS_BG_COLOR
     string ""
     default "000000"
 
-config PACMAN_BT_STATUS_NOT_OK_COLOR
+config ARCADE_BT_STATUS_NOT_OK_COLOR
     string ""
     default "ff0000"
 
-config PACMAN_BT_STATUS_OK_COLOR
+config ARCADE_BT_STATUS_OK_COLOR
     string ""
     default "00e000"
 
-config PACMAN_BT_STATUS_OPEN_COLOR
+config ARCADE_BT_STATUS_OPEN_COLOR
     string ""
     default "ffb852"
 
-config PACMAN_DASHBOARD_STYLE
+config ARCADE_DASHBOARD_STYLE
     string "Dashboard style"
     default "classic"
     help
@@ -670,95 +670,95 @@ config PACMAN_DASHBOARD_STYLE
       STAGE, the profile as the CREDIT count, connectivity as player lamps,
       modifiers as lit buttons, the batteries as ENERGY bars.
 
-config PACMAN_DEFAULT_SCREEN
+config ARCADE_DEFAULT_SCREEN
     string "Default screen"
     default "game"
 
-config PACMAN_FRAME_COLOR
+config ARCADE_FRAME_COLOR
     string ""
     default "2121de"
 
-config PACMAN_FRAME_COLOR_1
+config ARCADE_FRAME_COLOR_1
     string ""
     default "101078"
 
-config PACMAN_INFO_SLOT_1
+config ARCADE_INFO_SLOT_1
     string "Info slot 1"
     default "modifiers"
 
-config PACMAN_INFO_SLOT_2
+config ARCADE_INFO_SLOT_2
     string "Info slot 2"
     default "theme"
 
-config PACMAN_INFO_SLOT_3
+config ARCADE_INFO_SLOT_3
     string "Info slot 3"
     default "wpm"
 
-config PACMAN_INFO_SLOT_4
+config ARCADE_INFO_SLOT_4
     string "Info slot 4"
     default "empty"
 
-config PACMAN_INFO_SLOT_5
+config ARCADE_INFO_SLOT_5
     string "Info slot 5"
     default "connectivity"
 
-config PACMAN_INFO_SLOT_6
+config ARCADE_INFO_SLOT_6
     string "Info slot 6"
     default "layer"
 
-config PACMAN_INFO_SLOT_MODE
+config ARCADE_INFO_SLOT_MODE
     string "Info slot mode"
     default "2-slot"
 
-config PACMAN_LAYER_FONT_BG_COLOR
+config ARCADE_LAYER_FONT_BG_COLOR
     string ""
     default "000000"
 
-config PACMAN_LAYER_FONT_COLOR
+config ARCADE_LAYER_FONT_COLOR
     string ""
     default "ffee00"
 
-config PACMAN_LOGO_ACCENT_COLOR
+config ARCADE_LOGO_ACCENT_COLOR
     string ""
     default "ffb897"
 
-config PACMAN_LOGO_BG_COLOR
+config ARCADE_LOGO_BG_COLOR
     string ""
     default "000000"
 
-config PACMAN_LOGO_FONT_COLOR
+config ARCADE_LOGO_FONT_COLOR
     string ""
     default "ffee00"
 
-config PACMAN_LOGO_WALK_INTERVAL
+config ARCADE_LOGO_WALK_INTERVAL
     int "Logo walk interval"
     default 50
 
-config PACMAN_MENU_BG_COLOR
+config ARCADE_MENU_BG_COLOR
     string ""
     default "000000"
 
-config PACMAN_MODIFIER_BG_COLOR
+config ARCADE_MODIFIER_BG_COLOR
     string ""
     default "000000"
 
-config PACMAN_MODIFIER_SELECTED_COLOR
+config ARCADE_MODIFIER_SELECTED_COLOR
     string ""
     default "ffee00"
 
-config PACMAN_MODIFIER_UNSELECTED_COLOR
+config ARCADE_MODIFIER_UNSELECTED_COLOR
     string ""
     default "2121de"
 
-config PACMAN_SPLASH_BG_COLOR
+config ARCADE_SPLASH_BG_COLOR
     string ""
     default "000000"
 
-config PACMAN_SPLASH_CREATED_BY_COLOR
+config ARCADE_SPLASH_CREATED_BY_COLOR
     string ""
     default "ffb897"
 
-config PACMAN_SPLASH_STYLE
+config ARCADE_SPLASH_STYLE
     string "Which splash goes up at boot"
     default "drawn"
     help
@@ -766,98 +766,98 @@ config PACMAN_SPLASH_STYLE
       in it is a setting.  "image" puts up the picture in splash_image.h
       instead, which brings its own eight colours and ignores those settings.
 
-config PACMAN_SPLASH_FRAMES
+config ARCADE_SPLASH_FRAMES
     int "Ticks the splash screen stays up"
     default 50
     help
-      Times PACMAN_SPLASH_INTERVAL.  The default is two and a half seconds,
+      Times ARCADE_SPLASH_INTERVAL.  The default is two and a half seconds,
       which is long enough that LVGL's first flush of its empty screen lands
       on the splash rather than on the game.
 
-config PACMAN_SPLASH_INTERVAL
+config ARCADE_SPLASH_INTERVAL
     int "Milliseconds between splash screen ticks"
     default 50
 
-config PACMAN_SPLASH_LOGO_COLOR
+config ARCADE_SPLASH_LOGO_COLOR
     string ""
     default "ffee00"
 
-config PACMAN_SPLASH_MULTICOLOR_0
+config ARCADE_SPLASH_MULTICOLOR_0
     string ""
     default "000000"
 
-config PACMAN_SPLASH_MULTICOLOR_1
+config ARCADE_SPLASH_MULTICOLOR_1
     string ""
     default "2121de"
 
-config PACMAN_SPLASH_MULTICOLOR_2
+config ARCADE_SPLASH_MULTICOLOR_2
     string ""
     default "ffee00"
 
-config PACMAN_SPLASH_MULTICOLOR_3
+config ARCADE_SPLASH_MULTICOLOR_3
     string ""
     default "ff0000"
 
-config PACMAN_SYMBOL_BG_COLOR
+config ARCADE_SYMBOL_BG_COLOR
     string ""
     default "000000"
 
-config PACMAN_SYMBOL_SELECTED_COLOR
+config ARCADE_SYMBOL_SELECTED_COLOR
     string ""
     default "ffee00"
 
-config PACMAN_SYMBOL_UNSELECTED_COLOR
+config ARCADE_SYMBOL_UNSELECTED_COLOR
     string ""
     default "2121de"
 
-config PACMAN_THEME_BG_COLOR
+config ARCADE_THEME_BG_COLOR
     string "Theme background color"
     default "000000"
 
-config PACMAN_THEME_BG_DARKER_COLOR
+config ARCADE_THEME_BG_DARKER_COLOR
     string "Theme background darker color"
     default "000000"
 
-config PACMAN_THEME_FONT_BG_COLOR
+config ARCADE_THEME_FONT_BG_COLOR
     string ""
     default "000000"
 
-config PACMAN_THEME_FONT_COLOR
+config ARCADE_THEME_FONT_COLOR
     string ""
     default "ffb897"
 
-config PACMAN_THEME_FONT_COLOR_1
+config ARCADE_THEME_FONT_COLOR_1
     string ""
     default "ffee00"
 
-config PACMAN_THEME_PRIMARY_COLOR
+config ARCADE_THEME_PRIMARY_COLOR
     string "Theme primary color"
     default "ffb897"
 
-config PACMAN_THEME_SECONDARY_COLOR
+config ARCADE_THEME_SECONDARY_COLOR
     string "Theme secondary color"
     default "2121de"
 
-config PACMAN_THEME_THRESHOLD
+config ARCADE_THEME_THRESHOLD
     int "Theme threshold"
     default 300
 
-config PACMAN_USE_BATTERY_FONT_3X5
+config ARCADE_USE_BATTERY_FONT_3X5
     bool "Use battery font 3x5"
     default n
 
-config PACMAN_USE_COMPLETE_CUSTOM_THEME
+config ARCADE_USE_COMPLETE_CUSTOM_THEME
     bool "Complete custom theme"
     default y
 
-config PACMAN_WPM_FONT_1_COLOR
+config ARCADE_WPM_FONT_1_COLOR
     string ""
     default "ffee00"
 
-config PACMAN_WPM_FONT_BG_COLOR
+config ARCADE_WPM_FONT_BG_COLOR
     string ""
     default "000000"
 
-config PACMAN_WPM_FONT_COLOR
+config ARCADE_WPM_FONT_COLOR
     string ""
     default "ffb897"

@@ -11,7 +11,7 @@ between the two L's along the bottom.
 """
 
 import re, sys
-src = open('boards/shields/pacman_adapter/widgets/game/pacman_core.c').read()
+src = open('boards/shields/arcade_adapter/widgets/game/pacman_core.c').read()
 art = re.search(r'MAZE_ART\[PM_ROWS\] = \{(.*?)\};', src, re.S).group(1)
 rows = re.findall(r'"(.*?)"', art)
 H, W = len(rows), len(rows[0])

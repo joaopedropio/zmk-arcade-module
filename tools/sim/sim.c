@@ -2,11 +2,11 @@
  * Host simulator for the dongle's games.
  *
  * Runs the very same game cores and renderers that the firmware runs, but
- * blits into a plain PM_PANEL square frame buffer and writes PPM frames, so the
+ * blits into a plain ARC_PANEL square frame buffer and writes PPM frames, so the
  * animation can be checked (and eyeballed) without flashing anything.
  *
- *   tools/sim/build.sh /tmp/pacman-sim
- *   /tmp/pacman-sim [pacman|shooter|bomber|fighter|commando|frogger|kong|tempest] \
+ *   tools/sim/build.sh /tmp/arcade-sim
+ *   /tmp/arcade-sim [pacman|shooter|bomber|fighter|commando|frogger|kong|tempest] \
  *                   <frames> \
  *                   <every-nth-frame> <out-dir> \
  *                   [first-frame] [speed 1-5]
@@ -30,21 +30,21 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../../boards/shields/pacman_adapter/widgets/game/pacman_render.h"
-#include "../../boards/shields/pacman_adapter/widgets/game/shooter_render.h"
-#include "../../boards/shields/pacman_adapter/widgets/game/bomber_render.h"
-#include "../../boards/shields/pacman_adapter/widgets/game/fighter_render.h"
-#include "../../boards/shields/pacman_adapter/widgets/game/commando_render.h"
-#include "../../boards/shields/pacman_adapter/widgets/game/frogger_render.h"
-#include "../../boards/shields/pacman_adapter/widgets/game/kong_render.h"
-#include "../../boards/shields/pacman_adapter/widgets/game/tempest_render.h"
+#include "../../boards/shields/arcade_adapter/widgets/game/pacman_render.h"
+#include "../../boards/shields/arcade_adapter/widgets/game/shooter_render.h"
+#include "../../boards/shields/arcade_adapter/widgets/game/bomber_render.h"
+#include "../../boards/shields/arcade_adapter/widgets/game/fighter_render.h"
+#include "../../boards/shields/arcade_adapter/widgets/game/commando_render.h"
+#include "../../boards/shields/arcade_adapter/widgets/game/frogger_render.h"
+#include "../../boards/shields/arcade_adapter/widgets/game/kong_render.h"
+#include "../../boards/shields/arcade_adapter/widgets/game/tempest_render.h"
 
-static uint16_t fb[PM_PANEL][PM_PANEL];
+static uint16_t fb[ARC_PANEL][ARC_PANEL];
 static long blit_calls;
 static long blit_pixels;
 
-void pm_blit(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t *pixels) {
-    if (x + w > PM_PANEL || y + h > PM_PANEL) {
+void arc_blit(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t *pixels) {
+    if (x + w > ARC_PANEL || y + h > ARC_PANEL) {
         fprintf(stderr, "blit out of bounds: %u,%u %ux%u\n", x, y, w, h);
         exit(1);
     }
@@ -66,9 +66,9 @@ static void write_ppm(const char *dir, int n) {
         perror(path);
         exit(1);
     }
-    fprintf(f, "P6\n%d %d\n255\n", PM_PANEL, PM_PANEL);
-    for (int y = 0; y < PM_PANEL; y++) {
-        for (int x = 0; x < PM_PANEL; x++) {
+    fprintf(f, "P6\n%d %d\n255\n", ARC_PANEL, ARC_PANEL);
+    for (int y = 0; y < ARC_PANEL; y++) {
+        for (int x = 0; x < ARC_PANEL; x++) {
             uint16_t c = fb[y][x];
             unsigned char rgb[3];
             rgb[0] = (unsigned char)((((c >> 11) & 0x1F) * 255) / 31);
@@ -82,7 +82,7 @@ static void write_ppm(const char *dir, int n) {
 
 /* compare the incrementally drawn screen against a full repaint: any
  * difference means the dirty-rectangle bookkeeping left something stale */
-static uint16_t shadow[PM_PANEL][PM_PANEL];
+static uint16_t shadow[ARC_PANEL][ARC_PANEL];
 
 static int check_incremental(pm_game *g, int frame) {
     memcpy(shadow, fb, sizeof(fb));
@@ -93,8 +93,8 @@ static int check_incremental(pm_game *g, int frame) {
     blit_pixels = px;
 
     int diff = 0;
-    for (int y = 0; y < PM_PANEL; y++) {
-        for (int x = 0; x < PM_PANEL; x++) {
+    for (int y = 0; y < ARC_PANEL; y++) {
+        for (int x = 0; x < ARC_PANEL; x++) {
             if (shadow[y][x] != fb[y][x]) {
                 if (!diff) {
                     printf("FRAME %d: stale pixel at %d,%d (%04x != %04x)\n", frame, x, y,
@@ -157,8 +157,8 @@ static int check_incremental_ss(ss_game *g, int frame) {
     blit_pixels = px;
 
     int diff = 0;
-    for (int y = 0; y < PM_PANEL; y++) {
-        for (int x = 0; x < PM_PANEL; x++) {
+    for (int y = 0; y < ARC_PANEL; y++) {
+        for (int x = 0; x < ARC_PANEL; x++) {
             if (shadow[y][x] != fb[y][x]) {
                 if (!diff) {
                     printf("FRAME %d: stale pixel at %d,%d (%04x != %04x)\n", frame, x, y,
@@ -174,8 +174,8 @@ static int check_incremental_ss(ss_game *g, int frame) {
 static void check_ss(const ss_game *g, int frame) {
     int sx = SS_PX(g->ship.x), sy = SS_PX(g->ship.y);
 
-    if (sx - SS_HULL_R < 0 || sx + SS_HULL_R >= PM_PANEL || sy - SS_HULL_R < 0 ||
-        sy + SS_HULL_R >= PM_PANEL) {
+    if (sx - SS_HULL_R < 0 || sx + SS_HULL_R >= ARC_PANEL || sy - SS_HULL_R < 0 ||
+        sy + SS_HULL_R >= ARC_PANEL) {
         printf("FRAME %d: the ship left the panel at %d,%d\n", frame, sx, sy);
         exit(1);
     }
@@ -187,7 +187,7 @@ static void check_ss(const ss_game *g, int frame) {
         }
         int rad = ss_rock_r[r->size] + 8;
         int x = SS_PX(r->x), y = SS_PX(r->y);
-        if (x < -rad || x > PM_PANEL + rad || y < -rad || y > PM_PANEL + rad) {
+        if (x < -rad || x > ARC_PANEL + rad || y < -rad || y > ARC_PANEL + rad) {
             printf("FRAME %d: meteor %d is adrift at %d,%d\n", frame, i, x, y);
             exit(1);
         }
@@ -204,8 +204,8 @@ static int check_incremental_fr(fr_game *g, int frame) {
     blit_pixels = px;
 
     int diff = 0;
-    for (int y = 0; y < PM_PANEL; y++) {
-        for (int x = 0; x < PM_PANEL; x++) {
+    for (int y = 0; y < ARC_PANEL; y++) {
+        for (int x = 0; x < ARC_PANEL; x++) {
             if (shadow[y][x] != fb[y][x]) {
                 if (!diff) {
                     printf("FRAME %d: stale pixel at %d,%d (%04x != %04x)\n", frame, x, y,
@@ -225,7 +225,7 @@ static void check_fr(const fr_game *g, int frame) {
     if (g->phase != FR_PLAY) {
         return;
     }
-    if (fx - FR_FROG_W / 2 < 0 || fx + FR_FROG_W / 2 >= PM_PANEL || fy < FR_TOP ||
+    if (fx - FR_FROG_W / 2 < 0 || fx + FR_FROG_W / 2 >= ARC_PANEL || fy < FR_TOP ||
         fy >= FR_FOOT) {
         printf("FRAME %d: the frog left the board at %d,%d\n", frame, fx, fy);
         exit(1);
@@ -244,7 +244,7 @@ static void check_fr(const fr_game *g, int frame) {
         const fr_lane *l = &g->lanes[r];
         for (int i = 0; i < l->count; i++) {
             int x = fr_mover_x(g, l, i, 0);
-            if (x < -FR_RUNOFF || x > PM_PANEL) {
+            if (x < -FR_RUNOFF || x > ARC_PANEL) {
                 printf("FRAME %d: lane %d mover %d is adrift at %d\n", frame, r, i, x);
                 exit(1);
             }
@@ -278,8 +278,8 @@ static int check_incremental_dk(dk_game *g, int frame) {
     blit_pixels = px;
 
     int diff = 0;
-    for (int y = 0; y < PM_PANEL; y++) {
-        for (int x = 0; x < PM_PANEL; x++) {
+    for (int y = 0; y < ARC_PANEL; y++) {
+        for (int x = 0; x < ARC_PANEL; x++) {
             if (shadow[y][x] != fb[y][x]) {
                 if (!diff) {
                     printf("FRAME %d: stale pixel at %d,%d (%04x != %04x)\n", frame, x, y,
@@ -305,8 +305,8 @@ static void check_dk(const dk_game *g, int frame) {
         printf("FRAME %d: the climber is on girder %u\n", frame, h->floor);
         exit(1);
     }
-    if (hx - DK_HERO_W / 2 < 0 || hx + DK_HERO_W / 2 >= PM_PANEL || hy - DK_HERO_H < DK_TOP ||
-        hy >= PM_PANEL) {
+    if (hx - DK_HERO_W / 2 < 0 || hx + DK_HERO_W / 2 >= ARC_PANEL || hy - DK_HERO_H < DK_TOP ||
+        hy >= ARC_PANEL) {
         printf("FRAME %d: the climber left the site at %d,%d\n", frame, hx, hy);
         exit(1);
     }
@@ -330,8 +330,8 @@ static void check_dk(const dk_game *g, int frame) {
             continue;
         }
         int bx = DK_PX(b->x), by = DK_PX(b->y);
-        if (b->floor >= DK_FLOORS || bx < 0 || bx >= PM_PANEL || by < DK_TOP ||
-            by > PM_PANEL) {
+        if (b->floor >= DK_FLOORS || bx < 0 || bx >= ARC_PANEL || by < DK_TOP ||
+            by > ARC_PANEL) {
             printf("FRAME %d: barrel %d is adrift at %d,%d on girder %u\n", frame, i, bx, by,
                    b->floor);
             exit(1);
@@ -461,8 +461,8 @@ static int check_incremental_tp(tp_game *g, int frame) {
     blit_pixels = px;
 
     int diff = 0;
-    for (int y = 0; y < PM_PANEL; y++) {
-        for (int x = 0; x < PM_PANEL; x++) {
+    for (int y = 0; y < ARC_PANEL; y++) {
+        for (int x = 0; x < ARC_PANEL; x++) {
             if (shadow[y][x] != fb[y][x]) {
                 if (!diff) {
                     printf("FRAME %d: stale pixel at %d,%d (%04x != %04x)\n", frame, x, y,
@@ -515,7 +515,7 @@ static void check_tp(const tp_game *g, int frame) {
         for (int d = 0; d <= TP_DEPTH; d += TP_DEPTH) {
             int x, y;
             tp_at(s, i * TP_SUB, d, &x, &y);
-            if (x < 0 || x >= PM_PANEL || y < TP_TOP || y >= PM_PANEL) {
+            if (x < 0 || x >= ARC_PANEL || y < TP_TOP || y >= ARC_PANEL) {
                 printf("FRAME %d: the well reaches %d,%d, off the panel\n", frame, x, y);
                 exit(1);
             }
@@ -804,8 +804,8 @@ static int check_incremental_bb(bb_game *g, int frame) {
     blit_pixels = px;
 
     int diff = 0;
-    for (int y = 0; y < PM_PANEL; y++) {
-        for (int x = 0; x < PM_PANEL; x++) {
+    for (int y = 0; y < ARC_PANEL; y++) {
+        for (int x = 0; x < ARC_PANEL; x++) {
             if (shadow[y][x] != fb[y][x]) {
                 if (!diff) {
                     printf("FRAME %d: stale pixel at %d,%d (%04x != %04x)\n", frame, x, y,
@@ -935,8 +935,8 @@ static int check_incremental_fg(fg_game *g, int frame) {
     blit_pixels = px;
 
     int diff = 0;
-    for (int y = 0; y < PM_PANEL; y++) {
-        for (int x = 0; x < PM_PANEL; x++) {
+    for (int y = 0; y < ARC_PANEL; y++) {
+        for (int x = 0; x < ARC_PANEL; x++) {
             if (shadow[y][x] != fb[y][x]) {
                 if (!diff) {
                     printf("FRAME %d: stale pixel at %d,%d (%04x != %04x)\n", frame, x, y,
@@ -955,7 +955,7 @@ static void check_fg(const fg_game *g, int frame) {
         const fg_fighter *f = &g->f[i];
         int cx = FG_PX(f->x), fy = FG_FLOOR - FG_PX(f->h);
 
-        if (cx - FG_BODY_W / 2 < 0 || cx + FG_BODY_W / 2 >= PM_PANEL) {
+        if (cx - FG_BODY_W / 2 < 0 || cx + FG_BODY_W / 2 >= ARC_PANEL) {
             printf("FRAME %d: fighter %d left the stage at %d\n", frame, i, cx);
             exit(1);
         }
@@ -1049,8 +1049,8 @@ static int check_incremental_cm(cm_game *g, int frame) {
     blit_pixels = px;
 
     int diff = 0;
-    for (int y = 0; y < PM_PANEL; y++) {
-        for (int x = 0; x < PM_PANEL; x++) {
+    for (int y = 0; y < ARC_PANEL; y++) {
+        for (int x = 0; x < ARC_PANEL; x++) {
             if (shadow[y][x] != fb[y][x]) {
                 if (!diff) {
                     printf("FRAME %d: stale pixel at %d,%d (%04x != %04x)\n", frame, x, y,
@@ -1072,7 +1072,7 @@ static void check_cm(const cm_game *g, int frame) {
     if (g->phase != CM_RUNNING) {
         return; /* it is falling out of the world, or waiting to be put back */
     }
-    if (feet >= PM_PANEL) {
+    if (feet >= ARC_PANEL) {
         printf("FRAME %d: the trooper is at %d, below the panel\n", frame, feet);
         exit(1);
     }
@@ -1087,7 +1087,7 @@ static void check_cm(const cm_game *g, int frame) {
             continue;
         }
         int x = (int)(f->wx - g->scroll);
-        if (x < -CM_CHUNK || x > PM_PANEL + CM_SPAN * CM_CHUNK) {
+        if (x < -CM_CHUNK || x > ARC_PANEL + CM_SPAN * CM_CHUNK) {
             printf("FRAME %d: enemy %d is adrift at %d\n", frame, i, x);
             exit(1);
         }

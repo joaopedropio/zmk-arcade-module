@@ -1,4 +1,4 @@
-name: pacman-module
+name: arcade-module
 build:
   cmake: .
   kconfig: Kconfig

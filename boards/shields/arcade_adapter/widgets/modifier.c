@@ -1,0 +1,174 @@
+#include <stdlib.h>
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(snake_modifier, LOG_LEVEL_INF);
+
+#include <zephyr/kernel.h>
+#include <zephyr/bluetooth/services/bas.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/display.h>
+
+#include <zmk/display.h>
+#include <zmk/hid.h>
+#include <zmk/event_manager.h>
+#include <zmk/events/keycode_state_changed.h>
+#include <dt-bindings/zmk/modifiers.h>
+#include "cabinet.h"
+#include "helpers/display.h"
+
+static bool modifier_widget_running = false;
+static bool modifier_widget_initialized = false;
+
+static uint16_t modifier_font_scale = 2;
+static uint16_t modifier_font_width = 11;
+static uint16_t modifier_font_height = 11;
+static uint16_t modifier_font_gap = 6;
+static uint16_t *scaled_bitmap_modifier_font;
+
+Slot modifier_slot;
+static uint16_t modifier_x = 7;
+static uint16_t modifier_y = 10;
+
+struct modifiers_state {    
+    uint8_t modifiers;
+};
+
+static struct modifiers_state modifier_state;
+
+static const uint16_t cmd_bitmap[] = {
+    0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0,
+    1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1,
+    1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
+    0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0,
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1,
+    1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1,
+    0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0,
+};
+
+static const uint16_t option_bitmap[] = {
+    1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1,
+    0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+};
+
+static const uint16_t ctrl_bitmap[] = {
+    0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0,
+    0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0,
+    0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0,
+    0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0,
+    1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1,
+    1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+};
+
+static const uint16_t shift_bitmap[] = {
+    0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0,
+    0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0,
+    0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0,
+    0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0,
+    1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1,
+    1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+    1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1,
+    0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0,
+    0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0,
+    0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0,
+    0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0,
+};
+
+void print_modifiers() {
+    if (modifier_slot.number == SLOT_NUMBER_NONE) {
+        return;
+    }
+
+    uint16_t char_len = (modifier_font_width * modifier_font_scale) + modifier_font_gap;
+
+    if ((modifier_state.modifiers & (MOD_LGUI | MOD_RGUI)) > 0) {
+        render_bitmap(scaled_bitmap_modifier_font, cmd_bitmap, modifier_x, modifier_y, modifier_font_width, modifier_font_height, modifier_font_scale, get_modifier_selected_color(), get_modifier_bg_color());
+    } else {
+        render_bitmap(scaled_bitmap_modifier_font, cmd_bitmap, modifier_x, modifier_y, modifier_font_width, modifier_font_height, modifier_font_scale, get_modifier_unselected_color(), get_modifier_bg_color());
+    }
+
+    if ((modifier_state.modifiers & (MOD_LALT | MOD_RALT)) > 0) {
+        render_bitmap(scaled_bitmap_modifier_font, option_bitmap, modifier_x + char_len, modifier_y, modifier_font_width, modifier_font_height, modifier_font_scale, get_modifier_selected_color(), get_modifier_bg_color());
+    } else {
+        render_bitmap(scaled_bitmap_modifier_font, option_bitmap, modifier_x + char_len, modifier_y, modifier_font_width, modifier_font_height, modifier_font_scale, get_modifier_unselected_color(), get_modifier_bg_color());
+    }
+
+    if ((modifier_state.modifiers & (MOD_LCTL | MOD_RCTL)) > 0) {
+        render_bitmap(scaled_bitmap_modifier_font, ctrl_bitmap, modifier_x + (char_len * 2), modifier_y, modifier_font_width, modifier_font_height, modifier_font_scale, get_modifier_selected_color(), get_modifier_bg_color());
+    } else {
+        render_bitmap(scaled_bitmap_modifier_font, ctrl_bitmap, modifier_x + (char_len * 2), modifier_y, modifier_font_width, modifier_font_height, modifier_font_scale, get_modifier_unselected_color(), get_modifier_bg_color());
+    }
+
+    if ((modifier_state.modifiers & (MOD_LSFT | MOD_RSFT)) > 0) {
+        render_bitmap(scaled_bitmap_modifier_font, shift_bitmap, modifier_x + (char_len * 3), modifier_y, modifier_font_width, modifier_font_height, modifier_font_scale, get_modifier_selected_color(), get_modifier_bg_color());
+    } else {
+        render_bitmap(scaled_bitmap_modifier_font, shift_bitmap, modifier_x + (char_len * 3), modifier_y, modifier_font_width, modifier_font_height, modifier_font_scale, get_modifier_unselected_color(), get_modifier_bg_color());
+    }
+}
+
+static struct modifiers_state modifiers_get_state(const zmk_event_t *eh) {
+    return (struct modifiers_state) {
+        .modifiers = zmk_hid_get_explicit_mods()
+    };
+}
+
+uint8_t modifier_current_mask(void) { return modifier_state.modifiers; }
+
+void modifiers_update_cb(struct modifiers_state state) {
+    modifier_state = state;
+    if (modifier_widget_initialized && modifier_widget_running) {
+        print_modifiers();
+    }
+    cabinet_refresh_mods();
+}
+
+ZMK_DISPLAY_WIDGET_LISTENER(widget_modifiers, struct modifiers_state,
+                            modifiers_update_cb, modifiers_get_state)
+
+ZMK_SUBSCRIPTION(widget_modifiers, zmk_keycode_state_changed);
+
+
+void zmk_widget_modifier_init() {
+    SlotMode mode = get_slot_mode();
+    modifier_slot = get_slot_by_name(SLOT_NAME_MODIFIERS);
+    if (mode == SLOT_MODE_5 && modifier_slot.number == SLOT_NUMBER_2) {
+        modifier_font_scale = 4;
+        modifier_x = 20;
+        modifier_y = 14;
+        modifier_font_gap = 10;
+    } else {
+        modifier_x += modifier_slot.x;
+        modifier_y += modifier_slot.y;
+    }
+    if (modifier_slot.number != SLOT_NUMBER_NONE) {
+        scaled_bitmap_modifier_font = k_malloc(
+            SCALED_BITMAP_BYTES(modifier_font_width, modifier_font_height, modifier_font_scale));
+    }
+
+    widget_modifiers_init();
+    modifier_widget_initialized = true;
+}
+
+void start_modifier_status() {
+    modifier_widget_running = true;
+}
+
+void stop_modifier_status() {
+    modifier_widget_running = false;
+}

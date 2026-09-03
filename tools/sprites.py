@@ -6,7 +6,7 @@ scalloped feet with eyes looking the way it runs.  Both come out as plain
 integer arrays: 1 is the body, and the ghost also uses 2 for the whites of
 its eyes and 3 for the pupils, which is what render_bitmap_multicolor() wants.
 
-    python3 tools/sprites.py > boards/shields/pacman_adapter/widgets/pacman_art.h
+    python3 tools/sprites.py > boards/shields/arcade_adapter/widgets/pacman_art.h
 """
 
 import math

@@ -27,7 +27,7 @@
 #include <zephyr/drivers/display.h>
 
 #include "action_button.h"
-#include "arcade.h"
+#include "cabinet.h"
 #include "battery_status.h"
 #include "bomber_core.h"
 #include "bomber_render.h"
@@ -49,7 +49,7 @@
 #include "kong_render.h"
 #include "pacman_core.h"
 #include "pacman_render.h"
-#include "pacman.h"
+#include "arcade.h"
 #include "shooter_core.h"
 #include "shooter_render.h"
 #include "sound.h"
@@ -59,7 +59,7 @@
 #include "theme.h"
 #include "wpm.h"
 
-#define PANEL PM_PANEL
+#define PANEL ARC_PANEL
 
 static uint16_t fb[PANEL][PANEL];
 static pm_game game;
@@ -72,14 +72,14 @@ static dk_game site;
 static tp_game well;
 /* which of them the game screen is showing, as the `game` setting says */
 static int playing;
-static uint32_t values[PACMAN_SETTING_COUNT];
+static uint32_t values[ARCADE_SETTING_COUNT];
 static int screen; /* 0 game, 1 splash, 2 dashboard */
 static int built;
 
 const struct device sim_display_dev = {.name = "preview"};
 
 /* what the game renderer calls; the firmware sends this down SPI instead */
-void pm_blit(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t *pixels) {
+void arc_blit(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t *pixels) {
     for (uint16_t j = 0; j < h; j++) {
         for (uint16_t i = 0; i < w; i++) {
             uint16_t dx = x + i, dy = y + j;
@@ -105,154 +105,154 @@ void display_write(const struct device *dev, uint16_t x, uint16_t y,
     }
 }
 
-/* the firmware's pacman.c does exactly this, from the same values */
+/* the firmware's arcade.c does exactly this, from the same values */
 static void reload_game_palette(void) {
     pm_palette p;
     pm_render_default_palette(&p);
 
-    p.bg = pm_rgb565(values[PACMAN_SETTING_GAME_BG]);
-    p.wall_fill = pm_rgb565(values[PACMAN_SETTING_GAME_WALL_FILL]);
-    p.wall_edge = pm_rgb565(values[PACMAN_SETTING_GAME_WALL]);
-    p.wall_flash = pm_rgb565(values[PACMAN_SETTING_GAME_WALL_FLASH]);
+    p.bg = arc_rgb565(values[ARCADE_SETTING_GAME_BG]);
+    p.wall_fill = arc_rgb565(values[ARCADE_SETTING_GAME_WALL_FILL]);
+    p.wall_edge = arc_rgb565(values[ARCADE_SETTING_GAME_WALL]);
+    p.wall_flash = arc_rgb565(values[ARCADE_SETTING_GAME_WALL_FLASH]);
     p.house_fill = p.wall_fill;
-    p.house_edge = pm_rgb565(values[PACMAN_SETTING_GAME_HOUSE]);
-    p.door = pm_rgb565(values[PACMAN_SETTING_GAME_DOOR]);
-    p.pellet = pm_rgb565(values[PACMAN_SETTING_GAME_PELLET]);
-    p.pac = pm_rgb565(values[PACMAN_SETTING_GAME_PAC]);
-    p.ghost[0] = pm_rgb565(values[PACMAN_SETTING_GAME_GHOST_0]);
-    p.ghost[1] = pm_rgb565(values[PACMAN_SETTING_GAME_GHOST_1]);
-    p.ghost[2] = pm_rgb565(values[PACMAN_SETTING_GAME_GHOST_2]);
-    p.ghost[3] = pm_rgb565(values[PACMAN_SETTING_GAME_GHOST_3]);
-    p.fright_body = pm_rgb565(values[PACMAN_SETTING_GAME_FRIGHT]);
+    p.house_edge = arc_rgb565(values[ARCADE_SETTING_GAME_HOUSE]);
+    p.door = arc_rgb565(values[ARCADE_SETTING_GAME_DOOR]);
+    p.pellet = arc_rgb565(values[ARCADE_SETTING_GAME_PELLET]);
+    p.pac = arc_rgb565(values[ARCADE_SETTING_GAME_PAC]);
+    p.ghost[0] = arc_rgb565(values[ARCADE_SETTING_GAME_GHOST_0]);
+    p.ghost[1] = arc_rgb565(values[ARCADE_SETTING_GAME_GHOST_1]);
+    p.ghost[2] = arc_rgb565(values[ARCADE_SETTING_GAME_GHOST_2]);
+    p.ghost[3] = arc_rgb565(values[ARCADE_SETTING_GAME_GHOST_3]);
+    p.fright_body = arc_rgb565(values[ARCADE_SETTING_GAME_FRIGHT]);
 
     pm_render_set_palette(&p);
 
     ss_palette s;
     ss_render_default_palette(&s);
 
-    s.space = pm_rgb565(values[PACMAN_SETTING_GAME_SPACE]);
-    s.star = pm_rgb565(values[PACMAN_SETTING_GAME_STAR]);
-    s.ship = pm_rgb565(values[PACMAN_SETTING_GAME_SHIP]);
-    s.trim = pm_rgb565(values[PACMAN_SETTING_GAME_SHIP_TRIM]);
-    s.thruster = pm_rgb565(values[PACMAN_SETTING_GAME_THRUSTER]);
-    s.bullet = pm_rgb565(values[PACMAN_SETTING_GAME_BULLET]);
-    s.rock = pm_rgb565(values[PACMAN_SETTING_GAME_METEOR]);
-    s.rock_edge = pm_rgb565(values[PACMAN_SETTING_GAME_METEOR_EDGE]);
-    s.blast = pm_rgb565(values[PACMAN_SETTING_GAME_BLAST]);
-    s.power = pm_rgb565(values[PACMAN_SETTING_GAME_POWERUP]);
-    s.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
+    s.space = arc_rgb565(values[ARCADE_SETTING_GAME_SPACE]);
+    s.star = arc_rgb565(values[ARCADE_SETTING_GAME_STAR]);
+    s.ship = arc_rgb565(values[ARCADE_SETTING_GAME_SHIP]);
+    s.trim = arc_rgb565(values[ARCADE_SETTING_GAME_SHIP_TRIM]);
+    s.thruster = arc_rgb565(values[ARCADE_SETTING_GAME_THRUSTER]);
+    s.bullet = arc_rgb565(values[ARCADE_SETTING_GAME_BULLET]);
+    s.rock = arc_rgb565(values[ARCADE_SETTING_GAME_METEOR]);
+    s.rock_edge = arc_rgb565(values[ARCADE_SETTING_GAME_METEOR_EDGE]);
+    s.blast = arc_rgb565(values[ARCADE_SETTING_GAME_BLAST]);
+    s.power = arc_rgb565(values[ARCADE_SETTING_GAME_POWERUP]);
+    s.hud = arc_rgb565(values[ARCADE_SETTING_GAME_HUD]);
 
     ss_render_set_palette(&s);
 
     bb_palette b;
     bb_render_default_palette(&b);
 
-    b.floor = pm_rgb565(values[PACMAN_SETTING_GAME_FLOOR]);
-    b.solid = pm_rgb565(values[PACMAN_SETTING_GAME_SOLID]);
-    b.brick = pm_rgb565(values[PACMAN_SETTING_GAME_BRICK]);
-    b.brick_edge = pm_rgb565(values[PACMAN_SETTING_GAME_BRICK_EDGE]);
-    b.bomb = pm_rgb565(values[PACMAN_SETTING_GAME_BOMB]);
-    b.flame = pm_rgb565(values[PACMAN_SETTING_GAME_FLAME]);
-    b.flame_hot = pm_rgb565(values[PACMAN_SETTING_GAME_FLAME_HOT]);
-    b.bomber = pm_rgb565(values[PACMAN_SETTING_GAME_BOMBER]);
-    b.bomber_trim = pm_rgb565(values[PACMAN_SETTING_GAME_BOMBER_TRIM]);
-    b.foe = pm_rgb565(values[PACMAN_SETTING_GAME_FOE]);
-    b.foe_eye = pm_rgb565(values[PACMAN_SETTING_GAME_FOE_EYE]);
-    b.pickup = pm_rgb565(values[PACMAN_SETTING_GAME_PICKUP]);
-    b.door = pm_rgb565(values[PACMAN_SETTING_GAME_EXIT]);
-    b.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
+    b.floor = arc_rgb565(values[ARCADE_SETTING_GAME_FLOOR]);
+    b.solid = arc_rgb565(values[ARCADE_SETTING_GAME_SOLID]);
+    b.brick = arc_rgb565(values[ARCADE_SETTING_GAME_BRICK]);
+    b.brick_edge = arc_rgb565(values[ARCADE_SETTING_GAME_BRICK_EDGE]);
+    b.bomb = arc_rgb565(values[ARCADE_SETTING_GAME_BOMB]);
+    b.flame = arc_rgb565(values[ARCADE_SETTING_GAME_FLAME]);
+    b.flame_hot = arc_rgb565(values[ARCADE_SETTING_GAME_FLAME_HOT]);
+    b.bomber = arc_rgb565(values[ARCADE_SETTING_GAME_BOMBER]);
+    b.bomber_trim = arc_rgb565(values[ARCADE_SETTING_GAME_BOMBER_TRIM]);
+    b.foe = arc_rgb565(values[ARCADE_SETTING_GAME_FOE]);
+    b.foe_eye = arc_rgb565(values[ARCADE_SETTING_GAME_FOE_EYE]);
+    b.pickup = arc_rgb565(values[ARCADE_SETTING_GAME_PICKUP]);
+    b.door = arc_rgb565(values[ARCADE_SETTING_GAME_EXIT]);
+    b.hud = arc_rgb565(values[ARCADE_SETTING_GAME_HUD]);
 
     bb_render_set_palette(&b);
 
     fg_palette f;
     fg_render_default_palette(&f);
 
-    f.sky = pm_rgb565(values[PACMAN_SETTING_GAME_RING]);
-    f.crowd = pm_rgb565(values[PACMAN_SETTING_GAME_RING_CROWD]);
-    f.floor = pm_rgb565(values[PACMAN_SETTING_GAME_RING_FLOOR]);
-    f.body[0] = pm_rgb565(values[PACMAN_SETTING_GAME_FIGHTER_0]);
-    f.trim[0] = pm_rgb565(values[PACMAN_SETTING_GAME_FIGHTER_0_TRIM]);
-    f.body[1] = pm_rgb565(values[PACMAN_SETTING_GAME_FIGHTER_1]);
-    f.trim[1] = pm_rgb565(values[PACMAN_SETTING_GAME_FIGHTER_1_TRIM]);
-    f.spark = pm_rgb565(values[PACMAN_SETTING_GAME_SPARK]);
-    f.fireball = pm_rgb565(values[PACMAN_SETTING_GAME_FIREBALL]);
-    f.health = pm_rgb565(values[PACMAN_SETTING_GAME_HEALTH]);
-    f.health_lost = pm_rgb565(values[PACMAN_SETTING_GAME_HEALTH_LOST]);
-    f.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
+    f.sky = arc_rgb565(values[ARCADE_SETTING_GAME_RING]);
+    f.crowd = arc_rgb565(values[ARCADE_SETTING_GAME_RING_CROWD]);
+    f.floor = arc_rgb565(values[ARCADE_SETTING_GAME_RING_FLOOR]);
+    f.body[0] = arc_rgb565(values[ARCADE_SETTING_GAME_FIGHTER_0]);
+    f.trim[0] = arc_rgb565(values[ARCADE_SETTING_GAME_FIGHTER_0_TRIM]);
+    f.body[1] = arc_rgb565(values[ARCADE_SETTING_GAME_FIGHTER_1]);
+    f.trim[1] = arc_rgb565(values[ARCADE_SETTING_GAME_FIGHTER_1_TRIM]);
+    f.spark = arc_rgb565(values[ARCADE_SETTING_GAME_SPARK]);
+    f.fireball = arc_rgb565(values[ARCADE_SETTING_GAME_FIREBALL]);
+    f.health = arc_rgb565(values[ARCADE_SETTING_GAME_HEALTH]);
+    f.health_lost = arc_rgb565(values[ARCADE_SETTING_GAME_HEALTH_LOST]);
+    f.hud = arc_rgb565(values[ARCADE_SETTING_GAME_HUD]);
 
     fg_render_set_palette(&f);
 
     cm_palette c;
     cm_render_default_palette(&c);
 
-    c.sky = pm_rgb565(values[PACMAN_SETTING_GAME_SKY]);
-    c.hill = pm_rgb565(values[PACMAN_SETTING_GAME_HILL]);
-    c.ground = pm_rgb565(values[PACMAN_SETTING_GAME_GROUND]);
-    c.edge = pm_rgb565(values[PACMAN_SETTING_GAME_GROUND_EDGE]);
-    c.hero = pm_rgb565(values[PACMAN_SETTING_GAME_HERO]);
-    c.hero_trim = pm_rgb565(values[PACMAN_SETTING_GAME_HERO_TRIM]);
-    c.grunt = pm_rgb565(values[PACMAN_SETTING_GAME_GRUNT]);
-    c.grunt_trim = pm_rgb565(values[PACMAN_SETTING_GAME_GRUNT_TRIM]);
-    c.shot = pm_rgb565(values[PACMAN_SETTING_GAME_SHOT]);
-    c.grenade = pm_rgb565(values[PACMAN_SETTING_GAME_GRENADE]);
-    c.boom = pm_rgb565(values[PACMAN_SETTING_GAME_BOOM]);
-    c.crate = pm_rgb565(values[PACMAN_SETTING_GAME_CRATE]);
-    c.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
+    c.sky = arc_rgb565(values[ARCADE_SETTING_GAME_SKY]);
+    c.hill = arc_rgb565(values[ARCADE_SETTING_GAME_HILL]);
+    c.ground = arc_rgb565(values[ARCADE_SETTING_GAME_GROUND]);
+    c.edge = arc_rgb565(values[ARCADE_SETTING_GAME_GROUND_EDGE]);
+    c.hero = arc_rgb565(values[ARCADE_SETTING_GAME_HERO]);
+    c.hero_trim = arc_rgb565(values[ARCADE_SETTING_GAME_HERO_TRIM]);
+    c.grunt = arc_rgb565(values[ARCADE_SETTING_GAME_GRUNT]);
+    c.grunt_trim = arc_rgb565(values[ARCADE_SETTING_GAME_GRUNT_TRIM]);
+    c.shot = arc_rgb565(values[ARCADE_SETTING_GAME_SHOT]);
+    c.grenade = arc_rgb565(values[ARCADE_SETTING_GAME_GRENADE]);
+    c.boom = arc_rgb565(values[ARCADE_SETTING_GAME_BOOM]);
+    c.crate = arc_rgb565(values[ARCADE_SETTING_GAME_CRATE]);
+    c.hud = arc_rgb565(values[ARCADE_SETTING_GAME_HUD]);
 
     cm_render_set_palette(&c);
 
     fr_palette r;
     fr_render_default_palette(&r);
 
-    r.water = pm_rgb565(values[PACMAN_SETTING_GAME_WATER]);
-    r.road = pm_rgb565(values[PACMAN_SETTING_GAME_ROAD]);
-    r.bank = pm_rgb565(values[PACMAN_SETTING_GAME_BANK]);
-    r.hedge = pm_rgb565(values[PACMAN_SETTING_GAME_HEDGE]);
-    r.frog = pm_rgb565(values[PACMAN_SETTING_GAME_FROG]);
-    r.frog_eye = pm_rgb565(values[PACMAN_SETTING_GAME_FROG_EYE]);
-    r.log = pm_rgb565(values[PACMAN_SETTING_GAME_LOG]);
-    r.turtle = pm_rgb565(values[PACMAN_SETTING_GAME_TURTLE]);
-    r.car = pm_rgb565(values[PACMAN_SETTING_GAME_CAR]);
-    r.truck = pm_rgb565(values[PACMAN_SETTING_GAME_TRUCK]);
-    r.splat = pm_rgb565(values[PACMAN_SETTING_GAME_SPLAT]);
-    r.fly = pm_rgb565(values[PACMAN_SETTING_GAME_FLY]);
-    r.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
+    r.water = arc_rgb565(values[ARCADE_SETTING_GAME_WATER]);
+    r.road = arc_rgb565(values[ARCADE_SETTING_GAME_ROAD]);
+    r.bank = arc_rgb565(values[ARCADE_SETTING_GAME_BANK]);
+    r.hedge = arc_rgb565(values[ARCADE_SETTING_GAME_HEDGE]);
+    r.frog = arc_rgb565(values[ARCADE_SETTING_GAME_FROG]);
+    r.frog_eye = arc_rgb565(values[ARCADE_SETTING_GAME_FROG_EYE]);
+    r.log = arc_rgb565(values[ARCADE_SETTING_GAME_LOG]);
+    r.turtle = arc_rgb565(values[ARCADE_SETTING_GAME_TURTLE]);
+    r.car = arc_rgb565(values[ARCADE_SETTING_GAME_CAR]);
+    r.truck = arc_rgb565(values[ARCADE_SETTING_GAME_TRUCK]);
+    r.splat = arc_rgb565(values[ARCADE_SETTING_GAME_SPLAT]);
+    r.fly = arc_rgb565(values[ARCADE_SETTING_GAME_FLY]);
+    r.hud = arc_rgb565(values[ARCADE_SETTING_GAME_HUD]);
 
     fr_render_set_palette(&r);
 
     dk_palette k;
     dk_render_default_palette(&k);
 
-    k.site = pm_rgb565(values[PACMAN_SETTING_GAME_SITE]);
-    k.girder = pm_rgb565(values[PACMAN_SETTING_GAME_GIRDER]);
-    k.ladder = pm_rgb565(values[PACMAN_SETTING_GAME_LADDER]);
-    k.climber = pm_rgb565(values[PACMAN_SETTING_GAME_CLIMBER]);
-    k.climber_trim = pm_rgb565(values[PACMAN_SETTING_GAME_CLIMBER_TRIM]);
-    k.barrel = pm_rgb565(values[PACMAN_SETTING_GAME_BARREL]);
-    k.ape = pm_rgb565(values[PACMAN_SETTING_GAME_APE]);
-    k.ape_trim = pm_rgb565(values[PACMAN_SETTING_GAME_APE_TRIM]);
-    k.lady = pm_rgb565(values[PACMAN_SETTING_GAME_LADY]);
-    k.hammer = pm_rgb565(values[PACMAN_SETTING_GAME_HAMMER]);
-    k.oil = pm_rgb565(values[PACMAN_SETTING_GAME_DRUM]);
-    k.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
+    k.site = arc_rgb565(values[ARCADE_SETTING_GAME_SITE]);
+    k.girder = arc_rgb565(values[ARCADE_SETTING_GAME_GIRDER]);
+    k.ladder = arc_rgb565(values[ARCADE_SETTING_GAME_LADDER]);
+    k.climber = arc_rgb565(values[ARCADE_SETTING_GAME_CLIMBER]);
+    k.climber_trim = arc_rgb565(values[ARCADE_SETTING_GAME_CLIMBER_TRIM]);
+    k.barrel = arc_rgb565(values[ARCADE_SETTING_GAME_BARREL]);
+    k.ape = arc_rgb565(values[ARCADE_SETTING_GAME_APE]);
+    k.ape_trim = arc_rgb565(values[ARCADE_SETTING_GAME_APE_TRIM]);
+    k.lady = arc_rgb565(values[ARCADE_SETTING_GAME_LADY]);
+    k.hammer = arc_rgb565(values[ARCADE_SETTING_GAME_HAMMER]);
+    k.oil = arc_rgb565(values[ARCADE_SETTING_GAME_DRUM]);
+    k.hud = arc_rgb565(values[ARCADE_SETTING_GAME_HUD]);
 
     dk_render_set_palette(&k);
 
     tp_palette t;
     tp_render_default_palette(&t);
 
-    t.site = pm_rgb565(values[PACMAN_SETTING_GAME_VOID]);
-    t.well = pm_rgb565(values[PACMAN_SETTING_GAME_WELL]);
-    t.rim = pm_rgb565(values[PACMAN_SETTING_GAME_RIM]);
-    t.claw = pm_rgb565(values[PACMAN_SETTING_GAME_CLAW]);
-    t.shot = pm_rgb565(values[PACMAN_SETTING_GAME_CLAW_SHOT]);
-    t.flipper = pm_rgb565(values[PACMAN_SETTING_GAME_FLIPPER]);
-    t.tanker = pm_rgb565(values[PACMAN_SETTING_GAME_TANKER]);
-    t.spiker = pm_rgb565(values[PACMAN_SETTING_GAME_SPIKER]);
-    t.pulsar = pm_rgb565(values[PACMAN_SETTING_GAME_PULSAR]);
-    t.spike = pm_rgb565(values[PACMAN_SETTING_GAME_SPIKE]);
-    t.bolt = pm_rgb565(values[PACMAN_SETTING_GAME_BOLT]);
-    t.hud = pm_rgb565(values[PACMAN_SETTING_GAME_HUD]);
+    t.site = arc_rgb565(values[ARCADE_SETTING_GAME_VOID]);
+    t.well = arc_rgb565(values[ARCADE_SETTING_GAME_WELL]);
+    t.rim = arc_rgb565(values[ARCADE_SETTING_GAME_RIM]);
+    t.claw = arc_rgb565(values[ARCADE_SETTING_GAME_CLAW]);
+    t.shot = arc_rgb565(values[ARCADE_SETTING_GAME_CLAW_SHOT]);
+    t.flipper = arc_rgb565(values[ARCADE_SETTING_GAME_FLIPPER]);
+    t.tanker = arc_rgb565(values[ARCADE_SETTING_GAME_TANKER]);
+    t.spiker = arc_rgb565(values[ARCADE_SETTING_GAME_SPIKER]);
+    t.pulsar = arc_rgb565(values[ARCADE_SETTING_GAME_PULSAR]);
+    t.spike = arc_rgb565(values[ARCADE_SETTING_GAME_SPIKE]);
+    t.bolt = arc_rgb565(values[ARCADE_SETTING_GAME_BOLT]);
+    t.hud = arc_rgb565(values[ARCADE_SETTING_GAME_HUD]);
 
     tp_render_set_palette(&t);
     game.redraw = true;
@@ -300,17 +300,17 @@ static void apply_game(uint32_t v) {
 
 static void apply_theme_colors(uint32_t v) {
     (void)v;
-    set_custom_theme_colors(values[PACMAN_SETTING_THEME_PRIMARY],
-                            values[PACMAN_SETTING_THEME_SECONDARY],
-                            values[PACMAN_SETTING_THEME_BG],
-                            values[PACMAN_SETTING_THEME_BG_DARKER]);
+    set_custom_theme_colors(values[ARCADE_SETTING_THEME_PRIMARY],
+                            values[ARCADE_SETTING_THEME_SECONDARY],
+                            values[ARCADE_SETTING_THEME_BG],
+                            values[ARCADE_SETTING_THEME_BG_DARKER]);
 }
 
 static void apply_splash_multi(uint32_t v) {
     (void)v;
     set_splash_logo_multicolor(
-        values[PACMAN_SETTING_SPLASH_MULTI_0], values[PACMAN_SETTING_SPLASH_MULTI_1],
-        values[PACMAN_SETTING_SPLASH_MULTI_2], values[PACMAN_SETTING_SPLASH_MULTI_3]);
+        values[ARCADE_SETTING_SPLASH_MULTI_0], values[ARCADE_SETTING_SPLASH_MULTI_1],
+        values[ARCADE_SETTING_SPLASH_MULTI_2], values[ARCADE_SETTING_SPLASH_MULTI_3]);
 }
 
 static void apply_mute(uint32_t v) { (void)v; }
@@ -326,11 +326,11 @@ static const struct {
     const char *name;
     void (*apply)(uint32_t);
     int override;
-} table[PACMAN_SETTING_COUNT] = {PACMAN_SETTING_LIST(PREVIEW_ROW)};
+} table[ARCADE_SETTING_COUNT] = {ARCADE_SETTING_LIST(PREVIEW_ROW)};
 
 /* a theme derives the dashboard, so stored colours have to go back on top */
 static void reapply_overrides(void) {
-    for (int i = 0; i < PACMAN_SETTING_COUNT; i++) {
+    for (int i = 0; i < ARCADE_SETTING_COUNT; i++) {
         if (table[i].override && table[i].apply != NULL) {
             table[i].apply(values[i]);
         }
@@ -343,17 +343,17 @@ static void reapply_overrides(void) {
  * answered rather than compiled out - keeping the widgets exactly as the
  * firmware builds them is the whole point.
  */
-void pacman_sound_init(void) {}
-void pacman_sound_quiet(void) {}
-void pacman_sound_connected(bool connected) { (void)connected; }
-void pacman_sound_set_mute(bool muted) { (void)muted; }
-void pacman_sound_set_volume(uint8_t volume) { (void)volume; }
-void pacman_sound_set_bass_floor(uint16_t floor_hz) { (void)floor_hz; }
+void arcade_sound_init(void) {}
+void arcade_sound_quiet(void) {}
+void arcade_sound_connected(bool connected) { (void)connected; }
+void arcade_sound_set_mute(bool muted) { (void)muted; }
+void arcade_sound_set_volume(uint8_t volume) { (void)volume; }
+void arcade_sound_set_bass_floor(uint16_t floor_hz) { (void)floor_hz; }
 
-void pacman_start(void) {}
-void pacman_stop(void) {}
-void pacman_toggle_pause(void) {}
-bool pacman_is_paused(void) { return true; }
+void arcade_start(void) {}
+void arcade_stop(void) {}
+void arcade_toggle_pause(void) {}
+bool arcade_is_paused(void) { return true; }
 
 /*
  * The slot widget draws which profile the dongle is on.  A browser has no
@@ -364,9 +364,9 @@ bool pacman_is_paused(void) { return true; }
  */
 static int profile_slot = 0;
 
-int pacman_profile_current(void) { return profile_slot; }
-int pacman_profile_next(void) { return profile_slot; }
-int pacman_profile_load(int slot, bool *reboot, pacman_profile_progress_cb progress) {
+int arcade_profile_current(void) { return profile_slot; }
+int arcade_profile_next(void) { return profile_slot; }
+int arcade_profile_load(int slot, bool *reboot, arcade_profile_progress_cb progress) {
     (void)slot;
     (void)progress;
     if (reboot) {
@@ -375,8 +375,8 @@ int pacman_profile_load(int slot, bool *reboot, pacman_profile_progress_cb progr
     return 0;
 }
 
-void pacman_reload_palette(void) { reload_game_palette(); }
-void pacman_set_frame_interval(uint32_t ms) { (void)ms; }
+void arcade_reload_palette(void) { reload_game_palette(); }
+void arcade_set_frame_interval(uint32_t ms) { (void)ms; }
 
 /* the widgets size their buffers from the slots, so this happens once */
 static void build_once(void) {
@@ -388,7 +388,7 @@ static void build_once(void) {
 
     zmk_widget_splash_init();
     logo_animation_init();
-    arcade_init();
+    cabinet_init();
     zmk_widget_output_status_init();
     zmk_widget_peripheral_battery_status_init();
     zmk_widget_layer_init();
@@ -400,11 +400,11 @@ static void build_once(void) {
 
 EMSCRIPTEN_KEEPALIVE int preview_panel(void) { return PANEL; }
 EMSCRIPTEN_KEEPALIVE uint16_t *preview_framebuffer(void) { return &fb[0][0]; }
-EMSCRIPTEN_KEEPALIVE uint16_t preview_rgb565(uint32_t rgb888) { return pm_rgb565(rgb888); }
+EMSCRIPTEN_KEEPALIVE uint16_t preview_rgb565(uint32_t rgb888) { return arc_rgb565(rgb888); }
 
 /* set one setting by the same name the shell takes; 0 if there is no such name */
 EMSCRIPTEN_KEEPALIVE int preview_set(const char *name, uint32_t value) {
-    for (int i = 0; i < PACMAN_SETTING_COUNT; i++) {
+    for (int i = 0; i < ARCADE_SETTING_COUNT; i++) {
         if (strcmp(name, table[i].name) != 0) continue;
         values[i] = value;
         if (table[i].apply != NULL) table[i].apply(value);
@@ -415,7 +415,7 @@ EMSCRIPTEN_KEEPALIVE int preview_set(const char *name, uint32_t value) {
 
 /* after a run of preview_set(), so a group is applied once it is all in */
 EMSCRIPTEN_KEEPALIVE void preview_apply_all(void) {
-    for (int i = 0; i < PACMAN_SETTING_COUNT; i++) {
+    for (int i = 0; i < ARCADE_SETTING_COUNT; i++) {
         if (table[i].apply != NULL) table[i].apply(values[i]);
     }
 }
@@ -460,37 +460,37 @@ EMSCRIPTEN_KEEPALIVE void preview_reset(uint32_t seed) {
 /* one tick of whatever the current screen does over time */
 EMSCRIPTEN_KEEPALIVE void preview_step(void) {
     if (screen == 0) {
-        if (playing == PACMAN_GAME_SHOOTER) {
+        if (playing == ARCADE_GAME_SHOOTER) {
             ss_step(&shooter);
             ss_render_frame(&shooter);
             return;
         }
-        if (playing == PACMAN_GAME_BOMBER) {
+        if (playing == ARCADE_GAME_BOMBER) {
             bb_step(&bomber);
             bb_render_frame(&bomber);
             return;
         }
-        if (playing == PACMAN_GAME_FIGHTER) {
+        if (playing == ARCADE_GAME_FIGHTER) {
             fg_step(&fighter);
             fg_render_frame(&fighter);
             return;
         }
-        if (playing == PACMAN_GAME_COMMANDO) {
+        if (playing == ARCADE_GAME_COMMANDO) {
             cm_step(&commando);
             cm_render_frame(&commando);
             return;
         }
-        if (playing == PACMAN_GAME_FROGGER) {
+        if (playing == ARCADE_GAME_FROGGER) {
             fr_step(&crossing);
             fr_render_frame(&crossing);
             return;
         }
-        if (playing == PACMAN_GAME_KONG) {
+        if (playing == ARCADE_GAME_KONG) {
             dk_step(&site);
             dk_render_frame(&site);
             return;
         }
-        if (playing == PACMAN_GAME_TEMPEST) {
+        if (playing == ARCADE_GAME_TEMPEST) {
             tp_step(&well);
             tp_render_frame(&well);
             return;
@@ -511,37 +511,37 @@ EMSCRIPTEN_KEEPALIVE void preview_render(void) {
     build_once();
 
     if (screen == 0) {
-        if (playing == PACMAN_GAME_SHOOTER) {
+        if (playing == ARCADE_GAME_SHOOTER) {
             shooter.redraw = true;
             ss_render_frame(&shooter);
             return;
         }
-        if (playing == PACMAN_GAME_BOMBER) {
+        if (playing == ARCADE_GAME_BOMBER) {
             bomber.redraw = true;
             bb_render_frame(&bomber);
             return;
         }
-        if (playing == PACMAN_GAME_FIGHTER) {
+        if (playing == ARCADE_GAME_FIGHTER) {
             fighter.redraw = true;
             fg_render_frame(&fighter);
             return;
         }
-        if (playing == PACMAN_GAME_COMMANDO) {
+        if (playing == ARCADE_GAME_COMMANDO) {
             commando.redraw = true;
             cm_render_frame(&commando);
             return;
         }
-        if (playing == PACMAN_GAME_FROGGER) {
+        if (playing == ARCADE_GAME_FROGGER) {
             crossing.redraw = true;
             fr_render_frame(&crossing);
             return;
         }
-        if (playing == PACMAN_GAME_KONG) {
+        if (playing == ARCADE_GAME_KONG) {
             site.redraw = true;
             dk_render_frame(&site);
             return;
         }
-        if (playing == PACMAN_GAME_TEMPEST) {
+        if (playing == ARCADE_GAME_TEMPEST) {
             well.redraw = true;
             tp_render_frame(&well);
             return;

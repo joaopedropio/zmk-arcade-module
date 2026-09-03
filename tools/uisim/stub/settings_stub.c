@@ -16,16 +16,16 @@
 static uint8_t current_theme;
 static bool muted;
 
-uint8_t pacman_settings_get_current_theme(void) { return current_theme; }
+uint8_t arcade_settings_get_current_theme(void) { return current_theme; }
 
-int pacman_settings_save_current_theme(uint8_t theme) {
+int arcade_settings_save_current_theme(uint8_t theme) {
     current_theme = theme;
     return 0;
 }
 
-int pacman_settings_toggle_mute(void) {
+int arcade_settings_toggle_mute(void) {
     muted = !muted;
     return 0;
 }
 
-bool pacman_settings_get_mute(void) { return muted; }
+bool arcade_settings_get_mute(void) { return muted; }

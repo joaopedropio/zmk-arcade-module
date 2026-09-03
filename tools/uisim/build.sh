@@ -15,10 +15,10 @@ python3 - "${KCONFIG:-$root/Kconfig}" > "$defs" <<'PY'
 import re, sys
 
 print("/* generated from Kconfig defaults by tools/uisim/build.sh */")
-print("#define CONFIG_PACMAN_USE_COMPLETE_CUSTOM_THEME 1")
+print("#define CONFIG_ARCADE_USE_COMPLETE_CUSTOM_THEME 1")
 name = None
 for line in open(sys.argv[1]):
-    m = re.match(r"^config (PACMAN_\S+)", line)
+    m = re.match(r"^config (ARCADE_\S+)", line)
     if m:
         name = m.group(1)
         continue
@@ -31,22 +31,22 @@ for line in open(sys.argv[1]):
 PY
 
 cc -O1 -Wall -include "$defs" \
-   -I "$root/tools/uisim/stub" -I "$root/boards/shields/pacman_adapter/widgets" \
+   -I "$root/tools/uisim/stub" -I "$root/boards/shields/arcade_adapter/widgets" \
    -o "$out" \
    "$root/tools/uisim/uisim.c" \
-   "$root/boards/shields/pacman_adapter/widgets/helpers/display.c" \
-   "$root/boards/shields/pacman_adapter/widgets/splash.c" \
-   "$root/boards/shields/pacman_adapter/widgets/logo.c" \
-   "$root/boards/shields/pacman_adapter/widgets/frames.c" \
-   "$root/boards/shields/pacman_adapter/widgets/theme.c" \
-   "$root/boards/shields/pacman_adapter/widgets/battery_status.c" \
-   "$root/boards/shields/pacman_adapter/widgets/output_status.c" \
-   "$root/boards/shields/pacman_adapter/widgets/layer_status.c" \
-   "$root/boards/shields/pacman_adapter/widgets/modifier.c" \
-   "$root/boards/shields/pacman_adapter/widgets/wpm.c" \
-   "$root/boards/shields/pacman_adapter/widgets/action_button.c" \
-   "$root/boards/shields/pacman_adapter/widgets/arcade.c" \
-   "$root/boards/shields/pacman_adapter/widgets/progress.c" \
+   "$root/boards/shields/arcade_adapter/widgets/helpers/display.c" \
+   "$root/boards/shields/arcade_adapter/widgets/splash.c" \
+   "$root/boards/shields/arcade_adapter/widgets/logo.c" \
+   "$root/boards/shields/arcade_adapter/widgets/frames.c" \
+   "$root/boards/shields/arcade_adapter/widgets/theme.c" \
+   "$root/boards/shields/arcade_adapter/widgets/battery_status.c" \
+   "$root/boards/shields/arcade_adapter/widgets/output_status.c" \
+   "$root/boards/shields/arcade_adapter/widgets/layer_status.c" \
+   "$root/boards/shields/arcade_adapter/widgets/modifier.c" \
+   "$root/boards/shields/arcade_adapter/widgets/wpm.c" \
+   "$root/boards/shields/arcade_adapter/widgets/action_button.c" \
+   "$root/boards/shields/arcade_adapter/widgets/cabinet.c" \
+   "$root/boards/shields/arcade_adapter/widgets/progress.c" \
    "$root/tools/uisim/stub/settings_stub.c"
 
 rm -f "$defs"

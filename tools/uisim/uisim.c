@@ -8,11 +8,11 @@
  * stub/uisim_state.h instead, so the dashboard comes out filled in rather
  * than empty - plausible, not live.
  *
- *   cc -I tools/uisim/stub -I boards/shields/pacman_adapter/widgets \
+ *   cc -I tools/uisim/stub -I boards/shields/arcade_adapter/widgets \
  *      -o /tmp/uisim tools/uisim/uisim.c \
- *      boards/shields/pacman_adapter/widgets/helpers/display.c \
- *      boards/shields/pacman_adapter/widgets/splash.c \
- *      boards/shields/pacman_adapter/widgets/logo.c
+ *      boards/shields/arcade_adapter/widgets/helpers/display.c \
+ *      boards/shields/arcade_adapter/widgets/splash.c \
+ *      boards/shields/arcade_adapter/widgets/logo.c
  *   /tmp/uisim <out-dir> [theme] [rotation] [slot-mode]
  *
  * SPDX-License-Identifier: MIT
@@ -25,7 +25,7 @@
 #include <zephyr/drivers/display.h>
 
 #include "action_button.h"
-#include "arcade.h"
+#include "cabinet.h"
 /* the made-up dongle state the widgets ask for; see the header */
 #include "uisim_state.h"
 #include "battery_status.h"
@@ -35,7 +35,7 @@
 #include "layer_status.h"
 #include "logo.h"
 #include "modifier.h"
-#include "pacman.h"
+#include "arcade.h"
 #include "output_status.h"
 #include "progress.h"
 #include "sound.h"
@@ -53,17 +53,17 @@ const struct device sim_display_dev = {.name = "sim"};
  * answered rather than compiled out - keeping the widgets exactly as the
  * firmware builds them is the whole point of this harness.
  */
-void pacman_sound_init(void) {}
-void pacman_sound_quiet(void) {}
-void pacman_sound_connected(bool connected) { (void)connected; }
-void pacman_sound_set_mute(bool muted) { (void)muted; }
-void pacman_sound_set_volume(uint8_t volume) { (void)volume; }
-void pacman_sound_set_bass_floor(uint16_t floor_hz) { (void)floor_hz; }
+void arcade_sound_init(void) {}
+void arcade_sound_quiet(void) {}
+void arcade_sound_connected(bool connected) { (void)connected; }
+void arcade_sound_set_mute(bool muted) { (void)muted; }
+void arcade_sound_set_volume(uint8_t volume) { (void)volume; }
+void arcade_sound_set_bass_floor(uint16_t floor_hz) { (void)floor_hz; }
 
-void pacman_start(void) {}
-void pacman_stop(void) {}
-void pacman_toggle_pause(void) {}
-bool pacman_is_paused(void) { return true; }
+void arcade_start(void) {}
+void arcade_stop(void) {}
+void arcade_toggle_pause(void) {}
+bool arcade_is_paused(void) { return true; }
 
 /*
  * The slot widget draws which profile the dongle is on, and the action button
@@ -71,9 +71,9 @@ bool pacman_is_paused(void) { return true; }
  * The number comes out of uisim_state.h with the rest of the made-up state, so
  * the dashboard shows a plausible one; stepping stays where it is.
  */
-int pacman_profile_current(void) { return UISIM_PROFILE_SLOT; }
-int pacman_profile_next(void) { return UISIM_PROFILE_SLOT; }
-int pacman_profile_load(int slot, bool *reboot, pacman_profile_progress_cb progress) {
+int arcade_profile_current(void) { return UISIM_PROFILE_SLOT; }
+int arcade_profile_next(void) { return UISIM_PROFILE_SLOT; }
+int arcade_profile_load(int slot, bool *reboot, arcade_profile_progress_cb progress) {
     (void)slot;
     (void)progress;
     if (reboot) {
@@ -82,8 +82,8 @@ int pacman_profile_load(int slot, bool *reboot, pacman_profile_progress_cb progr
     return 0;
 }
 
-void pacman_reload_palette(void) {}
-void pacman_set_frame_interval(uint32_t ms) { (void)ms; }
+void arcade_reload_palette(void) {}
+void arcade_set_frame_interval(uint32_t ms) { (void)ms; }
 static uint16_t fb[PANEL][PANEL];
 
 void display_write(const struct device *dev, uint16_t x, uint16_t y,
@@ -241,7 +241,7 @@ int main(int argc, char **argv) {
 
     /* and the dashboard: its frames, and the header a few steps into its lap */
     logo_animation_init();
-    arcade_init();
+    cabinet_init();
     zmk_widget_output_status_init();
     zmk_widget_peripheral_battery_status_init();
     zmk_widget_layer_init();
@@ -256,12 +256,12 @@ int main(int argc, char **argv) {
     }
     write_ppm(dir, "dashboard");
 
-    /* and the same readouts drawn the other way, as the arcade dashboard */
-    set_dashboard_style(DASHBOARD_STYLE_ARCADE);
+    /* and the same readouts drawn the other way, as the cabinet dashboard */
+    set_dashboard_style(DASHBOARD_STYLE_CABINET);
     print_menu();
-    write_ppm(dir, "dashboard-arcade");
+    write_ppm(dir, "dashboard-cabinet");
     set_dashboard_style(DASHBOARD_STYLE_CLASSIC);
-    arcade_set_active(false);
+    cabinet_set_active(false);
 
     /*
      * And the modal a profile switch puts over whichever screen is up.  Drawn

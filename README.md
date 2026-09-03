@@ -1,4 +1,4 @@
-# Pac-Man Dongle Module 🟡
+# Arcade Dongle Module 🕹️
 
 A self-playing arcade cabinet for the
 [snake dongle](https://github.com/joaopedropio/snake-dongle) hardware: a ZMK
@@ -96,7 +96,7 @@ manifest:
       remote: zmkfirmware
       revision: main
       import: app/west.yml
-    - name: zmk-pacman
+    - name: zmk-arcade
       remote: joaopedropio
       revision: main
   self:
@@ -106,19 +106,19 @@ manifest:
 (`name:` is the GitHub repository name — change it if you publish this
 under a different one.)
 
-Then build the dongle with the `pacman_adapter` shield, next to your
+Then build the dongle with the `arcade_adapter` shield, next to your
 keyboard's own dongle shield, in `build.yaml`:
 
 ```yaml
 include:
   - board: nice_nano_v2
-    shield: my_keyboard_dongle pacman_adapter
+    shield: my_keyboard_dongle arcade_adapter
 ```
 
 That is the whole setup: the shield chooses the custom status screen, so the
 animation starts by itself once the dongle boots.
 
-> The `pacman_adapter` shield describes the same panel, amplifier pins and
+> The `arcade_adapter` shield describes the same panel, amplifier pins and
 > action button as `snake_adapter`, and it ships the same
 > `zmk,behavior-dongle-action` behaviour. Use one adapter or the other — do
 > not pull both modules into the same build, or the behaviour will be
@@ -149,12 +149,12 @@ is the whole look under a name, and the dashboard's `theme` slot draws which
 one you are on as `PROF nn` rather than `SKIN nn`. Empty slots are skipped, and
 a dongle with one profile stays where it is.
 
-The two thresholds are `CONFIG_PACMAN_THEME_THRESHOLD` and
-`CONFIG_PACMAN_MUTE_THRESHOLD` — the first keeps its name so that the value
+The two thresholds are `CONFIG_ARCADE_THEME_THRESHOLD` and
+`CONFIG_ARCADE_MUTE_THRESHOLD` — the first keeps its name so that the value
 stored under it, and in every saved profile, survives. The mute is saved, so a dongle switched off
 muted comes back muted, and it silences whatever is sounding at the time.
 Unmuting chirps, since a mute that says nothing either way gives you no way to
-tell which state you are in. Setting `CONFIG_PACMAN_MUTE_THRESHOLD=0` leaves
+tell which state you are in. Setting `CONFIG_ARCADE_MUTE_THRESHOLD=0` leaves
 the button with the first two presses.
 
 The same three presses are available from the keymap: bind
@@ -165,12 +165,12 @@ The same three presses are available from the keymap: bind
 The panel is shared by three things, one at a time, and none of them is an
 LVGL widget — they all draw straight to the display.
 
-**The splash** goes up first, in one of two styles. `PACMAN_SPLASH_STYLE`
+**The splash** goes up first, in one of two styles. `ARCADE_SPLASH_STYLE`
 `drawn` builds it out of the wordmark, Pac-Man about to run into a ghost, and
 who to blame — every colour of it a setting you can change. `image` puts up
 the poster in `splash_image.h` instead, which brings its own eight colours and
 ignores those settings. Either stays for two and a half seconds
-(`PACMAN_SPLASH_FRAMES` × `PACMAN_SPLASH_INTERVAL`), which is also what keeps
+(`ARCADE_SPLASH_FRAMES` × `ARCADE_SPLASH_INTERVAL`), which is also what keeps
 LVGL's first flush of its own empty screen off the game.
 
 The picture is run-length encoded — a palette index and a length packed into
@@ -180,7 +180,7 @@ pixels, and eight flat colours of poster come to about 8 KB instead of 115.
 Swap in your own by replacing `tools/splash_art.png` and regenerating:
 
 ```sh
-python3 tools/splash_image.py > boards/shields/pacman_adapter/widgets/splash_image.h
+python3 tools/splash_image.py > boards/shields/arcade_adapter/widgets/splash_image.h
 ```
 
 **The game** owns the whole panel, and is the maze, the shooter, the brick
@@ -194,25 +194,25 @@ underneath; the ridge keeps a band for the score, the grenades in hand and the
 lives left; the crossing does the shooter's trick with small frogs and puts its
 clock along the bottom as a bar that shrinks. Everything else is playfield.
 
-**The dashboard** is a grid of slots: `PACMAN_INFO_SLOT_MODE` picks the layout
-and `PACMAN_INFO_SLOT_1` … `_6` say what goes in each one — `connectivity`,
+**The dashboard** is a grid of slots: `ARCADE_INFO_SLOT_MODE` picks the layout
+and `ARCADE_INFO_SLOT_1` … `_6` say what goes in each one — `connectivity`,
 `layer`, `theme` (which profile the dongle is on), `wpm`, `modifiers`,
 `battery` or nothing. Its header is a lap
 of the maze in miniature, a ring of pellets with Pac-Man running it and a ghost
 a few steps behind. Batteries take the strip along the bottom, one, two or
-three of them per `PACMAN_BATTERY_SLOTS`.
+three of them per `ARCADE_BATTERY_SLOTS`.
 
 A mode with fewer slots drops them from the top, not the bottom: `_5` and `_6`
 are the two that 2-slot keeps, `_3` upwards for 4-slot, `_2` upwards for
 5-slot. The configurator only shows the slots the chosen mode has, so the rest
 keep their setting but are neither drawn nor offered.
 
-`dashboard-style` (`PACMAN_DASHBOARD_STYLE`) switches the whole thing for
-`arcade`: one fixed cabinet-HUD layout — the active layer name across the top,
+`dashboard-style` (`ARCADE_DASHBOARD_STYLE`) switches the whole thing for
+`cabinet`: one fixed cabinet-HUD layout — the active layer name across the top,
 the WPM as a big score with the USB and BT lamps beside it, the modifiers as
 lit buttons, the batteries as `ENERGY` bars. It ignores the slot settings, has
 no animated header, and repaints live from the same colour settings the classic
-one uses, so `pacman set dashboard-style arcade` takes effect without a
+one uses, so `arcade set dashboard-style cabinet` takes effect without a
 reflash.
 
 **A widget goes in one slot only.** Nothing refuses the second one, which is
@@ -224,15 +224,15 @@ may repeat, being a blank slot rather than a widget. The configurator keeps the
 state out of reach: choosing a widget that is somewhere else moves it, and the
 slot it came from takes whatever the destination was showing.
 
-`PACMAN_DEFAULT_SCREEN` decides which of the last two comes up after the
+`ARCADE_DEFAULT_SCREEN` decides which of the last two comes up after the
 splash. Themes are the eleven colour schemes in `helpers/display.c`; the first
-is yours to set with `PACMAN_THEME_*`, and the choice is remembered across
+is yours to set with `ARCADE_THEME_*`, and the choice is remembered across
 reboots. They colour the splash and the dashboard only — the maze keeps the
-arcade's own colours whatever theme is up, set by the `PACMAN_*_COLOR` options
+arcade's own colours whatever theme is up, set by the `ARCADE_*_COLOR` options
 below. Nothing steps through them any more, and the configurator offers no
 control for the number: profiles took that job, and theme 0 — the default —
 is the one that paints the dashboard from the individual colours rather than
-deriving it. `pacman set theme` still reaches the others.
+deriving it. `arcade set theme` still reaches the others.
 
 The screens, their fonts and the slot machinery are ported from
 [snake-module](https://github.com/joaopedropio/snake-module): same widgets,
@@ -241,50 +241,50 @@ redrawn for this one.
 
 ## Configuration
 
-All options live in `Kconfig` and are prefixed with `PACMAN_`. Put them in your
-`config/<shield>.conf` (or the shield's `pacman_adapter.conf`). These are the
+All options live in `Kconfig` and are prefixed with `ARCADE_`. Put them in your
+`config/<shield>.conf` (or the shield's `arcade_adapter.conf`). These are the
 ones worth knowing about; the rest colour the dashboard and are listed in
 `Kconfig` with the same naming as snake-module's.
 
 | Option | Default | What it does |
 |---|---|---|
-| `CONFIG_PACMAN_ROTATE_DISPLAY` | `0` | Panel rotation: 0, 90, 180 or 270. Only the rotation you pick is compiled in. |
-| `CONFIG_PACMAN_FRAME_INTERVAL` | `33` | Milliseconds per frame (33 ≈ 30 fps). |
-| `CONFIG_PACMAN_DEFAULT_SCREEN` | `game` | Which screen comes up after the splash. |
-| `CONFIG_PACMAN_DEFAULT_GAME` | `pacman` | Which game the game screen plays: `pacman`, `shooter`, `bomber`, `fighter`, `commando` or `frogger`. |
-| `CONFIG_PACMAN_SPLASH_STYLE` | `drawn` | Which splash: `drawn` from the wordmark and sprites, or the `image` in `splash_image.h`. |
-| `CONFIG_PACMAN_SOUND` | `y` | Drive the I2S amplifier at all. `n` compiles the whole sound path out. |
-| `CONFIG_PACMAN_SOUND_VOLUME` | `80` | How loud, 0 to 100. 100 is unity; a limiter catches the peaks. |
-| `CONFIG_PACMAN_SOUND_CONNECT` | `y` | Chirp when a keyboard connects or drops off. |
-| `CONFIG_PACMAN_MUTE_THRESHOLD` | `600` | Milliseconds of hold that mute and unmute. `0` disables the mute press. |
-| `CONFIG_PACMAN_SOUND_BASS_FLOOR_HZ` | `0` | Notes below this are doubled until they clear it, for a speaker that cannot reproduce them. Off by default: it changes the voicing. |
-| `CONFIG_PACMAN_SOUND_SAMPLE_RATE` | `16000` | Samples per second; the nRF I2S clock picks the closest it can hit. |
-| `CONFIG_PACMAN_WPM_SPEED` | `y` | Speed the game up while you type. |
-| `CONFIG_PACMAN_WPM_SLOW` / `_FAST` | `20` / `60` | WPM thresholds for the 3px and 5px gears, either side of the 4px default. |
-| `CONFIG_PACMAN_BG_COLOR` | `000000` | Background. |
-| `CONFIG_PACMAN_WALL_COLOR` | `2121de` | Maze wall outline. |
-| `CONFIG_PACMAN_WALL_FILL_COLOR` | `00003c` | Inside of the wall tubes, and the margin behind the border line. Set it to `000000` for hollow walls. |
-| `CONFIG_PACMAN_WALL_FLASH_COLOR` | `f8f8f8` | Wall colour while the maze flashes at the end of a level. |
-| `CONFIG_PACMAN_HOUSE_COLOR` | `6d6dff` | Ghost house outline. |
-| `CONFIG_PACMAN_DOOR_COLOR` | `ffb8ff` | Ghost house door. |
-| `CONFIG_PACMAN_PELLET_COLOR` | `ffb897` | Pellets and power pellets. |
-| `CONFIG_PACMAN_PACMAN_COLOR` | `ffee00` | Pac-Man. |
-| `CONFIG_PACMAN_GHOST_0..3_COLOR` | `ff0000`, `ffb8ff`, `00ffff`, `ffb852` | The four ghosts. |
-| `CONFIG_PACMAN_FRIGHT_COLOR` | `2121de` | A frightened ghost. |
-| `CONFIG_PACMAN_SPACE_COLOR` | `05060f` | Behind the stars. |
-| `CONFIG_PACMAN_STAR_COLOR` | `8899bb` | The stars. |
-| `CONFIG_PACMAN_SHIP_COLOR` / `_TRIM_` | `6ee7ff` / `ffffff` | Ship hull and cockpit. |
-| `CONFIG_PACMAN_THRUSTER_COLOR` | `ff8a1f` | The exhaust, and nothing else. |
-| `CONFIG_PACMAN_BULLET_COLOR` | `fff36b` | Shots. |
-| `CONFIG_PACMAN_METEOR_COLOR` / `_EDGE_` | `5a5f7a` / `a3adc9` | Meteor fill and rim. |
-| `CONFIG_PACMAN_BLAST_COLOR` | `ff5a2b` | A meteor coming apart. |
-| `CONFIG_PACMAN_POWERUP_COLOR` | `39ff9e` | A pickup, and the shield it grants. |
-| `CONFIG_PACMAN_HUD_COLOR` | `ffee00` | Score and lives, on every panel that has one. |
+| `CONFIG_ARCADE_ROTATE_DISPLAY` | `0` | Panel rotation: 0, 90, 180 or 270. Only the rotation you pick is compiled in. |
+| `CONFIG_ARCADE_FRAME_INTERVAL` | `33` | Milliseconds per frame (33 ≈ 30 fps). |
+| `CONFIG_ARCADE_DEFAULT_SCREEN` | `game` | Which screen comes up after the splash. |
+| `CONFIG_ARCADE_DEFAULT_GAME` | `pacman` | Which game the game screen plays: `pacman`, `shooter`, `bomber`, `fighter`, `commando` or `frogger`. |
+| `CONFIG_ARCADE_SPLASH_STYLE` | `drawn` | Which splash: `drawn` from the wordmark and sprites, or the `image` in `splash_image.h`. |
+| `CONFIG_ARCADE_SOUND` | `y` | Drive the I2S amplifier at all. `n` compiles the whole sound path out. |
+| `CONFIG_ARCADE_SOUND_VOLUME` | `80` | How loud, 0 to 100. 100 is unity; a limiter catches the peaks. |
+| `CONFIG_ARCADE_SOUND_CONNECT` | `y` | Chirp when a keyboard connects or drops off. |
+| `CONFIG_ARCADE_MUTE_THRESHOLD` | `600` | Milliseconds of hold that mute and unmute. `0` disables the mute press. |
+| `CONFIG_ARCADE_SOUND_BASS_FLOOR_HZ` | `0` | Notes below this are doubled until they clear it, for a speaker that cannot reproduce them. Off by default: it changes the voicing. |
+| `CONFIG_ARCADE_SOUND_SAMPLE_RATE` | `16000` | Samples per second; the nRF I2S clock picks the closest it can hit. |
+| `CONFIG_ARCADE_WPM_SPEED` | `y` | Speed the game up while you type. |
+| `CONFIG_ARCADE_WPM_SLOW` / `_FAST` | `20` / `60` | WPM thresholds for the 3px and 5px gears, either side of the 4px default. |
+| `CONFIG_ARCADE_BG_COLOR` | `000000` | Background. |
+| `CONFIG_ARCADE_WALL_COLOR` | `2121de` | Maze wall outline. |
+| `CONFIG_ARCADE_WALL_FILL_COLOR` | `00003c` | Inside of the wall tubes, and the margin behind the border line. Set it to `000000` for hollow walls. |
+| `CONFIG_ARCADE_WALL_FLASH_COLOR` | `f8f8f8` | Wall colour while the maze flashes at the end of a level. |
+| `CONFIG_ARCADE_HOUSE_COLOR` | `6d6dff` | Ghost house outline. |
+| `CONFIG_ARCADE_DOOR_COLOR` | `ffb8ff` | Ghost house door. |
+| `CONFIG_ARCADE_PELLET_COLOR` | `ffb897` | Pellets and power pellets. |
+| `CONFIG_ARCADE_PACMAN_COLOR` | `ffee00` | Pac-Man. |
+| `CONFIG_ARCADE_GHOST_0..3_COLOR` | `ff0000`, `ffb8ff`, `00ffff`, `ffb852` | The four ghosts. |
+| `CONFIG_ARCADE_FRIGHT_COLOR` | `2121de` | A frightened ghost. |
+| `CONFIG_ARCADE_SPACE_COLOR` | `05060f` | Behind the stars. |
+| `CONFIG_ARCADE_STAR_COLOR` | `8899bb` | The stars. |
+| `CONFIG_ARCADE_SHIP_COLOR` / `_TRIM_` | `6ee7ff` / `ffffff` | Ship hull and cockpit. |
+| `CONFIG_ARCADE_THRUSTER_COLOR` | `ff8a1f` | The exhaust, and nothing else. |
+| `CONFIG_ARCADE_BULLET_COLOR` | `fff36b` | Shots. |
+| `CONFIG_ARCADE_METEOR_COLOR` / `_EDGE_` | `5a5f7a` / `a3adc9` | Meteor fill and rim. |
+| `CONFIG_ARCADE_BLAST_COLOR` | `ff5a2b` | A meteor coming apart. |
+| `CONFIG_ARCADE_POWERUP_COLOR` | `39ff9e` | A pickup, and the shield it grants. |
+| `CONFIG_ARCADE_HUD_COLOR` | `ffee00` | Score and lives, on every panel that has one. |
 
 The brick field, the ring and the ridge colour the same way and are left out of
-the table only for its width: `PACMAN_FLOOR_COLOR` and its neighbours in
-`Kconfig` are the board, `PACMAN_RING_*` and `PACMAN_FIGHTER_*` the stage and
-the two fighters, and `PACMAN_SKY_*` through `PACMAN_CRATE_COLOR` the ridge.
+the table only for its width: `ARCADE_FLOOR_COLOR` and its neighbours in
+`Kconfig` are the board, `ARCADE_RING_*` and `ARCADE_FIGHTER_*` the stage and
+the two fighters, and `ARCADE_SKY_*` through `ARCADE_CRATE_COLOR` the ridge.
 
 Colours are plain `rrggbb` strings (a leading `#` or `0x` is fine) and are
 converted to RGB565 once at boot.
@@ -294,8 +294,8 @@ converted to RGB565 once at boot.
 Kconfig is only the default. Every option in the table above — and every
 colour, interval and threshold besides — can be stored on the dongle instead,
 and what it stores wins on every boot after that. The action button already
-does this for the theme and the mute; turning on the Zephyr shell adds a
-`pacman` command for the other eighty-odd:
+does this for the theme and the mute; turning on the Zephyr shell adds an
+`arcade` command for the other eighty-odd:
 
 ```
 CONFIG_SHELL=y
@@ -318,7 +318,7 @@ Then a serial terminal on `/dev/tty.usbmodem*` (macOS) or `/dev/ttyACM*`
 (Linux):
 
 ```
-uart:~$ pacman get
+uart:~$ arcade get
 * theme                    3              live
   mute                     off            live
   screen                   game           next boot
@@ -329,11 +329,11 @@ uart:~$ pacman get
   volume                   80             live
   frame-interval           33             live
 
-uart:~$ pacman set game-ghost-0 39ff14
+uart:~$ arcade set game-ghost-0 39ff14
 game-ghost-0 is now 39ff14
-uart:~$ pacman set slot3 modifiers
+uart:~$ arcade set slot3 modifiers
 slot3 will be modifiers from the next boot
-uart:~$ pacman reset all
+uart:~$ arcade reset all
 forgotten; the next boot takes what the firmware was built with
 ```
 
@@ -342,22 +342,22 @@ whatever made it — and the dongle is always on one of them. A freshly flashed
 one is on “Default” in slot 0, which holds what the firmware was built with:
 
 ```
-uart:~$ pacman profile current
+uart:~$ arcade profile current
 0	Default
 end
-uart:~$ pacman profile save 1 "Desk"
+uart:~$ arcade profile save 1 "Desk"
 saved 86 settings to profile 1 as "Desk"; the dongle is on it now
-uart:~$ pacman profile list
+uart:~$ arcade profile list
 0	Default	86
 1	Desk	86
 2	-	0
 ...
 end
-uart:~$ pacman profile load 0
+uart:~$ arcade profile load 0
 loaded profile 0; 31 settings moved, and the layout needs a restart to show
 ```
 
-Being on a profile means the live settings *are* that profile: `pacman set`
+Being on a profile means the live settings *are* that profile: `arcade set`
 reaches flash as you type it, and what it writes is the profile you are on.
 There is no unsaved half to lose and nothing to remember to save. To keep a
 look before changing it, `save` it into another slot — that snapshots what is
@@ -373,7 +373,7 @@ configurator imports a file, and the one thing here that does not move you
 onto what it wrote. That is also why `commit` refuses the slot you are on: that
 slot is whatever is on the panel, so a record written there would be dropped
 the moment you moved off it. Five slots by default,
-`CONFIG_PACMAN_PROFILE_SLOTS`; each costs about eight hundred bytes of the
+`CONFIG_ARCADE_PROFILE_SLOTS`; each costs about eight hundred bytes of the
 storage partition once it is used and nothing while it is empty. Because each
 setting is written down by the hash of its name, a profile saved by an older
 firmware still loads after settings are added or reordered — it simply says
@@ -386,7 +386,7 @@ startup, and the splash is over before you can reach a prompt — so those are
 stored and drawn on the next boot, which the shell tells you.
 
 One wrinkle worth knowing: `theme-primary` and its three companions only reach
-the dashboard when `CONFIG_PACMAN_USE_COMPLETE_CUSTOM_THEME=n`. With it on
+the dashboard when `CONFIG_ARCADE_USE_COMPLETE_CUSTOM_THEME=n`. With it on
 (the default) theme 0 is painted from the individual dashboard colours
 instead, and those are all settable in their own right.
 
@@ -398,7 +398,7 @@ static file with no build step and no server, so hosting it anywhere is a
 copy: this repo keeps the canonical version, and the deployed copy is that
 file with a header comment saying so.
 
-It works out what to draw by asking the dongle — `pacman schema` answers with
+It works out what to draw by asking the dongle — `arcade schema` answers with
 one tab-separated line per setting — so the page never needs updating when the
 firmware gains a setting, and it cannot show you a control for one that is not
 there.
@@ -448,7 +448,7 @@ without changing anything now. Below that are the dongle's own slots,
 with Load, Duplicate, Rename, Delete and Export, and an Import that reads a
 file another dongle exported. Import stages the values and commits them in one
 write, so bringing a profile in never disturbs the settings you are looking at.
-A firmware without `pacman profile` simply gets no tab, and the rest of the
+A firmware without `arcade profile` simply gets no tab, and the rest of the
 page carries on.
 
 Which profile the dongle is on sits at the end of the tab strip, because it is
@@ -892,9 +892,9 @@ it can stay soldered where it is and stay quiet.)
 | GAIN | — | floating is 9 dB; tie it straight to GND for 15 dB |
 | GND, Vin | GND, VCC | 3.3 V works; 5 V is louder if the board has it |
 
-Those pins are `i2s0_default` and the `pacman_amp` node in
-`pacman_adapter.overlay`, which is the only place to change them if your wiring
-differs. `CONFIG_PACMAN_SOUND=n` compiles all of it out, and so does leaving
+Those pins are `i2s0_default` and the `arcade_amp` node in
+`arcade_adapter.overlay`, which is the only place to change them if your wiring
+differs. `CONFIG_ARCADE_SOUND=n` compiles all of it out, and so does leaving
 the amplifier out of the devicetree.
 
 **Every game is silent.** Munching, dying and clearing the maze all went out
@@ -919,7 +919,7 @@ sounds at power-on, when the halves connecting is the normal state of things
 rather than news.
 
 Behind those two chirps is a small polyphonic synth rather than a beeper, in
-portable C in `widgets/game/pacman_sfx.c`, with the tunes written as notes in
+portable C in `widgets/game/arcade_sfx.c`, with the tunes written as notes in
 `tools/tunes.py`. An instrument is two oscillators and an envelope; four voices
 are mixed, and when a fifth note arrives the quietest gives way, not the
 oldest. All integer: 16.16 phases, Q15 envelopes, one 256-entry sine table. A
@@ -931,7 +931,7 @@ If you write a score of your own, the register matters more than the notes: a
 up at 1.3 kHz puts real energy exactly where the ear is sharpest. The chirps
 ended up a sine with one quiet octave over it, sitting in the middle of the
 speaker's range and easing in rather than being struck.
-`CONFIG_PACMAN_SOUND_BASS_FLOOR_HZ` is there for a tune that does go low: it
+`CONFIG_ARCADE_SOUND_BASS_FLOOR_HZ` is there for a tune that does go low: it
 doubles notes until they clear the floor, keeping the intervals.
 
 `widgets/sound.c` is the part that has to know about Zephyr. It keeps blocks of
@@ -950,14 +950,14 @@ matching a full
 repaint) and can dump PPM frames:
 
 ```sh
-tools/sim/build.sh /tmp/pacman-sim
-/tmp/pacman-sim 3000                          # 100 seconds, invariants only
-/tmp/pacman-sim 640 2 /tmp/frames 40          # frames, every-nth, dir, from, speed
-/tmp/pacman-sim shooter 3000                  # another game, same arguments
-/tmp/pacman-sim bomber 3000                   # and the third
-/tmp/pacman-sim fighter 3000                  # the fourth
-/tmp/pacman-sim commando 3000                 # the fifth
-/tmp/pacman-sim frogger 3000                  # and the sixth
+tools/sim/build.sh /tmp/arcade-sim
+/tmp/arcade-sim 3000                          # 100 seconds, invariants only
+/tmp/arcade-sim 640 2 /tmp/frames 40          # frames, every-nth, dir, from, speed
+/tmp/arcade-sim shooter 3000                  # another game, same arguments
+/tmp/arcade-sim bomber 3000                   # and the third
+/tmp/arcade-sim fighter 3000                  # the fourth
+/tmp/arcade-sim commando 3000                 # the fifth
+/tmp/arcade-sim frogger 3000                  # and the sixth
 ```
 
 The game name goes in front and may be left out, in which case it is the maze.
@@ -994,12 +994,12 @@ tools/sfxsim/build.sh /tmp/sfxsim
 ## Layout
 
 ```
-boards/shields/pacman_adapter/
-├── pacman_adapter.overlay      panel, backlight, amplifier and action button
+boards/shields/arcade_adapter/
+├── arcade_adapter.overlay      panel, backlight, amplifier and action button
 ├── Kconfig.defconfig           display + LVGL defaults for the shield
 ├── custom_status_screen.c      hands ZMK an empty screen, starts the timer
 └── widgets/
-    ├── pacman.c                display device, palettes, LVGL timer, which game, WPM speed
+    ├── arcade.c                  display device, palettes, LVGL timer, which game, WPM speed
     ├── action_button.c         swaps screens, moves between profiles, mutes
     ├── progress.c              the box and bar shown while one is applied
     ├── splash.c                the wordmark and the chase, or the picture
@@ -1037,8 +1037,8 @@ boards/shields/pacman_adapter/
         ├── kong_render.c       the site, the sprites, the bonus bar
         ├── tempest_core.c      the five wells, what climbs them, and the claw's own aim
         ├── tempest_render.c    the tube in perspective, drawn in lines
-        ├── pacman_sfx.c        the polyphonic synth
-        └── pacman_tunes.h      the tunes (generated, see tools/tunes.py)
+        ├── arcade_sfx.c        the polyphonic synth
+        └── arcade_tunes.h      the tunes (generated, see tools/tunes.py)
 src/, include/, dts/            the zmk,behavior-dongle-action behaviour
 tools/sim/                      host simulator for every game
 tools/uisim/                    host preview for the splash and the dashboard
