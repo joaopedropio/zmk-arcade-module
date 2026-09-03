@@ -26,9 +26,13 @@ config ZMK_DISPLAY_DEDICATED_THREAD_STACK_SIZE
 # scaled bitmap buffers taken from the kernel heap - 12.3 KB of them for the
 # default two-slot layout, and about 16 KB if slot 2 is given one of the big
 # scale-9 fonts.  Zephyr's 8 KB is not enough for that: k_malloc() starts
-# returning NULL and the widgets that got nothing simply do not draw.
+# returning NULL and the widgets that got nothing simply do not draw.  The
+# arcade dashboard adds ~5.6 KB of its own (its fill strip and its score-digit
+# scratch), the profile-switch modal ~4 KB, and the splash is still allocated
+# during init - so 16 KB overflowed and the dashboard came up blank.  32 KB
+# clears the peak with the big-font layout and leaves a few KB in hand.
 config HEAP_MEM_POOL_SIZE
-    default 16384
+    default 32768
 
 choice ST7789V_PIXEL_FORMAT
     default ST7789V_RGB565
